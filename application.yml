@@ -1,0 +1,6 @@
+app:
+  jwt:
+    issuer: "wallet-system"
+    access-ttl-minutes: 60
+    refresh-ttl-days: 1
+    secret: "SUPER_SECRET_ACCESS_TOKEN_T2404E_LON"
