@@ -1,0 +1,62 @@
+@startuml
+skinparam dpi 300
+scale 2
+scale max 4000 width
+title 04. Refund / Withdrawal
+
+|Student (App/Web)|
+start
+:Submit refund / withdrawal request\n- Reason\n- Amount\n- Payout/beneficiary information;
+:Receive notification that the request has been received;
+
+|Accountant|
+:Receive request;
+:Check related transaction history;
+:Check refund/withdrawal conditions/policy;
+if (Eligible?) then (Yes)
+  :Confirm approval;\nDetermine amount and payout method;
+
+  |Internal Wallet System|
+  :Record refund/withdrawal request;
+  :Temporarily hold the corresponding amount in the wallet;\nSave processing history;
+
+  |Intermediary Payment Gateway|
+  :Receive payout request\n(amount + beneficiary information);
+  if (Gateway accepts processing?) then (Yes)
+    :Execute transfer;
+    if (Transfer successful?) then (Yes)
+      :Send success result notification;
+    else (No)
+      :Send failure result notification;
+    endif
+  else (No)
+    :Reject processing;\nReturn rejection reason;
+  endif
+
+  |Internal Wallet System|
+  :Receive result from gateway;
+  if (Result valid?) then (Yes)
+    if (Result is success?) then (Yes)
+      :Record payout as successful;
+      :Finalize debit of the held amount;
+      :Update request status = SUCCESS;
+    else (No)
+      :Release the held amount;
+      :Update request status = FAILED;
+    endif
+  else (No)
+    :Record invalid notification;\nRequest re-check with gateway;
+  endif
+
+  |Accountant|
+  :Notify student of the result;
+else (No)
+  :Reject request;\nState the reason;
+  :Record rejection outcome;
+endif
+
+|Student (App/Web)|
+:Receive result notification;
+:Check balance/transaction history;
+stop
+@enduml

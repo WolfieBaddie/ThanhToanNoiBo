@@ -1,0 +1,34 @@
+@startuml
+skinparam dpi 300
+' or:
+scale 2
+' or:
+scale max 2000 width
+title 02. Cash Top-up at an Authorized Counter
+
+|Student|
+start
+:Go to the top-up counter;\nProvide student ID / wallet QR;
+:Hand over cash;
+
+|Accountant / Counter Clerk|
+:Count the cash;\nEnter the amount & payer information;
+:Select "Confirm cash top-up";
+
+|System|
+:Verify staff permissions;\nCheck wallet exists & wallet status;
+if (Valid?) then (Yes)
+  :Credit wallet balance;
+  :Create cash top-up transaction\n(refId, timestamp, channel=CASH);
+  :Write audit log;
+  :Return success result;
+else (No)
+  :Return error (insufficient permission /\ninvalid wallet);
+endif
+
+|Accountant / Counter Clerk|
+:Print/display receipt;\nHand receipt to the student;
+
+|Student|
+stop
+@enduml

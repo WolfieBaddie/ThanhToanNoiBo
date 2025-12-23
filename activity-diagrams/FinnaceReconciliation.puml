@@ -1,0 +1,48 @@
+@startuml
+title Reconciliation of Online Top-up with Payment Gateway
+
+|Finance Staff|
+start
+:Log in to Finance module;
+:Open "Online Top-up Reconciliation" screen;
+
+|Wallet System|
+:Authenticate Finance Staff;
+:Display reconciliation options;
+
+|Finance Staff|
+:Select date range for reconciliation;
+:Request "Top-up Online" transactions\nfor that period;
+
+|Wallet System|
+:Fetch TOPUP_ONLINE transactions\nwith status SUCCESS for period;
+:Display or export list to Finance Staff;
+
+|Finance Staff|
+:Obtain payment gateway/bank report\nfor the same period (file or portal) (outside system);
+:Upload report file or input summary\ninto reconciliation tool;
+
+|Wallet System|
+:Compare internal transactions with\ngateway/bank data (orderId, amount, date);
+:Identify:
+- Matched transactions,
+- Internal only (missing on gateway),
+- Gateway only (missing internally);
+:Display reconciliation results;
+
+|Finance Staff|
+:Review mismatches;
+if (Mismatches exist?) then (yes)
+  :Investigate cause (timing, errors,\nmanual corrections, gateway issues);
+  :Document resolution steps;
+else (no)
+  :Mark period as "Reconciled OK";
+endif
+
+|Wallet System|
+:Store reconciliation status and report\nfor audit purposes;
+
+|Finance Staff|
+:Finish reconciliation process;
+stop
+@enduml

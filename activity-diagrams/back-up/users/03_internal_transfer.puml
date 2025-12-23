@@ -1,0 +1,65 @@
+@startuml
+title Transfer (to another student OR to an external account) - Business Flow
+
+|Sender|
+start
+:Select "Transfer";
+:Choose transfer type\n1) To another student\n2) To an external account;
+:Enter recipient information\n(student ID/QR OR receiving account info)\n+ amount + note;
+:Submit request;
+
+|Internal Wallet System|
+:Check sender account is active and usable;
+:Check sender has enough balance;
+:Check transfer rules/limits;
+
+if (Eligible to proceed?) then (Yes)
+
+  if (Transfer type = To another student?) then (Yes)
+    :Check recipient is valid and can receive;
+    if (Recipient valid?) then (Yes)
+      :Move funds to recipient;
+      :Confirm transfer completed;
+    else (No)
+      :Reject transfer;\nProvide reason;
+    endif
+
+  else (No)
+    :Check receiving information is valid;
+    if (Receiving info valid?) then (Yes)
+      :Place the amount on hold;
+      :Send transfer request to the external payment service;
+
+      |Payment Gateway|
+      :Handle the transfer request;
+      :Return transfer result\n(approved or rejected);
+
+      |Internal Wallet System|
+      if (Approved?) then (Yes)
+        :Complete the deduction from sender balance;
+        :Confirm transfer completed;
+      else (No)
+        :Release the held amount;
+        :Reject transfer;\nProvide reason;
+      endif
+
+    else (No)
+      :Reject transfer;\nProvide reason;
+    endif
+  endif
+
+else (No)
+  :Reject transfer;\nProvide reason;
+endif
+
+|Sender|
+:Receive result;
+
+|Recipient|
+if (Transfer type = To another student?) then (Yes)
+  :Receive notification of incoming funds;
+  :View updated balance/history;
+endif
+
+stop
+@enduml

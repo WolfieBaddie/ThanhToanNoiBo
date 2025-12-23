@@ -1,0 +1,38 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title Handling abnormal transaction adjustment requests (Admin)
+
+|Admin|
+start
+:Receive a handling request\n(from Finance/Counter/Student);
+:Select the transaction to review;
+
+|Internal Wallet System|
+:Display transaction details\n(amount, time, channel, status);
+
+|Admin|
+:Verify supporting documents/related records;
+if (Insufficient evidence?) then (Yes)
+  :Reject the request;\nState the reason clearly;
+  stop
+endif
+
+if (Transaction is completed\nand changes are not allowed?) then (Yes)
+  :Switch to another process\n(refund/investigation);
+  stop
+endif
+
+:Choose handling option\n- Increase/decrease wallet balance\n- Refund the amount\n- Add monitoring notes;
+:Enter reason + approver (if required);
+:Confirm;
+
+|Internal Wallet System|
+:Apply the adjustment based on the selected option;
+:Store handling history and attached evidence;
+:Return result;
+
+|Admin|
+:Notify the requester of the result;
+stop
+@enduml

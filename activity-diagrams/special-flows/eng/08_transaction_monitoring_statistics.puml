@@ -1,0 +1,37 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 08. Transaction Monitoring & Reconciliation
+
+|Accounting/Finance|
+start
+:Filter Transaction Reports;
+
+|Payment Gateway|
+:Aggregate Transaction Data;
+
+|Accounting/Finance|
+if (Perform Reconciliation?) then (Yes)
+
+  |Internal Wallet System|
+  :Compare Internal vs. External Totals;
+  note right
+    Identifies "Missing" or "Duplicate"
+    transactions between our system
+    and the bank partner.
+  end note
+endif
+
+|Accounting/Finance|
+:Review Details & Export;
+
+if (Anomaly Detected?) then (Yes)
+  :Flag & Annotate Anomaly;
+
+  |Internal Wallet System|
+  :Save Audit Notes;
+endif
+
+|Accounting/Finance|
+stop
+@enduml

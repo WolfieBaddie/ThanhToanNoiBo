@@ -1,0 +1,54 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 07. Counter Payment via RFID
+
+|Counter Staff / POS|
+start
+:Initiate Checkout via RFID;
+
+|Internal Wallet System|
+if (Wallet Status Valid?) then (No)
+  :Identify Rejection Reason;
+  note right: e.g., Account Locked \nor Card Expired
+  :Notify POS of Account Error;
+  stop
+endif
+
+:Apply Eligible Promotions;
+
+:Check Available Balance;
+
+if (Sufficient Funds?) then (No)
+  :Calculate Required Balance;
+  :Notify POS of Insufficient Funds;
+  stop
+endif
+
+:Reserve Payable Amount;
+note right
+  **Escrow State:**
+  Funds are locked to prevent
+  double-spending.
+end note
+
+|Payment Gateway|
+:Execute Settlement;
+
+|Internal Wallet System|
+if (Settlement Success?) then (Yes)
+  :Complete Fund Transfer;
+
+  |Counter Staff / POS|
+  :Finalize Order & Issue Receipt;
+else (No)
+  |Internal Wallet System|
+  :Identify Gateway Error;
+  :Restore Reserved Funds;
+
+  |Counter Staff / POS|
+  :Notify Payment Failure;
+endif
+
+stop
+@enduml

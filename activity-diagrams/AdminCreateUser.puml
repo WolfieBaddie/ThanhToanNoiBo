@@ -1,0 +1,33 @@
+@startuml
+title Thêm mới người dùng
+
+|Quản trị hệ thống|
+start
+:Đã đăng nhập Admin Portal;
+:Chọn "Thêm mới người dùng";
+
+|Admin Portal|
+:Hiển thị form tạo người dùng;
+
+|Quản trị hệ thống|
+:Nhập thông tin (username, họ tên,\nemail, vai trò, đơn vị);
+
+|Admin Portal|
+:Gửi yêu cầu "Create User"\nđến Wallet System;
+
+|Wallet System|
+:Kiểm tra dữ liệu & quyền tạo;
+if (Hợp lệ?) then (Có)
+  :Tạo user trong DB;
+  :Ghi audit log;
+  :Trả kết quả thành công;
+else (Không)
+  :Trả lỗi (lý do không hợp lệ);
+endif
+
+|Admin Portal|
+:Hiển thị kết quả cho quản trị;
+
+|Quản trị hệ thống|
+stop
+@enduml

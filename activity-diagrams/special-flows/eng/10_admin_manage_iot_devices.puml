@@ -1,0 +1,48 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 04. Admin Manage IOT Devices
+
+|Admin|
+start
+:Browse Device Inventory;
+
+|Admin|
+if (Register New Asset?) then (Yes)
+  :Assign Device to Location & PIC;
+  |Internal Wallet System|
+  :Activate Device for Transactions;
+endif
+
+|Admin|
+if (Update Metadata?) then (Yes)
+  :Update Location or Responsibility;
+endif
+
+|Admin|
+if (Suspend Service?) then (Yes)
+  :Change Operational Status;
+  |Internal Wallet System|
+  :Block Transaction Capabilities;
+endif
+
+|Admin|
+if (Report Asset Loss?) then (Yes)
+  :Mark as Broken or Lost;
+  |Internal Wallet System|
+  :Decommission Device;
+  note right
+    This is critical: it prevents
+    unauthorized or "ghost"
+    transactions on faulty hardware.
+  end note
+endif
+
+|Admin|
+if (Audit?) then (Yes)
+  :Review Usage & Change History;
+endif
+
+|Admin|
+stop
+@enduml

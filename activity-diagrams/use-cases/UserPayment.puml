@@ -1,0 +1,45 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "User" as U
+
+rectangle "Internal Wallet System" {
+
+  package "Funding" {
+    usecase "Top up" as UC_Topup
+    usecase "Online top up" as UC_Topup_Online
+    usecase "Direct top up" as UC_Topup_Direct
+  }
+
+  package "Spending" {
+    usecase "Payment" as UC_Payment
+    usecase "Pay via web/app" as UC_Pay_App
+    usecase "Pay via RFID" as UC_Pay_RFID
+  }
+
+  package "Transfer" {
+    usecase "Internal Transfer" as UC_Transfer
+  }
+
+  package "Inquiry" {
+    usecase "View balance" as UC_Balance
+    usecase "View receipt history" as UC_History
+  }
+}
+
+' Actor interactions (tối giản)
+U --> UC_Topup
+U --> UC_Transfer
+U --> UC_Payment
+U --> UC_Balance
+U --> UC_History
+
+' Variants (tối giản, gọn, đúng ngữ nghĩa)
+UC_Topup_Online -|> UC_Topup
+UC_Topup_Direct -|> UC_Topup
+
+UC_Pay_App -|> UC_Payment
+UC_Pay_RFID -|> UC_Payment
+
+@enduml

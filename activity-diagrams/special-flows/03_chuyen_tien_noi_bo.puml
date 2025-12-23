@@ -1,0 +1,30 @@
+@startuml
+title Chuyển tiền nội bộ giữa sinh viên
+
+|Người gửi|
+start
+:Chọn "Chuyển tiền";
+:Nhập người nhận (mã SV/QR) + số tiền + nội dung;
+
+|Hệ thống ví nội bộ|
+:Kiểm tra người nhận tồn tại và ở trạng thái hợp lệ;
+:Kiểm tra số dư người gửi;\nKhông cho phép số dư âm;
+:Kiểm tra giới hạn;
+if (Đủ điều kiện?) then (Có)
+  :Khóa số dư tạm thời (reservation);
+  :Tạo TransferTxn status=PENDING;
+  :Ghi sổ kép nội bộ\n- Trừ ví người gửi\n- Cộng ví người nhận;
+  :Cập nhật trạng thái giao dịch;
+  :Ghi audit log;
+  :Trả kết quả thành công;
+else (Không)
+  :Trả lỗi (không tìm thấy người nhận/\nví bị khóa/không đủ số dư/vi phạm hạn mức);
+endif
+
+|Người gửi|
+:Nhận kết quả;
+
+|Người nhận|
+:Nhận thông báo nhận tiền;\nXem số dư/lịch sử;
+stop
+@enduml

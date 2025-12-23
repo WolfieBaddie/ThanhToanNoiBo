@@ -1,0 +1,60 @@
+@startuml
+title Theo dõi & thống kê giao dịch (Tài vụ/Kế toán) - có đối chiếu với cổng thanh toán trung gian
+
+|Kế toán/Tài vụ|
+start
+:Chọn chức năng "Theo dõi / Thống kê";
+:Chọn kỳ báo cáo (ngày/tuần/tháng);
+:Chọn loại thống kê\n(Nạp tiền/Thanh toán/Hoàn tiền/Chuyển tiền/Phí...);
+:Thiết lập bộ lọc\n(khoảng thời gian, kênh, trạng thái);
+
+|Hệ thống ví nội bộ|
+:Lấy dữ liệu theo bộ lọc;
+:Tổng hợp số liệu;\nHiển thị bảng/tổng quan;
+
+|Kế toán/Tài vụ|
+if (Cần đối chiếu với cổng thanh toán?) then (Có)
+  :Chọn loại đối chiếu\n(nạp tiền / thanh toán / hoàn tiền);
+  :Nhập khoảng thời gian đối chiếu;
+
+  |Cổng thanh toán trung gian|
+  :Cung cấp dữ liệu giao dịch theo khoảng thời gian\n(danh sách + tổng tiền + trạng thái);
+
+  |Hệ thống ví nội bộ|
+  :Nhận dữ liệu từ cổng;
+  :So sánh số liệu tổng;\nXác định các điểm chênh lệch (nếu có);
+
+  |Kế toán/Tài vụ|
+  if (Có chênh lệch?) then (Có)
+    :Xem danh sách chênh lệch;
+    :Ghi chú nguyên nhân ban đầu;
+  else (Không)
+    :Xác nhận số liệu khớp;
+  endif
+endif
+
+if (Cần xem chi tiết?) then (Có)
+  :Chọn một chỉ số/mốc thời gian;
+  |Hệ thống ví nội bộ|
+  :Hiển thị danh sách giao dịch chi tiết;
+  |Kế toán/Tài vụ|
+  :Xem chi tiết / đối chiếu nhanh;
+endif
+
+if (Cần xuất báo cáo?) then (Có)
+  |Hệ thống ví nội bộ|
+  :Tạo file báo cáo (Excel/PDF/CSV);
+  :Ghi nhận lịch sử xuất báo cáo;
+  |Kế toán/Tài vụ|
+  :Tải báo cáo;
+endif
+
+if (Phát hiện bất thường?) then (Có)
+  :Đánh dấu & ghi chú;
+  |Hệ thống ví nội bộ|
+  :Lưu lại ghi chú theo dõi;
+endif
+
+|Kế toán/Tài vụ|
+stop
+@enduml

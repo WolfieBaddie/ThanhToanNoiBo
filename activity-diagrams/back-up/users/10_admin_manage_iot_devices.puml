@@ -1,0 +1,82 @@
+@startuml
+skinparam dpi 300
+' or:
+scale 2
+' or:
+scale max 2000 width
+title Admin IOT Devices Management
+
+|Admin|
+start
+:Open "Device Management";
+:Select device group\n(counter devices / point-of-service devices);
+
+|System|
+:Display device list\n(with status: in use / suspended / broken,\nlocation, managing unit);
+
+|Admin|
+if (Add a new device?) then (Yes)
+  :Enter device information\n(name, type, location, managing unit,\nasset/hand-over label ID);
+  :Select person in charge;
+  :Submit add request;
+
+  |System|
+  :Check required information;
+  if (Information valid?) then (Yes)
+    :Add device to the list;
+    :Record action history;
+    :Notify successful creation;
+  else (No)
+    :Notify missing/invalid information;
+  endif
+endif
+
+|Admin|
+if (Update device information?) then (Yes)
+  :Select device to update;
+  :Edit details\n(location, person in charge, notes);
+  :Save changes;
+
+  |System|
+  :Save changes;
+  :Record action history;
+  :Notify update successful;
+endif
+
+|Admin|
+if (Suspend or reactivate a device?) then (Yes)
+  :Select device;
+  :Choose action\n(suspend / reactivate);
+  :Enter reason;
+  :Confirm;
+
+  |System|
+  :Update device status;
+  :Record action history;
+  :Notify result;
+endif
+
+|Admin|
+if (Record device as broken/lost?) then (Yes)
+  :Select device;
+  :Select condition\n(broken / lost);
+  :Enter description and time;
+  :Confirm;
+
+  |System|
+  :Update device condition/status;
+  :Remove device from active list (if needed);
+  :Record action history;
+  :Notify result;
+endif
+
+|Admin|
+if (View history & reports?) then (Yes)
+  :Select a device or time range;
+  |System|
+  :Display change history\nand related usage records (if any);
+endif
+
+|Admin|
+stop
+@enduml

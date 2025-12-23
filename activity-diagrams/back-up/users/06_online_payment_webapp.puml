@@ -1,0 +1,81 @@
+@startuml
+skinparam dpi 300
+scale max 3000 width
+title Service payment (apply % promotion + pay via payment gateway)
+
+|Student|
+start
+:Choose service type;
+:Choose invoice to pay;
+:Confirm payment using wallet balance;
+
+|Service Provider / Billing|
+:Provide invoice details\n(amount, provider, payment status);
+
+|Internal Wallet System|
+if (Invoice is valid and unpaid?) then (Yes)
+else (No)
+  |Student|
+  :Payment cannot proceed\n(invoice invalid or already paid);
+  stop
+endif
+
+|Internal Wallet System|
+if (Student wallet is active?) then (Yes)
+else (No)
+  |Student|
+  :Payment cannot proceed\n(wallet inactive or locked);
+  stop
+endif
+
+|Internal Wallet System|
+:Check eligible promotion\n(provider + service type + period + conditions);
+if (Promotion applies?) then (Yes)
+  :Calculate discount and payable amount;
+else (No)
+  :Payable amount remains unchanged;
+endif
+
+|Internal Wallet System|
+if (Sufficient wallet balance?) then (Yes)
+else (No)
+  |Student|
+  :Payment cannot proceed\n(insufficient balance);
+  stop
+endif
+
+|Internal Wallet System|
+:Temporarily hold payable amount;
+:Send payment request to payment gateway;
+
+|Payment Gateway|
+if (Accept for processing?) then (Yes)
+  :Process payment;
+else (No)
+  |Internal Wallet System|
+  :Cancel the hold;
+  |Student|
+  :Payment failed\n(not accepted for processing);
+  stop
+endif
+
+|Payment Gateway|
+if (Payment successful?) then (Yes)
+  |Internal Wallet System|
+  :Confirm payment;
+  :Complete balance deduction;
+  :Record payment and promotion (if any);
+  |Service Provider / Billing|
+  :Mark invoice as paid;
+  |Student|
+  :Receive successful confirmation;
+  stop
+else (No)
+  |Internal Wallet System|
+  :Cancel the hold;
+  |Student|
+  :Payment failed;
+  stop
+endif
+
+@enduml

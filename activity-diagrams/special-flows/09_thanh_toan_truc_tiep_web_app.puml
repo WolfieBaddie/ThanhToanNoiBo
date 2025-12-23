@@ -1,0 +1,118 @@
+@startuml
+title Thanh toán dịch vụ trên Web/App (áp dụng ưu đãi % + qua cổng thanh toán trung gian)
+
+|Sinh viên (App/Web)|
+start
+:Chọn loại dịch vụ;
+
+|Hệ thống dịch vụ/Hoá đơn|
+:Trả danh sách hoá đơn/dịch vụ khả dụng;
+
+|Sinh viên (App/Web)|
+:Chọn hoá đơn cần thanh toán;
+:Nhấn "Thanh toán bằng ví nội bộ";
+
+|Hệ thống ví nội bộ|
+:Nhận yêu cầu thanh toán\n(invoiceId, serviceType);
+:Tra cứu thông tin hoá đơn\n(số tiền gốc, nhà cung cấp/shop, trạng thái);
+
+|Hệ thống dịch vụ/Hoá đơn|
+:Trả thông tin hoá đơn\n(amountOriginal, shop/provider, status);
+
+|Hệ thống ví nội bộ|
+if (Hoá đơn hợp lệ & chưa thanh toán?) then (Có)
+  :Kiểm tra ví người trả tiền ACTIVE;
+  if (Ví ACTIVE?) then (Có)
+    :Tra cứu ưu đãi hợp lệ theo:\nshop/provider + serviceType + thời gian + điều kiện;
+    if (Có ưu đãi?) then (Có)
+      :Tính giảm giá %;\nTạo breakdown (gốc/giảm/thanh toán);
+    else (Không)
+      :Giữ nguyên số tiền thanh toán;
+    endif
+
+    :Kiểm tra số dư;\nKhông cho phép số dư âm;
+    if (Đủ số dư theo số tiền sau giảm?) then (Có)
+      :Tạo PaymentOrder (refId)\nstatus = PENDING;
+      :Phong toả (hold) số tiền sau giảm;
+      :Gửi yêu cầu thanh toán qua cổng\n(refId, invoiceId, amountAfterDiscount,\nshop/provider, serviceType);
+
+      |Cổng thanh toán trung gian|
+      :Nhận yêu cầu thanh toán;
+      if (Cổng tiếp nhận?) then (ACCEPT)
+        :Trả ACCEPT\n(refId, gatewayTxnId);
+      else (REJECT)
+        :Trả REJECT\n(refId, errorCode);
+      endif
+
+      |Hệ thống ví nội bộ|
+      if (Gateway REJECT?) then (Có)
+        :Giải phong toả;\nPaymentOrder = FAILED;\nGhi error log;
+        |Sinh viên (App/Web)|
+        :Nhận lỗi GATEWAY_REJECTED;
+        stop
+      else (Không)
+        :PaymentOrder = PROCESSING;
+        |Sinh viên (App/Web)|
+        :Hiển thị trạng thái "Đang xử lý";
+      endif
+
+      |Cổng thanh toán trung gian|
+      :Xử lý giao dịch/đối soát;
+      if (Thành công?) then (Có)
+        :Callback SUCCESS\n(refId, signature);
+      else (Không)
+        :Callback FAIL\n(refId, signature, errorCode);
+      endif
+
+      |Hệ thống ví nội bộ|
+      :Nhận callback;\nVerify signature;\nLoad PaymentOrder by refId;
+      if (Callback hợp lệ?) then (Có)
+        if (Order đã final?) then (Có)
+          :ACK (idempotent - bỏ qua callback trùng);
+        else (Chưa)
+          if (Callback SUCCESS?) then (Có)
+            :Chốt trừ số dư (capture hold);\nGhi nhận giao dịch PAYMENT\n(kênh=APP/WEB, kèm ưu đãi nếu có);
+            :Ghi audit log;\nPaymentOrder = SUCCESS;
+
+            |Hệ thống dịch vụ/Hoá đơn|
+            :Cập nhật hoá đơn = PAID;\nGhi nhận thời điểm thanh toán;
+
+            |Hệ thống ví nội bộ|
+            :ACK callback;
+            |Sinh viên (App/Web)|
+            :Nhận kết quả SUCCESS;\nXem biên nhận/lịch sử;
+            stop
+          else (Không)
+            :Giải phong toả;\nPaymentOrder = FAILED;\nGhi error log;
+            :ACK callback;
+            |Sinh viên (App/Web)|
+            :Nhận lỗi PAYMENT_FAILED;
+            stop
+          endif
+        endif
+      else (Không)
+        :Reject callback;\nGhi warning log;
+        |Sinh viên (App/Web)|
+        :Nhận lỗi INVALID_CALLBACK;
+        stop
+      endif
+
+    else (Không)
+      |Sinh viên (App/Web)|
+      :Nhận lỗi INSUFFICIENT_FUNDS;
+      stop
+    endif
+
+  else (Không)
+    |Sinh viên (App/Web)|
+    :Nhận lỗi WALLET_INACTIVE/LOCKED;
+    stop
+  endif
+
+else (Không)
+  |Sinh viên (App/Web)|
+  :Nhận lỗi INVOICE_INVALID/ALREADY_PAID;
+  stop
+endif
+
+@enduml

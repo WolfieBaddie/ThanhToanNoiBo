@@ -1,0 +1,68 @@
+@startuml
+skinparam dpi 300
+' or:
+scale 2
+' or:
+scale max 2000 width
+title Transaction monitoring & statistics (Finance/Accounting) - with reconciliation against intermediary payment partner
+
+|Accounting/Finance|
+start
+:Select "Monitoring / Reporting";
+:Select reporting period (day/week/month);
+:Select statistic type\n(Top-up / Payment / Refund / Transfer / Fees...);
+:Set filters\n(time range, channel, status);
+
+|Internal Wallet System|
+:Retrieve data based on filters;
+:Aggregate metrics;\nDisplay dashboard/table;
+
+|Accounting/Finance|
+if (Need reconciliation with payment partner?) then (Yes)
+  :Select reconciliation type\n(top-up / payment / refund);
+  :Enter reconciliation time range;
+
+  |Intermediary Payment Partner|
+  :Provide transaction data for the time range\n(list + totals + status);
+
+  |Internal Wallet System|
+  :Receive partner data;
+  :Compare totals;\nIdentify discrepancies (if any);
+
+  |Accounting/Finance|
+  if (Any discrepancies?) then (Yes)
+    :View discrepancy list;
+    :Add initial notes / suspected causes;
+  else (No)
+    :Confirm figures match;
+  endif
+endif
+
+|Accounting/Finance|
+if (Need transaction details?) then (Yes)
+  :Select a metric/time point;
+  |Internal Wallet System|
+  :Display detailed transaction list;
+  |Accounting/Finance|
+  :Review details / quick cross-check;
+endif
+
+|Accounting/Finance|
+if (Need to export report?) then (Yes)
+  |Internal Wallet System|
+  :Generate report file (Excel/PDF/CSV);
+  :Log report export history;
+  |Accounting/Finance|
+  :Download report;
+endif
+
+|Accounting/Finance|
+if (Anomaly detected?) then (Yes)
+  :Flag and add notes;
+  |Internal Wallet System|
+  :Save monitoring notes;
+endif
+
+|Accounting/Finance|
+stop
+@enduml

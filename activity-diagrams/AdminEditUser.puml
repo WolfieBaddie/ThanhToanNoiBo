@@ -1,0 +1,35 @@
+@startuml
+title Sửa thông tin người dùng nội bộ (Tối giản)
+
+|Quản trị hệ thống|
+start
+:Đã đăng nhập Admin Portal;
+:Chọn "Quản lý người dùng";
+:Chọn 1 người dùng cần sửa;
+
+|Admin Portal|
+:Hiển thị chi tiết người dùng;
+
+|Quản trị hệ thống|
+:Sửa thông tin (vai trò, đơn vị,\nemail/liên hệ...);
+:Nhấn "Lưu";
+
+|Admin Portal|
+:Gửi yêu cầu "Update User"\nđến Wallet System;
+
+|Wallet System|
+:Kiểm tra dữ liệu & quyền cập nhật;
+if (Hợp lệ?) then (Có)
+  :Cập nhật user trong DB;
+  :Ghi audit log;
+  :Trả kết quả thành công;
+else (Không)
+  :Trả lỗi (lý do không hợp lệ);
+endif
+
+|Admin Portal|
+:Hiển thị kết quả;
+
+|Quản trị hệ thống|
+stop
+@enduml

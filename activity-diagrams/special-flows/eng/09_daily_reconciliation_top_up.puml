@@ -1,0 +1,40 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 09. Daily Top-up Reconciliation
+
+|Accounting/Finance|
+start
+:Provide Gateway Transaction File;
+
+|Internal Wallet System|
+if (File Format Valid?) then (No)
+  |Accounting/Finance|
+  :Request Corrected File;
+  stop
+else (Yes)
+  |Internal Wallet System|
+  :Cross-check Transactions;
+
+  if (Fully Matched?) then (Yes)
+    :Mark Reconciliation as SUCCESS;
+  else (No)
+    :Generate Discrepancy List;
+
+    |Accounting/Finance|
+    :Review & Resolve Exceptions;
+
+    |Internal Wallet System|
+    :Apply Financial Adjustments;
+    note right
+      Includes updating transaction
+      amounts, fixing statuses,
+      or triggering manual refunds.
+    end note
+  endif
+endif
+
+|Accounting/Finance|
+:Archive Final Report;
+stop
+@enduml

@@ -1,0 +1,74 @@
+@startuml
+title Online Top-up via Payment Gateway (Swimlane Activity Diagram)
+
+|Student|
+start
+:Open web/app and log in;
+:Select "Top-up wallet";
+:Enter top-up amount;
+:Choose payment method (e.g. VNPAY, MoMo);
+
+|Wallet System|
+:Create PENDING top-up order
+(orderId, studentId, amount);
+:Store order in DB with status = "PENDING";
+:Generate payment request (orderId, amount, returnUrl, callbackUrl, signature);
+:Redirect / send student to Payment Gateway page;
+
+|Payment Gateway|
+:Display payment page (amount, merchant info);
+:Student enters bank / e-wallet details;
+:Process payment with bank/third-party;
+
+if (Payment approved by bank?) then (yes)
+  :Mark transaction SUCCESS on gateway side;
+else (no)
+  :Mark transaction FAILED on gateway side;
+endif
+
+:Redirect student back to Wallet System return URL
+(with basic result info);
+
+|Wallet System|
+:Receive browser return from gateway;
+:Show provisional result screen to student
+("Processing" / "Success" / "Failed");
+note right
+Browser return is only for user experience.
+Final decision depends on server-to-server
+callback (IPN) from the payment gateway.
+end note
+
+:Wait for server-to-server callback (IPN);
+
+|Payment Gateway|
+:Send IPN/Callback to Wallet System
+(orderId, status, amount, signature);
+
+|Wallet System|
+:Receive IPN/Callback;
+:Verify signature & data consistency;
+
+if (Signature valid AND status = SUCCESS?) then (yes)
+  :Check if order is still PENDING;
+  if (Order already processed?) then (yes)
+    :Ignore (idempotent handling);
+  else (no)
+    :Update order status = "SUCCESS";
+    :Increase student's wallet balance by amount;
+    :Create wallet transaction record (TOPUP_ONLINE);
+  endif
+else (no)
+  :Update order status = "FAILED" or "CANCELLED";
+  :Do NOT change wallet balance;
+endif
+
+|Student|
+:Later, open wallet screen again;
+:View updated balance and top-up transaction;
+stop
+
+|Finance / Accounting|
+:Periodically run reconciliation reports
+between Wallet System and Payment Gateway;
+@enduml

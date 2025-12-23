@@ -1,0 +1,53 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 03. [Admin] Authorized Counter Configuration
+
+|Admin|
+start
+:Configure Counter Profile;
+note right
+  **Configuration includes:**
+  * Location & Responsible Unit
+  * Authorized Staff Assignments
+  * Daily & Transaction Limits
+end note
+
+|Internal Wallet System|
+if (Information Complete?) then (No)
+  :Flag Missing Requirements;
+  |Admin|
+  :Complete Profile Details;
+  |Internal Wallet System|
+endif
+
+:Validate Staff Eligibility;
+note right
+  Checks for active employment
+  and security clearance status.
+end note
+
+if (Staff Eligible?) then (No)
+  :Reject Activation;
+  :State Ineligibility Reason;
+  stop
+endif
+
+if (Counter Profile Exists?) then (Yes)
+  :Apply Updates to Existing Counter;
+else (No)
+  :Register New Authorized Counter;
+endif
+
+:Grant Operational Authorization;
+
+:Record Configuration History;
+note right
+  Audit log tracks Admin ID
+  and changed parameters.
+end note
+
+|Admin|
+:Review Status & Notify Units;
+stop
+@enduml

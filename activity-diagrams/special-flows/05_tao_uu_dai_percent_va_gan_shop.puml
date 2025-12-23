@@ -1,0 +1,28 @@
+@startuml
+title Kế toán tạo ưu đãi % và liên kết với shop/dịch vụ
+
+|Kế toán/Tài vụ|
+start
+:Chọn "Quản lý ưu đãi";
+:Chọn "Tạo ưu đãi %";
+:Hiển thị form ưu đãi;
+
+|Kế toán/Tài vụ|
+:Nhập thông tin:\n- Tên CT\n- % giảm\n- Thời gian áp dụng\n- Điều kiện (tuỳ chọn)\n- Giới hạn (tuỳ chọn);
+:Chọn shop áp dụng;\nChọn danh mục/dịch vụ áp dụng;
+:Nhấn "Lưu";
+
+|Hệ thống ví nội bộ|
+:Validate dữ liệu;\nKiểm tra quyền tạo ưu đãi;
+if (Hợp lệ?) then (Có)
+  :Tạo Promotion;\nTạo liên kết Promotion-Shop-Service;
+  :Ghi audit log;
+  :Trả kết quả thành công;
+else (Không)
+  :Trả lỗi (trùng tên/mốc thời gian/\n% giảm không hợp lệ/shop không tồn tại...);
+endif
+
+:Hiển thị kết quả;
+|Kế toán/Tài vụ|
+stop
+@enduml

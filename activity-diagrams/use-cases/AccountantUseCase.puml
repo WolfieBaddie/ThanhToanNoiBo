@@ -1,0 +1,24 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+title High-level use cases (Finance/Accounting) - Wallet & Payments
+
+actor "Finance/Accounting" as ACC
+
+rectangle "Wallet System" {
+  (Reporting & dashboards) as UC_REPORT
+  (Daily reconciliation) as UC_RECON
+  (Refund/withdrawal handling) as UC_PAYOUT
+  (Cash top-up confirmation at counter) as UC_CASH
+  (Exceptions & corrections) as UC_EXCEPT
+  (Business settings: promotions, fees, limits) as UC_SETUP
+}
+
+ACC --> UC_REPORT
+ACC --> UC_RECON
+ACC --> UC_PAYOUT
+ACC --> UC_CASH
+ACC --> UC_EXCEPT
+ACC --> UC_SETUP
+
+@enduml

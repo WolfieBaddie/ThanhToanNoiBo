@@ -1,0 +1,31 @@
+@startuml
+title Áp dụng ưu đãi % khi thanh toán dịch vụ tại shop
+
+|Nhân viên shop/POS|
+start
+:Tạo đơn hàng/dịch vụ;\nNhập mã dịch vụ + số tiền gốc;
+:Quét thẻ SV/QR ví;
+
+|Hệ thống ví nội bộ|
+:Tra cứu ví người trả tiền (ACTIVE);
+:Tra cứu ưu đãi hợp lệ theo:\nshop + dịch vụ + thời gian + điều kiện;
+if (Có ưu đãi?) then (Có)
+  :Tính giảm giá %;\nTạo breakdown (gốc/giảm/thanh toán);
+else (Không)
+  :Giữ nguyên số tiền thanh toán;
+endif
+
+:Kiểm tra số dư;\nKhông cho phép số dư âm;
+if (Đủ số dư?) then (Có)
+  :Trừ số dư theo số tiền sau giảm;
+  :Ghi nhận giao dịch PAYMENT\n(kèm thông tin ưu đãi nếu có);
+  :Ghi audit log;
+  :Trả kết quả SUCCESS;
+else (Không)
+  :Trả lỗi INSUFFICIENT_FUNDS;
+endif
+
+|Nhân viên shop/POS|
+:Hiển thị kết quả;\nIn/hiển thị hoá đơn;
+stop
+@enduml

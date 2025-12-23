@@ -1,0 +1,58 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+title High-level use cases (Counter Staff) - Wallet Payments at Counter
+
+actor "Counter Staff" as CS
+
+rectangle "Wallet & Counter Operations" {
+
+  package "Sales & Collection" {
+    (Create order / service bill) as UC_ORDER
+    (Accept customer payment) as UC_PAY
+    (Issue receipt / confirm completion) as UC_RECEIPT
+  }
+
+  package "Payment Methods" {
+    (Collect by RFID card) as UC_RFID
+    (Collect by wallet balance) as UC_WALLET
+    (Collect by cash) as UC_CASH
+  }
+
+  package "Exceptions & Support" {
+    (Handle failed payment / retry) as UC_FAIL
+    (Cancel order / void payment) as UC_VOID
+    (Request support / record incident) as UC_SUPPORT
+  }
+
+  package "Shift & Accountability" {
+    (Open shift / close shift) as UC_SHIFT
+    (View daily totals for own counter) as UC_TOTALS
+  }
+}
+
+CS --> UC_ORDER
+CS --> UC_PAY
+CS --> UC_RECEIPT
+CS --> UC_RFID
+CS --> UC_WALLET
+CS --> UC_CASH
+CS --> UC_FAIL
+CS --> UC_VOID
+CS --> UC_SUPPORT
+CS --> UC_SHIFT
+CS --> UC_TOTALS
+
+UC_PAY .> UC_ORDER : <<include>>
+UC_RECEIPT .> UC_PAY : <<include>>
+
+UC_PAY .> UC_RFID : <<extend>>
+UC_PAY .> UC_WALLET : <<extend>>
+UC_PAY .> UC_CASH : <<extend>>
+
+UC_FAIL .> UC_PAY : <<extend>>
+UC_VOID .> UC_PAY : <<extend>>
+
+UC_TOTALS .> UC_SHIFT : <<extend>>
+
+@enduml

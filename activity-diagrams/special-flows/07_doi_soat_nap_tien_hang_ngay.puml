@@ -1,0 +1,84 @@
+@startuml
+title Đối soát nạp tiền hàng ngày (D) với cổng thanh toán trung gian / ngân hàng
+
+|Kế toán/Tài vụ|
+start
+:Khởi chạy đối soát ngày D\n(chọn ngày, hệ cổng, tài khoản đối soát);
+
+|Hệ thống ví nội bộ|
+:Tạo phiên đối soát (reconId)\nstatus = OPEN;
+:Lấy danh sách lệnh nạp trong ngày D\n(refId, gatewayTxnId, amount, status, createdAt);
+
+|Cổng thanh toán trung gian|
+:Chuẩn bị dữ liệu đối soát ngày D\n- Transaction report (chi tiết)\n- Settlement report (nếu có)\n- Checksum/Signature;
+
+|Hệ thống ví nội bộ|
+:Gửi yêu cầu lấy báo cáo đối soát\n(recordId, D, merchantId);
+:Nhận link/file báo cáo + checksum/signature;
+:Verify checksum/signature;\nLưu file nguồn & metadata;
+
+if (File hợp lệ?) then (Có)
+  :Parse báo cáo;\nChuẩn hoá bản ghi (mapping status, timezone);
+else (Không)
+  |Kế toán/Tài vụ|
+  :Nhận cảnh báo FILE_INVALID/FILE_MISSING;
+  :Liên hệ cổng để cấp lại file;
+  stop
+endif
+
+|Hệ thống ví nội bộ|
+:Đối chiếu theo khoá:\n(refId OR gatewayTxnId) + amount + currency + date;
+:So khớp trạng thái:\nWallet(status) vs Gateway(status) vs Settlement(status);
+
+if (Khớp 100%?) then (Có)
+  :Cập nhật phiên đối soát = RECONCILED;
+  :Xuất báo cáo tổng hợp\n(tổng số lệnh, tổng tiền, tỷ lệ khớp);
+  |Kế toán/Tài vụ|
+  :Tải/nhận báo cáo;\nLưu hồ sơ;
+  stop
+else (Không)
+  :Tạo danh sách lệch (Mismatch List):\n1) Có trên cổng, thiếu trên ví\n2) Có trên ví, thiếu trên cổng\n3) Sai số tiền\n4) Sai trạng thái (SUCCESS/FAIL/PENDING)\n5) Có giao dịch nhưng chưa settlement;
+
+  |Kế toán/Tài vụ|
+  :Rà soát từng lệch theo quy trình;
+
+  |Hệ thống ví nội bộ|
+  repeat
+    :Chọn 1 mismatch;
+    if (Cần truy vấn realtime từ cổng?) then (Có)
+      |Cổng thanh toán trung gian|
+      :Query transaction status/detail\n(refId/gatewayTxnId);
+      |Hệ thống ví nội bộ|
+      :Nhận kết quả query;\nCập nhật ghi chú đối soát;
+    endif
+
+    if (Cần tra soát với ngân hàng/settlement?) then (Có)
+      |Cổng thanh toán trung gian|
+      :Tạo ticket tra soát/đối soát\n(disputeId, refId, reason);
+      if (Cổng cần xác minh ngân hàng?) then (Có)
+        |Ngân hàng|
+        :Xác minh settlement/ghi có;\nTrả kết quả cho cổng;
+        |Cổng thanh toán trung gian|
+        :Trả kết quả tra soát\n(disputeResult);
+      else (Không)
+        :Trả kết quả tra soát\n(disputeResult);
+      endif
+      |Hệ thống ví nội bộ|
+      :Nhận kết quả tra soát;\nCập nhật mismatch = RESOLVED/OPEN;
+    endif
+
+    if (Quyết định xử lý trên ví?) then (Có)
+      :Thực hiện xử lý theo kết quả:\n- Bổ sung giao dịch thiếu\n- Điều chỉnh trạng thái\n- Điều chỉnh số tiền (nếu được phép)\n- Ghi nhận hoàn tiền/đảo nếu cần;
+      :Ghi audit log + biên bản xử lý\n(người xử lý, thời điểm, lý do, chứng từ);
+    endif
+  repeat while (Còn mismatch chưa xử lý?) is (Có)
+
+  :Cập nhật phiên đối soát:\n- RECONCILED nếu đã xử lý hết\n- PARTIAL nếu còn lệch mở (OPEN);
+  :Xuất báo cáo chi tiết mismatch\n(kèm kết quả xử lý/tra soát);
+
+  |Kế toán/Tài vụ|
+  :Tải/nhận báo cáo;\nLưu hồ sơ đối soát D;
+  stop
+endif
+
+@enduml

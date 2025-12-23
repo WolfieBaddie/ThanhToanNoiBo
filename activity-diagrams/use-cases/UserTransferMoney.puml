@@ -1,0 +1,30 @@
+@startuml
+left to right direction
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+actor "User\n(Student)" as User
+
+rectangle "Internal Wallet System" {
+
+  usecase "Login / Register" as UC_Login
+  usecase "Internal Transfer" as UC_Transfer
+
+  usecase "Enter Transfer Details" as UC_Details
+  usecase "Confirm Transfer" as UC_Confirm
+  usecase "Update Wallets\n& Record Transaction" as UC_Update
+
+  usecase "View Balance / History" as UC_Balance
+}
+
+User -- UC_Transfer
+User -- UC_Balance
+
+UC_Transfer ..> UC_Login   : <<include>>
+UC_Transfer ..> UC_Details : <<include>>
+UC_Transfer ..> UC_Confirm : <<include>>
+UC_Transfer ..> UC_Update  : <<include>>
+
+UC_Balance ..> UC_Login : <<include>>
+
+@enduml

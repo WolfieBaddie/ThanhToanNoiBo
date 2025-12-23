@@ -1,0 +1,55 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 01. Abnormal Transaction Adjustment (Admin)
+
+|Admin|
+start
+:Initiate Transaction Review;
+note right
+  Triggered by requests from
+  Finance, Counter, or Students.
+end note
+
+:Verify Evidence & Compliance;
+note right
+  Cross-checks transaction logs
+  against supporting documents.
+end note
+
+if (Sufficient Evidence Provided?) then (No)
+  :Reject Adjustment Request;
+  note right: State missing requirements
+  stop
+endif
+
+if (Transaction State Modifiable?) then (No)
+  :Escalate to Investigation/Refund Flow;
+  note right
+    Used when a transaction is locked
+    or requires a full reversal.
+  end note
+  stop
+endif
+
+:Define Adjustment Strategy;
+note right
+  **Options include:**
+  * Manual Balance Correction
+  * Refund Initiation
+  * Audit Note Attachment
+end note
+
+|Internal Wallet System|
+:Apply Financial Adjustment;
+
+:Archive Evidence & Audit Log;
+note right
+  Stores the reason, approver ID,
+  and attached documents.
+end note
+
+|Admin|
+:Communicate Outcome to Requester;
+stop
+@enduml
