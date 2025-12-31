@@ -1,0 +1,76 @@
+@startuml
+skinparam dpi 300
+' or:
+scale 2
+' or:
+scale max 2000 width
+title Daily Top-up Reconciliation with Intermediary Payment Gateway / Bank
+
+|Accounting/Finance|
+start
+:Start daily reconciliation;
+:Select reconciliation date;
+:Receive file/report from payment gateway/bank;
+
+|Internal Wallet System|
+:Get list of top-up transactions for the day\n(transactionId, amount, status, timestamp);
+:Check whether the file/report is valid;
+if (Valid?) then (Yes)
+  :Read data from file/report;\nStandardize format (datetime, statuses);
+else (No)
+  |Accounting/Finance|
+  :Receive notification file is invalid/missing;
+  :Request gateway to resend the correct file;
+  stop
+endif
+
+|Internal Wallet System|
+:Compare transactions between both sides by:\n(transactionId) + amount + date;
+:Compare statuses:\nSUCCESS / FAILED / PROCESSING\nand whether funds have been settled/credited back (if applicable);
+
+if (Fully matched?) then (Yes)
+  :Mark reconciliation as matched;
+  :Export summary report\n(total transactions, total amount, match rate);
+  |Accounting/Finance|
+  :Download/receive report;\nArchive records;
+  stop
+else (No)
+  :Create discrepancy list:\n1) Present on gateway, missing in wallet\n2) Present in wallet, missing on gateway\n3) Amount mismatch\n4) Status mismatch\n5) Transaction exists but funds not yet settled/credited;
+
+  |Accounting/Finance|
+  :Review each discrepancy;
+
+  |Internal Wallet System|
+  repeat
+    :Select one discrepancy;
+
+    if (Need to re-check on gateway?) then (Yes)
+      |Intermediary Payment Gateway|
+      :Re-query transaction by transactionId;
+      |Internal Wallet System|
+      :Receive result;\nAdd notes to reconciliation record;
+    endif
+
+    if (Need gateway/bank to verify settlement?) then (Yes)
+      |Intermediary Payment Gateway|
+      :Send settlement verification request to bank (if needed);\nReceive result and respond;
+      |Internal Wallet System|
+      :Receive result;\nUpdate discrepancy = RESOLVED/UNRESOLVED;
+    endif
+
+    if (Decision to adjust in wallet?) then (Yes)
+      :Apply handling based on outcome:\n- Add missing transaction\n- Update status\n- Update amount (if permitted)\n- Refund/reverse if needed;
+      :Store handler, timestamp,\nreason, and supporting documents;
+    endif
+
+  repeat while (Any discrepancies unresolved?) is (Yes)
+
+  :Finish reconciliation:\n- MATCHED if all resolved\n- DISCREPANCIES REMAIN if any items still open;
+  :Export detailed discrepancy report\n(including handling/verification results);
+
+  |Accounting/Finance|
+  :Download/receive report;\nArchive reconciliation records;
+  stop
+endif
+
+@enduml

@@ -1,0 +1,45 @@
+@startuml
+title Dispute & Refund Process (Wallet / Service Transactions Only)
+
+|Student|
+start
+:Log in and open wallet transaction history;
+:Select a transaction related to services
+(e.g. canteen, library, parking, top-up);
+:Click "Report / Dispute this transaction";
+:Enter description and submit dispute;
+
+|Wallet System|
+:Create dispute record with status = "NEW";
+:Link dispute to the selected wallet transaction;
+:Notify Finance / Support dashboard of new dispute;
+
+|Finance / Accounting|
+:Open "Disputes" screen;
+:Review disputed transaction details
+(type: SERVICE_PAYMENT or TOPUP, not tuition);
+:Review related wallet logs, POS logs,
+internal service info (library/parking), etc.;
+
+if (Dispute valid?) then (yes)
+  :Decide refund or adjustment amount;
+  :Execute refund/adjustment using
+  internal finance process (cash/bank transfer etc.);
+  |Wallet System|
+  :Record refund/adjustment transaction
+  (type = SERVICE_REFUND / TOPUP_ADJUSTMENT);
+  :Update dispute status = "RESOLVED - REFUNDED";
+else (no)
+  |Wallet System|
+  :Update dispute status = "REJECTED";
+endif
+
+|Wallet System|
+:Notify student about dispute result
+(resolved/refunded or rejected);
+
+|Student|
+:View dispute status and any refund
+on wallet transaction history;
+stop
+@enduml

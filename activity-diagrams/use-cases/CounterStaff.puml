@@ -1,0 +1,22 @@
+@startuml
+left to right direction
+title High-level use cases (Counter Staff) - Campus Wallet
+
+actor "Counter Staff" as CS
+
+rectangle "Campus Wallet - Counter" {
+  (Service payment at counter - Wallet/RFID) as UC_PAY
+  (Cash top-up at authorized counter) as UC_TOPUP
+  (Shift settlement & handover) as UC_SHIFT
+  (Handle exceptions & escalation) as UC_EXC
+}
+
+CS --> UC_PAY
+CS --> UC_TOPUP
+CS --> UC_SHIFT
+CS --> UC_EXC
+
+UC_EXC ..> UC_PAY : <<extend>>
+UC_EXC ..> UC_TOPUP : <<extend>>
+
+@enduml

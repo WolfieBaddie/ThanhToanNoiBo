@@ -1,0 +1,33 @@
+@startuml
+skinparam dpi 300
+' or:
+scale 2
+' or:
+scale max 2000 width
+title Accounting creates a % promotion and links it to shops/services
+
+|Accountant|
+start
+:Select "Promotion Management";
+:Select "Create % Promotion";
+:Display promotion form;
+
+|Accountant|
+:Enter details:\n- Campaign name\n- Discount %\n- Effective period\n- Conditions (optional)\n- Limits (optional);
+:Select applicable shop(s);\nSelect applicable category/service(s);
+:Click "Save";
+
+|Internal Wallet System|
+:Validate data;\nCheck permission to create promotions;
+if (Valid?) then (Yes)
+  :Create Promotion;\nCreate Promotion-Shop-Service mappings;
+  :Write audit log;
+  :Return success result;
+else (No)
+  :Return error (duplicate name/time window /\ninvalid discount % / shop not found...);
+endif
+
+:Display result;
+|Accounting/Finance|
+stop
+@enduml

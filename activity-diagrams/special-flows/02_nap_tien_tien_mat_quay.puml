@@ -1,0 +1,29 @@
+@startuml
+title Nạp tiền mặt tại quầy được ủy quyền
+
+|Sinh viên|
+start
+:Đến quầy nạp tiền;\nCung cấp mã SV/QR ví;
+:Đưa tiền mặt;
+
+|Nhân viên tài vụ/quầy|
+:Kiểm đếm tiền;\nNhập số tiền & thông tin người nạp;
+:Chọn "Xác nhận nạp tiền mặt";
+
+|Hệ thống ví nội bộ|
+:Kiểm tra quyền nhân viên;\nKiểm tra ví tồn tại & trạng thái ví;
+if (Hợp lệ?) then (Có)
+  :Cộng số dư ví;
+  :Tạo giao dịch nạp tiền mặt\n(refId, thời gian, kênh=CASH);
+  :Ghi audit log;
+  :Trả kết quả thành công;
+else (Không)
+  :Trả lỗi (không đủ quyền/\nví không hợp lệ);
+endif
+
+|Nhân viên tài vụ/quầy|
+:In/hiển thị biên nhận;\nGiao biên nhận cho sinh viên;
+
+|Sinh viên|
+stop
+@enduml

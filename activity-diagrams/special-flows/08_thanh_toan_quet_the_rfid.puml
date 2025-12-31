@@ -1,0 +1,69 @@
+@startuml
+title Thanh toán tại quầy bằng thẻ RFID (Quẹt thẻ) - có làm việc với cổng thanh toán trung gian
+
+|Nhân viên quầy/POS|
+start
+:Tạo đơn hàng/dịch vụ\n(chọn dịch vụ + nhập số tiền);
+:Chọn phương thức "RFID";
+
+|Sinh viên|
+:Quẹt thẻ RFID tại thiết bị;
+
+|Nhân viên quầy/POS|
+:Đọc mã thẻ;\nGửi yêu cầu thanh toán\n(mã thẻ, mã dịch vụ, số tiền, mã đơn);
+
+|Hệ thống ví nội bộ|
+:Kiểm tra ví theo mã thẻ;
+if (Ví không tồn tại hoặc bị khoá?) then (Có)
+  :Trả lỗi (ví không hợp lệ);
+  |Nhân viên quầy/POS|
+  :Hiển thị lỗi;
+  stop
+else (Không)
+  :Tra cứu ưu đãi hợp lệ theo:\nquầy/shop + dịch vụ + thời gian + điều kiện;
+  if (Có ưu đãi?) then (Có)
+    :Tính giảm giá %;\nTạo chi tiết (gốc/giảm/số tiền cần trả);
+  else (Không)
+    :Giữ nguyên số tiền cần trả;
+  endif
+
+  :Kiểm tra số dư;\nKhông cho phép số dư âm;
+  if (Đủ số dư theo số tiền cần trả?) then (Có)
+    :Tạm giữ số tiền cần trả;
+
+    :Gửi yêu cầu thanh toán sang cổng trung gian\n(mã đơn, số tiền cần trả, dịch vụ);
+
+    |Cổng thanh toán trung gian|
+    :Nhận yêu cầu thanh toán;
+    if (Cổng từ chối ngay?) then (Có)
+      :Trả kết quả không chấp nhận;\nkèm lý do;
+    else (Không)
+      :Trả kết quả đã tiếp nhận;
+      :Thực hiện xử lý thanh toán;
+      if (Thanh toán thành công?) then (Có)
+        :Gửi thông báo kết quả thành công;
+      else (Không)
+        :Gửi thông báo kết quả thất bại;\nkèm lý do;
+      endif
+    endif
+
+    |Hệ thống ví nội bộ|
+    if (Nhận kết quả thành công?) then (Có)
+      :Trừ số dư theo số tiền cần trả;
+      :Ghi nhận giao dịch thanh toán\n(người trả, dịch vụ, số tiền, thời điểm,\nkênh=RFID, mã đơn, ưu đãi nếu có);
+      :Lưu lịch sử xử lý;
+      :Trả kết quả SUCCESS;
+    else (Không)
+      :Bỏ tạm giữ số tiền;
+      :Trả lỗi (thanh toán không thành công);
+    endif
+
+  else (Không)
+    :Trả lỗi (không đủ số dư);
+  endif
+endif
+
+|Nhân viên quầy/POS|
+:Hiển thị kết quả;\nIn/hiển thị hóa đơn;
+stop
+@enduml

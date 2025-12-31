@@ -1,0 +1,95 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+scale 1.2
+!pragma teoz true
+title [User] Wallet Top-up Sequence Diagram
+
+autonumber
+skinparam SequenceMessageAlignment center
+hide footbox
+
+skinparam actorStyle awesome
+actor "Student" as ST
+actor "Counter Clerk" as CL
+participant "Internal Wallet System" as WS
+participant "Database" as DB
+participant "Payment Gateway" as PG
+
+== Start ==
+
+ST -> WS : Start Top-up
+activate WS
+note right of WS #yellow : Student selects payment method
+
+alt "ONLINE Top-up"
+
+  WS -> DB : Create PENDING transaction
+  activate DB
+  DB --> WS : Transaction ID
+  deactivate DB
+
+  WS -> PG : Create payment session
+  activate PG
+  PG --> WS : Payment URL
+  deactivate PG
+
+  WS --> ST : Redirect to payment page
+
+  ST -> PG : Process payment
+  activate PG
+
+  alt "Payment Result"
+    PG -> WS : SUCCESS callback
+    deactivate PG
+    activate WS
+
+    WS -> DB : Update to SUCCESS\nCredit wallet
+    activate DB
+    DB --> WS
+    deactivate DB
+
+    WS --> ST : Success notification
+    deactivate WS
+
+  else
+    PG -> WS : FAILED callback
+    deactivate PG
+    activate WS
+
+    WS -> DB : Update to FAILED\nRecord reason
+    activate DB
+    DB --> WS
+    deactivate DB
+
+    WS --> ST : Failure notification
+    deactivate WS
+  end
+
+else "CASH Top-up"
+
+  ST -> CL : Hand cash + Student ID
+  activate CL
+
+  CL -> WS : Submit cash transaction
+  activate WS
+
+  note right of WS #yellow : Process synchronously\n(no external gateway)
+
+  WS -> DB : Process & credit wallet
+  activate DB
+  DB --> WS
+  deactivate DB
+
+  WS --> CL : Success confirmation
+  deactivate WS
+
+  CL --> ST : Issue receipt
+  deactivate CL
+
+end
+
+deactivate WS
+== End ==
+
+@enduml

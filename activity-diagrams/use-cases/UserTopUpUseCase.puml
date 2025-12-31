@@ -1,0 +1,34 @@
+@startuml
+left to right direction
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+actor "User\n(Student)" as User
+actor "Accountant\n(Finance)" as Acc
+
+rectangle "Internal Wallet System" {
+
+  usecase "Login / Register" as UC_Login
+  usecase "Top Up" as UC_TopUp
+
+  usecase "Enter Amount\n& Select Method" as UC_Input
+  usecase "Update Balance\n& Record Transaction" as UC_Update
+
+  usecase "Online Top Up" as UC_TopUpOnline
+  usecase "Offline Top Up\n(At Counter)" as UC_TopUpOffline
+}
+
+' Actor associations
+User -- UC_TopUp
+Acc  -- UC_TopUpOffline
+
+' Common (mandatory for any top-up)
+UC_TopUp ..> UC_Login : <<include>>
+UC_TopUp ..> UC_Input : <<include>>
+UC_TopUp ..> UC_Update: <<include>>
+
+' Alternatives (based on selected method)
+UC_TopUpOnline  ..> UC_TopUp : <<extend>>\n[Online]
+UC_TopUpOffline ..> UC_TopUp : <<extend>>\n[Offline]
+
+@enduml

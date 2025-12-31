@@ -1,0 +1,112 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+scale 1.2
+title [User] Refund Sequence Diagram
+
+skinparam actorStyle awesome
+skinparam SequenceMessageAlignment center
+hide footbox
+
+autonumber
+
+actor "Student (App/Web)" as ST
+participant "Accountant" as AC
+participant "Internal Wallet System" as IWS
+participant "Payment Gateway" as PG
+database "Database" as DB
+
+== Student: Submit Request ==
+
+ST -> AC : Submit refund/withdrawal request
+activate AC
+
+== Accountant: Validate Request ==
+
+AC -> AC : Check transaction history
+AC -> AC : Check policy/conditions
+
+alt "Eligible"
+
+  AC -> IWS : Confirm approval
+  activate IWS
+
+  IWS -> DB : Record request
+  activate DB
+  DB --> IWS
+  deactivate DB
+
+  note right of IWS #yellow : Temporarily hold amount in wallet
+
+  == Process Payout ==
+
+  IWS -> PG : Send payout request
+  activate PG
+
+  alt "Gateway accepts"
+
+    PG -> PG : Execute transfer
+
+    alt "Transfer successful"
+      PG -> IWS : Success notification
+      deactivate PG
+
+      IWS -> DB : Finalize debit
+      activate DB
+      DB --> IWS
+      deactivate DB
+
+      IWS --> AC : Notify result
+      AC --> ST : Success notification
+
+    else "Transfer failed"
+      PG -> IWS : Failure notification
+      deactivate PG
+
+      IWS -> DB : Update status = FAILED
+      activate DB
+      DB --> IWS
+      deactivate DB
+
+      IWS --> AC : Notify result
+      AC --> ST : Failure notification
+    end
+
+    deactivate IWS
+
+  else "Gateway rejects"
+    PG -> IWS : Reject processing
+    deactivate PG
+
+    IWS -> DB : Record rejection
+    activate DB
+    DB --> IWS
+    deactivate DB
+
+    IWS --> AC : Reject notification
+    AC --> ST : Reject notification
+
+    deactivate IWS
+  end
+
+else "Not eligible"
+
+  AC -> IWS : Reject request
+  activate IWS
+
+  IWS -> DB : Record rejection
+  activate DB
+  DB --> IWS
+  deactivate DB
+
+  IWS --> AC : Notify rejection
+  AC --> ST : Rejection notification
+
+  deactivate IWS
+
+end
+
+deactivate AC
+== End ==
+
+@enduml

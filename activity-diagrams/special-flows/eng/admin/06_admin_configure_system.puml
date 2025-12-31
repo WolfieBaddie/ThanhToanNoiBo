@@ -1,0 +1,45 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title System Admin: Configure System
+
+|System Admin|
+start
+
+:Manage Service & Device Infrastructure;
+note right
+  **Tasks include:**
+  * Authorize new Top-up Counters
+  * Link RFID/IoT devices to locations
+  * Update Service Catalog (Library, Canteen)
+end note
+
+if (Infrastructure Valid?) then (No)
+  :Flag Configuration Error;
+  stop
+endif
+
+:Perform Wallet Security Audit;
+
+if (Abnormal Activity or Loss Reported?) then (Yes)
+  :Execute Wallet Lock/Unlock;
+  note right
+    Immediate freeze on balance
+    to prevent unauthorized use.
+  end note
+
+  :Log Security Intervention;
+endif
+
+|Internal Wallet System|
+:Commit System State Changes;
+:Synchronize Authorization Registry;
+note right
+  Ensures IoT devices recognize
+  newly authorized cards or counters.
+end note
+
+|System Admin|
+:Verify System Health & Connectivity;
+stop
+@enduml

@@ -1,0 +1,35 @@
+@startuml
+skinparam dpi 300
+title 02. [Admin] Student Wallet Control
+
+|Admin|
+start
+:Identify Student & Request Action;
+note left: Temporary Lock or Unlock
+
+|Internal Wallet System|
+if (Wallet Exists?) then (No)
+  |Admin|
+  :Receive "Invalid ID" Alert;
+  stop
+else (Yes)
+  |Internal Wallet System|
+  if (Pending Transactions Found?) then (Yes)
+    |Admin|
+    :Decide: Force Lock or Wait;
+    note right
+      Immediate Lock is used in
+      fraud cases to stop "in-flight"
+      money movement.
+    end note
+  endif
+
+  |Internal Wallet System|
+  :Execute Lock / Unlock;
+  :Record Audit History;
+endif
+
+|Admin|
+:Notify Relevant Parties;
+stop
+@enduml

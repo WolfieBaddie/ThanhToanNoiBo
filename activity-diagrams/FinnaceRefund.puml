@@ -1,0 +1,62 @@
+@startuml
+title Refund / Adjustment of Wallet Balance (Service-related Only)
+
+|Student|
+start
+:Request refund/adjustment\nfor wallet/service transaction
+(e.g. wrong canteen charge,\nparking fee error, leftover balance when leaving school);
+:Submit request to Finance\n(online form or offline);
+
+|Finance Staff|
+:Receive refund/adjustment request;
+:Log in to Finance module;
+:Open "Refund / Adjustment" screen;
+
+|Wallet System|
+:Authenticate Finance Staff;
+:Return access to refund functions;
+
+|Finance Staff|
+:Search for student and\nselect related wallet transaction(s)
+(e.g. SERVICE_PAYMENT or TOPUP);
+|Wallet System|
+:Retrieve wallet and transactions\nfor that student;
+:Display details to Finance Staff;
+
+|Finance Staff|
+:Review evidence & policy;
+if (Approved for refund/adjustment?) then (yes)
+  :Decide refund amount and type
+  (partial/full; service refund or top-up correction);
+else (no)
+  :Reject request with reason;
+endif
+
+if (Request rejected?) then (yes)
+  |Wallet System|
+  :Record decision and reason\nin refund log;
+  |Finance Staff|
+  :Inform student (rejected);
+  |Student|
+  :See decision status;
+  stop
+else (no)
+  |Finance Staff|
+  :Enter approved refund amount\nand confirmation;
+  |Wallet System|
+  :Create REFUND/ADJUSTMENT transaction;
+  :Decrease or increase wallet balance\naccording to finance decision
+  (usually decrease balance if refund is\npaid out via bank/cash);
+  :Update refund record status = "RESOLVED";
+  :Return updated balance;
+endif
+
+|Finance Staff|
+:Execute actual payment\noutside wallet (cash/bank transfer);
+:Inform student that refund is completed;
+
+|Student|
+:See updated wallet balance\nand refund record in history;
+
+stop
+@enduml

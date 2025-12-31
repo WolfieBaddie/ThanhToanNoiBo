@@ -1,0 +1,62 @@
+@startuml
+skinparam dpi 300
+scale 2
+scale max 2000 width
+title 04. Hoàn tiền / Rút tiền (luồng nghiệp vụ)
+
+|Sinh viên (Ứng dụng/Web)|
+start
+:Gửi yêu cầu hoàn tiền / rút tiền\n- Lý do\n- Số tiền\n- Thông tin nhận tiền;
+:Nhận thông báo đã tiếp nhận yêu cầu;
+
+|Phòng tài vụ/kế toán|
+:Tiếp nhận yêu cầu;
+:Kiểm tra lịch sử giao dịch liên quan;
+:Kiểm tra điều kiện/chính sách hoàn tiền/rút tiền;
+if (Đủ điều kiện?) then (Có)
+  :Xác nhận chấp thuận;\nXác định số tiền và cách chi trả;
+
+  |Hệ thống ví nội bộ|
+  :Ghi nhận yêu cầu hoàn/rút tiền;
+  :Tạm giữ số tiền tương ứng trong ví;\nLưu lịch sử xử lý;
+
+  |Cổng thanh toán trung gian|
+  :Nhận yêu cầu chi trả\n(số tiền + thông tin nhận tiền);
+  if (Cổng chấp nhận xử lý?) then (Có)
+    :Thực hiện chuyển tiền;
+    if (Chuyển tiền thành công?) then (Có)
+      :Gửi thông báo kết quả thành công;
+    else (Không)
+      :Gửi thông báo kết quả thất bại;
+    endif
+  else (Không)
+    :Từ chối xử lý;\nTrả lý do từ chối;
+  endif
+
+  |Hệ thống ví nội bộ|
+  :Nhận kết quả từ cổng;
+  if (Kết quả hợp lệ?) then (Có)
+    if (Kết quả là thành công?) then (Có)
+      :Ghi nhận đã chi trả thành công;
+      :Chốt trừ số tiền đã tạm giữ;
+      :Cập nhật trạng thái yêu cầu = THÀNH CÔNG;
+    else (Không)
+      :Bỏ tạm giữ số tiền;
+      :Cập nhật trạng thái yêu cầu = THẤT BẠI;
+    endif
+  else (Không)
+    :Ghi nhận thông báo không hợp lệ;\nYêu cầu kiểm tra lại với cổng;
+  endif
+
+  |Phòng tài vụ/kế toán|
+  :Thông báo kết quả cho sinh viên;
+else (Không)
+  :Từ chối yêu cầu;\nNêu lý do;
+  :Ghi nhận kết quả từ chối;
+endif
+
+|Sinh viên (Ứng dụng/Web)|
+:Nhận thông báo kết quả;
+:Kiểm tra số dư/lịch sử giao dịch;
+stop
+@enduml

@@ -1,0 +1,51 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 06. Online payment
+
+|Student|
+start
+:Authorize Invoice Payment;
+
+|Internal Wallet System|
+if (Sufficient Funds & Active Status?) then (No)
+  :Reject Payment;
+  stop
+endif
+
+:Apply Eligible Promotions;
+
+:Reserve Funds (Escrow);
+note right
+  Funds are locked to ensure
+  liquidity during external
+  payment processing.
+end note
+
+|Payment Gateway|
+:Execute Financial Settlement;
+
+|Internal Wallet System|
+if (Settlement Confirmed?) then (Yes)
+  :Complete Fund Transfer;
+
+  |Service Provider / Billing|
+  :Settle Invoice Debt;
+  note right
+    The service is now
+    officially marked as paid
+    in the merchant's ledger.
+  end note
+
+  |Student|
+  :Confirm Successful Payment;
+else (No)
+  |Internal Wallet System|
+  :Restore Reserved Funds;
+
+  |Student|
+  :Notify Payment Failure;
+endif
+
+stop
+@enduml

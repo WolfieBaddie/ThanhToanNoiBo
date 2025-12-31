@@ -1,0 +1,40 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 05. Promotion Creation & Merchant Mapping (Business Flow)
+
+|Accountant|
+start
+:Design Campaign Strategy;
+note right
+  Defines the value (%),
+  duration, and eligibility
+  criteria.
+end note
+
+:Assign Promotion Scope;
+note right
+  Selects which shops,
+  services, or categories
+  will fund/offer the discount.
+end note
+
+|Internal Wallet System|
+if (Campaign Conflicts Detected?) then (No)
+  :Activate Promotion Rules;
+  :Establish Merchant-Discount Linkage;
+  note right
+    Ensures the discount triggers
+    automatically at the point
+    of sale for linked shops.
+  end note
+else (Yes)
+  |Accountant|
+  :Resolve Configuration Conflicts;
+  stop
+endif
+
+|Accountant|
+:Monitor Campaign Performance;
+stop
+@enduml

@@ -1,0 +1,61 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title Online Top-up via Payment Gateway (business activity flow with Accounting oversight)
+
+|Student|
+start
+:Select "Top up";
+:Enter top-up amount;
+:Confirm to proceed;
+
+|Wallet|
+:Create top-up request;
+:Provide payment reference / instructions;
+
+|Payment Gateway|
+:Display payment screen;
+
+|Student|
+:Complete payment on the gateway;
+
+|Payment Gateway|
+if (Payment successful?) then (Yes)
+  :Send payment result = SUCCESS\n(with payment reference);
+else (No)
+  :Send payment result = FAILED\n(with payment reference);
+endif
+
+|Wallet|
+:Check payment reference and result;
+if (Result is valid?) then (Yes)
+  if (Top-up already recorded?) then (Yes)
+    :Ignore duplicate notification;
+  else (No)
+    if (Result = SUCCESS?) then (Yes)
+      :Add funds to student wallet;
+      :Mark top-up as SUCCESS;
+    else (No)
+      :Mark top-up as FAILED;
+    endif
+  endif
+else (No)
+  :Flag for review (unverified result);
+endif
+
+|Student|
+:Receive final result;
+:Check wallet balance / top-up history;
+
+|Accounting/Finance|
+:Monitor daily top-up summaries;
+if (Any unusual cases?) then (Yes)
+  :Review flagged items;\nCoordinate with Payment Gateway if needed;
+  |Wallet|
+  :Apply approved correction (if required);
+else (No)
+  :Confirm records are consistent;
+endif
+
+stop
+@enduml

@@ -1,0 +1,87 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title IoT device management (Admin)
+
+|Admin|
+start
+:Open "IoT Device Management";
+:Select device group by area/unit;
+:Choose action\n(Add / Update / Suspend / Reactivate);
+
+|System|
+:Display device list\n(name, type, area, status, person in charge);
+
+if (Add new?) then (Yes)
+  |Admin|
+  :Enter device details\n(name, type, area, location,\nmanaging unit, device label/asset ID);
+  :Select person in charge;
+  :Confirm add;
+
+  |System|
+  :Check whether required information is complete;
+  if (Missing information?) then (Yes)
+    :Notify that additional information is required;
+    stop
+  endif
+
+  :Check whether the device already exists;
+  if (Already exists?) then (Yes)
+    |Admin|
+    :Choose "Update" instead of "Add new";
+  else (No)
+    |System|
+    :Register the new device;
+    :Save action history;
+    :Notify successful creation;
+  endif
+endif
+
+if (Update?) then (Yes)
+  |Admin|
+  :Select device;
+  :Update details\n(location, area, person in charge, notes);
+  :Confirm save;
+
+  |System|
+  :Apply changes;
+  :Save action history;
+  :Notify update successful;
+endif
+
+if (Suspend / Reactivate?) then (Yes)
+  |Admin|
+  :Select device;
+  :Choose action\n(suspend / reactivate);
+  :Enter reason;
+  :Confirm;
+
+  |System|
+  if (Device currently in use?) then (Yes)
+    :Show warning;
+    |Admin|
+    :Choose option\n- Suspend immediately\n- Suspend after current shift/session ends;
+  endif
+  |System|
+  :Update device status;
+  :Save action history;
+  :Notify result;
+endif
+
+|Admin|
+if (Record broken/lost?) then (Yes)
+  :Select device;
+  :Select condition\n(broken / lost);
+  :Enter description and time;
+  :Confirm;
+
+  |System|
+  :Update device condition/status;
+  :Remove device from active list (if needed);
+  :Save action history;
+  :Notify result;
+endif
+
+|Admin|
+stop
+@enduml

@@ -1,0 +1,54 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 05. [Admin] Configure Internal Services for Wallet
+
+|Service Owner|
+start
+:Define Service Requirement;
+note right
+  Determines if it's a Library Fine,
+  Parking Pass, or Canteen Package.
+end note
+
+|System Admin|
+:Submit Configuration Request;
+
+if (Configuration Type?) then (New Service)
+  :Register Service Profile;
+  note right
+    **Parameters include:**
+    * Unique Service Code
+    * Internal Category
+    * Default Pricing Rules
+  end note
+
+  |Wallet System|
+  if (Code Unique & Category Valid?) then (No)
+    :Reject Registration;
+    note right: Error: Duplicate Code \nor Invalid Type
+    stop
+  else (Yes)
+    :Activate for Wallet Payment;
+  endif
+
+else (Edit Existing)
+  |System Admin|
+  :Modify Service Parameters;
+  note right: Updates Name, Price Policy, \nor Operational Status.
+
+  |Wallet System|
+  :Commit Update to Ledger Rules;
+endif
+
+|Wallet System|
+:Synchronize with POS & Portals;
+note right
+  Makes the service live for
+  Library, Parking, and Canteen staff.
+end note
+
+|Service Owner|
+:Verify Operational Readiness;
+stop
+@enduml

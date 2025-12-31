@@ -1,0 +1,49 @@
+@startuml
+title Onsite Payment at Canteen using Card/QR (Swimlane Activity Diagram)
+
+|Student|
+start
+:Choose food/drink or pay for services at canteen/library/sport grounds;
+
+|Service POS (Canteen)|
+:Select items on POS;
+:POS calculates total;
+:Inform student of total amount;
+:Ask student to tap card or show wallet QR;
+
+|Student|
+:Tap student card on reader
+or show wallet QR from mobile app;
+
+|Service POS (Canteen)|
+:Capture card UID or wallet QR token;
+:Send payment request to Wallet System
+(student identifier + amount + canteen POS id);
+
+|Wallet System|
+:Lookup wallet by cardUID/QR token;
+if (Wallet exists AND Active?) then (yes)
+  if (Balance >= amount?) then (yes)
+    :Create payment transaction
+    (type = SERVICE_PAYMENT, service = CANTEEN);
+    :Deduct wallet balance;
+    :Return "Payment SUCCESS" to POS;
+  else (no)
+    :Return "Insufficient balance" to POS;
+  endif
+else (no)
+  :Return "Wallet not found / locked" to POS;
+endif
+
+|Service POS (Canteen)|
+if (Payment SUCCESS?) then (yes)
+  :Show "Paid" on POS;
+  |Student|
+  :Receive food/drink;
+else (no)
+  :Show error on POS;
+  :Inform student (e.g. top-up or pay cash);
+endif
+
+stop
+@enduml

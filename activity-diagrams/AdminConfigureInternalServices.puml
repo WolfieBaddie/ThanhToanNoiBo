@@ -1,0 +1,69 @@
+@startuml
+title Configure Internal Services (Library, Parking, Canteen) for Wallet
+
+|Service Owner|
+start
+:Identify need for new internal service\n(e.g. Library Fine, Parking Pass, Canteen Package);
+:Submit request to System Admin\n(outside system: email/meeting);
+
+|System Admin|
+:Receive service configuration request;
+:Log in to admin portal;
+:Select "Manage services & service groups";
+
+|Admin Portal|
+:Request current service list\nfrom Wallet System;
+
+|Wallet System|
+:Fetch all internal services\n(library, parking, canteen, etc.);
+:Return list to Admin Portal;
+
+|Admin Portal|
+:Display current service list;
+
+|System Admin|
+:Choose action (Add new service / Edit existing service);
+
+if (Add new service?) then (yes)
+  :Enter service code, name,\ncategory (LIBRARY / PARKING / CANTEEN / OTHER),
+  unit owner, default price rules;
+  |Admin Portal|
+  :Send "Create service" request to Wallet System;
+
+  |Wallet System|
+  :Validate service code uniqueness;
+  :Validate service category is INTERNAL SERVICE\n(not tuition / academic tuition);
+  if (Valid?) then (yes)
+    :Create new service record in DB;
+    :Mark service as "ACTIVE for wallet payment";
+    :Return success;
+  else (no)
+    :Return error (duplicate code or invalid type);
+  endif
+
+  |Admin Portal|
+  :Show result to System Admin;
+
+else (no)
+  if (Edit existing service?) then (yes)
+    |System Admin|
+    :Select existing service (e.g. CANTEEN_MEAL);
+    :Edit name, owner unit,\nprice policy, active status;
+    |Admin Portal|
+    :Send "Update service" request to Wallet System;
+    |Wallet System|
+    :Validate and update service in DB;
+    :Return success/failure;
+    |Admin Portal|
+    :Show result to System Admin;
+  endif
+endif
+
+|Wallet System|
+:Make updated service list available\nfor POS and internal service portals;
+
+|Service Owner|
+:Verify service appears correctly\nin their POS/portal (library/parking/canteen);
+
+stop
+@enduml

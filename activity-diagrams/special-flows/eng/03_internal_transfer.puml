@@ -1,0 +1,52 @@
+    @startuml
+    skinparam dpi 300
+    scale max 2000 width
+    title 03. Internal Transfer
+
+    |Sender|
+    start
+    :Initiate Transfer;
+
+    |Internal Wallet System|
+    if (Eligible to proceed?) then (No)
+      :Reject Transfer;
+      stop
+    else (Yes)
+      :Apply Business Rules;
+      note right
+        Verifies Balance, Limits,
+        and Recipient Status.
+      end note
+
+      :Place Amount on Hold;
+      note right
+        **Escrow State:**
+        Funds are locked during
+        Gateway processing.
+      end note
+
+      :Request Gateway Authorization;
+
+      |Payment Gateway|
+      :Process Transaction Result;
+
+      |Internal Wallet System|
+      if (Approved by Gateway?) then (Yes)
+        :Move Funds to Recipient;
+
+        |Recipient|
+        :Notify & Update Balance;
+      else (No)
+        |Internal Wallet System|
+        :Release Held Amount;
+        note right
+          Funds returned to Sender
+          due to Gateway rejection.
+        end note
+      endif
+    endif
+
+    |Sender|
+    :Receive Result;
+    stop
+    @enduml

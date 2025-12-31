@@ -1,0 +1,77 @@
+@startuml
+title Quản lý thiết bị tại quầy và thiết bị tại điểm sử dụng (Admin) - luồng nghiệp vụ
+
+|Admin|
+start
+:Vào chức năng "Quản lý thiết bị";
+:Chọn nhóm thiết bị\n(thiết bị tại quầy / thiết bị tại điểm sử dụng);
+
+|Hệ thống|
+:Hiển thị danh sách thiết bị\n(kèm trạng thái đang dùng / tạm ngưng / hỏng,\nvị trí, đơn vị quản lý);
+
+|Admin|
+if (Thêm thiết bị mới?) then (Có)
+  :Nhập thông tin thiết bị\n(tên, loại, vị trí, đơn vị quản lý,\nmã nhận diện trên tem/phiếu bàn giao);
+  :Chọn người phụ trách;
+  :Gửi yêu cầu thêm mới;
+
+  |Hệ thống|
+  :Kiểm tra thông tin bắt buộc;
+  if (Thông tin hợp lệ?) then (Có)
+    :Ghi nhận thiết bị vào danh sách;
+    :Ghi nhận lịch sử thao tác;
+    :Thông báo thêm mới thành công;
+  else (Không)
+    :Thông báo thiếu/sai thông tin;
+  endif
+endif
+
+|Admin|
+if (Cập nhật thông tin thiết bị?) then (Có)
+  :Chọn thiết bị cần cập nhật;
+  :Chỉnh sửa thông tin\n(vị trí, người phụ trách, ghi chú);
+  :Lưu thay đổi;
+
+  |Hệ thống|
+  :Ghi nhận thay đổi;
+  :Ghi nhận lịch sử thao tác;
+  :Thông báo cập nhật thành công;
+endif
+
+|Admin|
+if (Tạm ngưng hoặc kích hoạt lại thiết bị?) then (Có)
+  :Chọn thiết bị;
+  :Chọn hành động\n(tạm ngưng / kích hoạt lại);
+  :Nhập lý do;
+  :Xác nhận;
+
+  |Hệ thống|
+  :Cập nhật trạng thái thiết bị;
+  :Ghi nhận lịch sử thao tác;
+  :Thông báo kết quả;
+endif
+
+|Admin|
+if (Ghi nhận thiết bị hỏng/mất?) then (Có)
+  :Chọn thiết bị;
+  :Chọn tình trạng\n(hỏng / mất);
+  :Nhập mô tả và thời điểm;
+  :Xác nhận;
+
+  |Hệ thống|
+  :Cập nhật tình trạng thiết bị;
+  :Đưa thiết bị ra khỏi danh sách đang dùng (nếu cần);
+  :Ghi nhận lịch sử thao tác;
+  :Thông báo kết quả;
+endif
+
+|Admin|
+if (Xem lịch sử & báo cáo?) then (Có)
+  :Chọn thiết bị hoặc khoảng thời gian;
+  |Hệ thống|
+  :Hiển thị lịch sử thay đổi\nvà các lần sử dụng liên quan (nếu có);
+endif
+
+|Admin|
+stop
+@enduml

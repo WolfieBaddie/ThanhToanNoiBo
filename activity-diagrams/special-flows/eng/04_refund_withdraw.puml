@@ -1,0 +1,45 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 04. Refund / Withdrawal Process
+
+|Student (App/Web)|
+start
+:Submit Request;
+note right: Includes Reason, Amount, \nand Payout Info
+
+|Accountant|
+:Review Eligibility & Policy;
+if (Approved?) then (No)
+  :Reject with Reason;
+else (Yes)
+  :Confirm Payout Details;
+
+  |Internal Wallet System|
+  :Hold Funds in Wallet;
+
+  |Payment Gateway|
+  :Process Payout;
+  note right
+    If Gateway fails or rejects,
+    funds are released and
+    status is set to FAILED.
+  end note
+
+  |Internal Wallet System|
+  if (Transaction Successful?) then (Yes)
+    :Debit Held Funds;
+    :Update Status to SUCCESS;
+  else (No)
+    :Release Held Funds;
+    :Update Status to FAILED;
+  endif
+
+  |Accountant|
+  :Send Final Notification;
+endif
+
+|Student (App/Web)|
+:View Updated Balance & History;
+stop
+@enduml

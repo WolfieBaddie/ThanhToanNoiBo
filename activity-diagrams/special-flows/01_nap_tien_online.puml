@@ -1,0 +1,48 @@
+@startuml
+title Nạp tiền trực tuyến qua cổng thanh toán
+
+|Sinh viên (Ứng dụng/Web)|
+start
+:Chọn chức năng "Nạp tiền";
+:Nhập số tiền và chọn phương thức thanh toán;
+
+|Hệ thống ví nội bộ|
+:Tạo lệnh nạp (TopUpOrder)\n- Số tiền (amount)\n- Kênh (channel)\n- Mã tham chiếu (refId)\n- Trạng thái = CHỜ XỬ LÝ (PENDING);
+
+|Cổng thanh toán|
+:Tiếp nhận yêu cầu thanh toán;\nHiển thị màn hình thanh toán;
+
+|Sinh viên (Ứng dụng/Web)|
+:Thực hiện thanh toán trên cổng;
+
+|Cổng thanh toán|
+if (Thanh toán thành công?) then (Có)
+  :Gửi thông báo callback (THÀNH CÔNG)\nrefId + chữ ký (signature);
+else (Không)
+  :Gửi thông báo callback (THẤT BẠI)\nrefId + chữ ký (signature);
+endif
+
+|Hệ thống ví nội bộ|
+:Kiểm tra chữ ký/nguồn gửi;\nTra cứu lệnh nạp theo refId;
+if (Callback hợp lệ?) then (Có)
+  if (Lệnh nạp đã được xử lý?) then (Có)
+    :Bỏ qua do trùng callback (idempotent);\nPhản hồi ACK;
+  else (Chưa)
+    if (Trạng thái callback là THÀNH CÔNG?) then (Có)
+      :Cộng số dư vào ví nội bộ;
+      :Ghi nhận giao dịch và nhật ký kiểm toán;
+      :Cập nhật lệnh nạp tiền = THÀNH CÔNG;
+    else (Không)
+      :Cập nhật lệnh nạp tiền = THẤT BẠI;
+      :Ghi nhật ký lỗi;
+    endif
+    :Phản hồi ACK;
+  endif
+else (Không)
+  :Từ chối callback;\nGhi nhật ký cảnh báo;
+endif
+
+|Sinh viên (Ứng dụng/Web)|
+:Nhận thông báo kết quả;\nKiểm tra số dư/lịch sử giao dịch;
+stop
+@enduml

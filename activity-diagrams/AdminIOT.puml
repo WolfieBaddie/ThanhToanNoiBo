@@ -1,0 +1,147 @@
+@startuml
+title Manage POS / IoT Devices (System Admin – Swimlane Activity Diagram)
+
+|System Admin|
+start
+:Log in to admin portal;
+
+|Admin Portal|
+:Send login credentials\nto Wallet System for authentication;
+
+|Wallet System|
+:Verify admin username/password\nand check role = System Admin;
+if (Valid System Admin?) then (yes)
+  :Return "Login success" to Admin Portal;
+else (no)
+  :Return "Login failed";
+endif
+
+|Admin Portal|
+if (Login failed?) then (yes)
+  |System Admin|
+  :See error message;
+  stop
+else (no)
+  :Display Admin Dashboard;
+endif
+
+|System Admin|
+:Select "Manage POS / IoT devices" menu;
+
+|Admin Portal|
+:Request current device list\nfrom Wallet System;
+
+|Wallet System|
+:Fetch device list from DB
+(id, type, location, service unit, status);
+:Return device list to Admin Portal;
+
+|Admin Portal|
+:Display device table\n(POS, Gate In/Out, Kiosk, etc.);
+
+|System Admin|
+:Choose action on devices;
+
+if (Add new device?) then (yes)
+  :Click "Add new device";
+
+  |Admin Portal|
+  :Show "Create device" form
+  (Device ID, name, type,\nlocation, service unit, status);
+
+  |System Admin|
+  :Fill in device information:
+  - Device ID (unique)
+  - Device type (POS / PARKING_GATE_IN / PARKING_GATE_OUT / KIOSK / OTHER)
+  - Location (Building, Gate, Canteen)
+  - Service unit (Canteen A, Parking B, Library…)
+  - Initial status (ACTIVE / INACTIVE);
+  :Click "Save";
+
+  |Admin Portal|
+  :Send "Create device" request\nto Wallet System with input data;
+
+  |Wallet System|
+  :Validate device data:
+  - Device ID not duplicated
+  - Valid device type
+  - Valid service unit reference;
+  if (Validation OK?) then (yes)
+    :Insert new device record into DB;
+    :Write audit log (who, what, when);
+    :Return "Create success" to Admin Portal;
+  else (no)
+    :Return "Create failed + error reason";
+  endif
+
+  |Admin Portal|
+  if (Create success?) then (yes)
+    :Show success message\nand refresh device list;
+  else (no)
+    :Show error message\nfor System Admin;
+  endif
+
+else (no)
+  if (Edit existing device?) then (yes)
+    |System Admin|
+    :Select a device from list;
+    :Click "Edit";
+
+    |Admin Portal|
+    :Display current device info\nin editable form;
+
+    |System Admin|
+    :Modify fields (e.g. location,\nservice unit, display name);
+    :Click "Save changes";
+
+    |Admin Portal|
+    :Send "Update device" request\nto Wallet System;
+
+    |Wallet System|
+    :Validate changes;
+    :Update device record in DB;
+    :Write audit log (who, what, when, before/after);
+    :Return success/failure;
+
+    |Admin Portal|
+    :Show update result to System Admin;
+    :Refresh device list;
+
+  else (no)
+    if (Activate / Deactivate device?) then (yes)
+      |System Admin|
+      :Select device from list;
+      :Click "Activate" or "Deactivate";
+
+      |Admin Portal|
+      :Ask for confirmation (optional);
+      :Send "Change device status" request\nto Wallet System;
+
+      |Wallet System|
+      :Update device status (ACTIVE/INACTIVE);
+      :Write audit log (status change);
+      :Return result;
+
+      |Admin Portal|
+      :Show result and refresh list;
+
+      note right
+        Devices with status INACTIVE
+        must not be allowed to initiate
+        or approve payment transactions.
+      end note
+
+    else (no)
+      |System Admin|
+      :No changes, just view device list;
+    endif
+  endif
+endif
+
+|Wallet System|
+:Expose updated device configuration\nto POS/IoT gateways (sync step\nmay be periodic or on-demand);
+
+|System Admin|
+:Logout from admin portal;
+stop
+@enduml

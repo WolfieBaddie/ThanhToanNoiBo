@@ -1,0 +1,109 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+scale 1.2
+!pragma teoz true
+title [User] Payment Sequence Diagram
+
+autonumber
+skinparam SequenceMessageAlignment center
+hide footbox
+skinparam actorStyle awesome
+
+' Monochrome styling for notes and diagram elements
+skinparam NoteBackgroundColor yellow
+skinparam NoteBorderColor black
+skinparam ParticipantBackgroundColor white
+skinparam ActorBackgroundColor white
+
+actor "Student" as ST
+actor "Staff" as CS
+participant "Service Provider/Billing" as SP
+participant "Wallet" as IWS
+database "DB" as DB
+participant "Payment Gateway" as PG
+
+== Online Payment ==
+
+ST -> SP : Select Invoice
+activate SP
+SP -> IWS : Validate Request
+activate IWS
+
+IWS -> DB : Verify Wallet & Balance
+activate DB
+
+' DB Failure scenario
+alt "DB Failure"
+    DB --> IWS : Error
+    IWS --> ST : DB Error (Transaction Failed)
+    deactivate DB
+else "DB Success"
+    DB --> IWS : Valid
+    deactivate DB
+
+    note right of IWS : Apply promotions\n& check funds
+
+    IWS -> PG : Process Transaction
+    activate PG
+
+    ' PG Failure scenario
+    alt "PG Failure"
+        PG --> IWS : Error
+        IWS --> ST : Payment Gateway Error
+        deactivate PG
+    else "PG Success"
+        PG --> IWS : Result: SUCCESS
+        IWS -> DB : Finalize Ledger
+        IWS -> SP : Update Invoice
+        SP --> ST : Confirmation
+        deactivate PG
+    end
+end
+
+deactivate IWS
+deactivate SP
+
+|||
+
+== RFID Payment ==
+
+CS -> ST : Tap Card
+ST -> IWS : Request Payment (Card ID)
+activate IWS
+
+IWS -> DB : Resolve Wallet
+activate DB
+
+' DB Failure scenario for RFID Payment
+alt "DB Failure"
+    DB --> IWS : Error
+    IWS --> CS : DB Error (Payment Failed)
+    deactivate DB
+else "DB Success"
+    DB --> IWS : Wallet Data
+    deactivate DB
+
+    note right of IWS : Apply promotions\n& check funds
+
+    IWS -> PG : Process Intermediary
+    activate PG
+
+    ' PG Failure scenario for RFID Payment
+    alt "PG Failure"
+        PG --> IWS : Error
+        IWS --> CS : Payment Gateway Error
+        deactivate PG
+    else "PG Success"
+        PG --> IWS : Result: SUCCESS
+        IWS -> DB : Save History
+        IWS --> CS : Payment OK
+        CS --> ST : Issue Receipt
+        deactivate PG
+    end
+end
+
+deactivate IWS
+deactivate CS
+== End ==
+@enduml

@@ -1,0 +1,48 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 01. Online Top-up via Payment Gateway
+
+|Student|
+start
+:Initiate Top-up Request;
+
+|Wallet|
+:Generate Payment Reference;
+
+|Payment Gateway|
+:Process External Payment;
+
+if (Payment Successful?) then (Yes)
+  :Return SUCCESS Result;
+else (No)
+  :Return FAILED Result;
+  |Student|
+  :Receive Failure Alert;
+  stop
+endif
+
+|Wallet|
+if (Verification Valid?) then (Yes)
+  :Credit Student Wallet;
+  :Finalize SUCCESS Record;
+else (No)
+  :Flag for Manual Review;
+  note right
+    Prevents "Ghost Credits"
+    where the gateway says yes
+    but the signature is invalid.
+  end note
+endif
+
+|Student|
+:View Updated Balance;
+
+|Accounting/Finance|
+:Monitor Daily Summaries;
+if (Flagged Items Exist?) then (Yes)
+  :Perform Correction & Reconciliation;
+endif
+
+stop
+@enduml

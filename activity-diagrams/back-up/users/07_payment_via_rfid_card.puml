@@ -1,0 +1,74 @@
+@startuml
+skinparam dpi 300
+' or:
+scale 2
+' or:
+scale max 2000 width
+title Counter Payment via RFID Card (Tap/Swipe) - with intermediary payment partner
+
+|Counter Staff / POS|
+start
+:Create order/service\n(select service + enter amount);
+:Select payment method "RFID";
+
+|Student|
+:Tap/swipe RFID card on the device;
+
+|Counter Staff / POS|
+:Read card ID;\nSend payment request\n(card ID, service code, amount, order code);
+
+|Internal Wallet System|
+:Find wallet by card ID;
+if (Wallet does not exist or is locked?) then (Yes)
+  :Return error (invalid wallet);
+  |Counter Staff / POS|
+  :Display error;
+  stop
+else (No)
+  :Check eligible promotion by:\ncounter/shop + service + time window + conditions;
+  if (Promotion applies?) then (Yes)
+    :Calculate % discount;\nCreate breakdown (original/discount/payable);
+  else (No)
+    :Payable amount remains unchanged;
+  endif
+
+  :Check balance;\nDo not allow negative balance;
+  if (Sufficient funds for payable amount?) then (Yes)
+    :Temporarily reserve payable amount;
+
+    :Send payment request to intermediary\n(order code, payable amount, service);
+
+    |Intermediary Payment Partner|
+    :Receive payment request;
+    if (Immediately reject?) then (Yes)
+      :Return not accepted result;\nwith reason;
+    else (No)
+      :Return accepted/received result;
+      :Process payment;
+      if (Payment successful?) then (Yes)
+        :Send success result notification;
+      else (No)
+        :Send failure result notification;\nwith reason;
+      endif
+    endif
+
+    |Internal Wallet System|
+    if (Receive success result?) then (Yes)
+      :Deduct wallet balance for payable amount;
+      :Record payment transaction\n(payer, service, amount, timestamp,\nchannel=RFID, order code, promotion if any);
+      :Save processing history;
+      :Return SUCCESS;
+    else (No)
+      :Release reserved amount;
+      :Return error (payment unsuccessful);
+    endif
+
+  else (No)
+    :Return error (insufficient funds);
+  endif
+endif
+
+|Counter Staff / POS|
+:Display result;\nPrint/display receipt;
+stop
+@enduml
