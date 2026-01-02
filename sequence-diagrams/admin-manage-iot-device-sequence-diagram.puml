@@ -1,0 +1,62 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+scale 1.2
+title Admin Manage IoT Devices Sequence Diagram
+
+autonumber
+skinparam SequenceMessageAlignment center
+hide footbox
+skinparam actorStyle awesome
+
+' Monochrome styling for notes and diagram elements
+skinparam NoteBackgroundColor yellow
+skinparam NoteBorderColor black
+skinparam ParticipantBackgroundColor white
+skinparam ActorBackgroundColor white
+
+actor "Admin" as Admin
+participant "Internal Wallet System" as IWS
+participant "Database" as DB
+
+== Manage IoT Devices ==
+
+Admin -> IWS : Browse Device Inventory
+activate IWS
+IWS -> DB : Get device list
+activate DB
+DB --> IWS : Return device list
+deactivate DB
+
+alt "Register New Asset?"
+    Admin -> IWS : Assign Device to Location & PIC
+    IWS -> DB : Save device metadata
+    IWS -> IWS : Activate Device for Transactions
+end
+
+alt "Update Metadata?"
+    Admin -> IWS : Update Location or Responsibility
+    IWS -> DB : Update device metadata
+end
+
+alt "Suspend Service?"
+    Admin -> IWS : Change Operational Status
+    IWS -> DB : Update status
+    IWS -> IWS : Block Transaction Capabilities
+end
+
+alt "Report Asset Loss?"
+    Admin -> IWS : Mark as Broken or Lost
+    IWS -> DB : Update device status to "Lost"
+    IWS -> IWS : Decommission Device
+    note right of IWS : Prevents unauthorized transactions
+end
+alt "Audit?"
+    Admin -> IWS : Review Usage & Change History
+    IWS -> DB : Retrieve audit history
+    DB --> IWS : Return audit data
+end
+
+deactivate IWS
+== End ==
+@enduml

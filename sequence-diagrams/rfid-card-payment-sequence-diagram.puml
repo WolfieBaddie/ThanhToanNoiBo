@@ -1,0 +1,69 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+scale 1.2
+title [User] RFID Payment Sequence Diagram with IoT Device
+
+autonumber
+skinparam SequenceMessageAlignment center
+hide footbox
+skinparam actorStyle awesome
+
+' Monochrome styling for notes and diagram elements
+skinparam NoteBackgroundColor yellow
+skinparam NoteBorderColor black
+skinparam ParticipantBackgroundColor white
+skinparam ActorBackgroundColor white
+
+actor "Student" as ST
+actor "Staff" as CS
+participant "IoT Device" as IoT
+participant "Wallet" as IWS
+database "DB" as DB
+participant "Payment Gateway" as PG
+
+== RFID Payment ==
+
+ST -> IoT : Tap Card (Student taps the card)
+activate IoT
+IoT -> IWS : Send Card ID
+deactivate IoT
+
+CS -> IWS : Request Payment (Card ID)
+activate IWS
+
+IWS -> DB : Resolve Wallet
+activate DB
+
+' DB Failure scenario for RFID Payment
+alt "DB Failure"
+    DB --> IWS : Error
+    IWS --> CS : DB Error (Payment Failed)
+    deactivate DB
+else "DB Success"
+    DB --> IWS : Wallet Data
+    deactivate DB
+
+    note right of IWS : Apply promotions\n& check funds
+
+    IWS -> PG : Process Intermediary
+    activate PG
+
+    ' PG Failure scenario for RFID Payment
+    alt "PG Failure"
+        PG --> IWS : Error
+        IWS --> CS : Payment Gateway Error
+        deactivate PG
+    else "PG Success"
+        PG --> IWS : Result: SUCCESS
+        IWS -> DB : Save History
+        IWS --> CS : Payment OK
+        CS --> ST : Issue Receipt
+        deactivate PG
+    end
+end
+
+deactivate IWS
+deactivate CS
+== End ==
+@enduml

@@ -1,4 +1,4 @@
-package com.example.thanhtoannoibo.Repository;
+package com.example.thanhtoannoibo.Repository.Security;
 
 import com.example.thanhtoannoibo.Entity.Session;
 import org.springframework.data.jpa.repository.JpaRepository;
