@@ -12,11 +12,17 @@ import java.util.UUID;
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
 @Entity
-@Table(schema = "auth", name = "user_accounts")
+@Table(schema = "security", name = "users")
 public class UserAccount {
     @Id
-    @Column(columnDefinition = "uuid")
-    private UUID id;
+    @Column(name = "user_id", columnDefinition = "uuid")
+    private UUID userId;
+
+    @Column(name = "user_name")
+    private String userName;
+
+    @Column(name = "password_hash")
+    private String passwordHash;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "user_type", nullable = false)
@@ -26,8 +32,8 @@ public class UserAccount {
     @Column(nullable = false)
     private UserStatus status;
 
-    @Column(name = "display_name", nullable = false)
-    private String displayName;
+    @Column(name = "full_name", nullable = false)
+    private String fullName;
 
     @Column
     private String email;
@@ -50,9 +56,12 @@ public class UserAccount {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
+    @Column(name="last_login_at", nullable = false)
+    private Instant lastLoginAt;
+
     @PrePersist
     public void prePersist() {
-        if (id == null) id = UUID.randomUUID();
+        if (userId == null) userId = UUID.randomUUID();
         if (status == null) status = UserStatus.PENDING;
     }
 }

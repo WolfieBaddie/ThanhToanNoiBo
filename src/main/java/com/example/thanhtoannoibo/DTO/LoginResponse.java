@@ -13,4 +13,7 @@ public class LoginResponse {
     private Instant accessExpiresAt;
     private String refreshToken;    // plaintext trả về client (DB chỉ lưu hash)
     private Instant refreshExpiresAt;
+    private String type = "Bearer";
+    private Long expiresIn;
+    private UserResponse user;
 }

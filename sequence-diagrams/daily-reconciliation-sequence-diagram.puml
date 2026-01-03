@@ -1,0 +1,70 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+scale 1.2
+title Daily Top-up Reconciliation Sequence Diagram
+
+autonumber
+skinparam SequenceMessageAlignment center
+hide footbox
+skinparam actorStyle awesome
+
+' Monochrome styling for notes and diagram elements
+skinparam NoteBackgroundColor yellow
+skinparam NoteBorderColor black
+skinparam ParticipantBackgroundColor white
+skinparam ActorBackgroundColor white
+
+actor "Accounting/Finance" as AF
+participant "Internal Wallet System" as IWS
+database "Database" as DB
+participant "Payment Gateway" as PG
+
+== Daily Reconciliation ==
+
+AF -> IWS : Start daily reconciliation
+activate IWS
+IWS -> AF : Select reconciliation date
+IWS -> AF : Receive report from payment gateway/bank
+
+IWS -> IWS : Check file validity
+alt "Valid file?"
+    IWS -> DB : Get transactions for the day
+    activate DB
+    DB --> IWS : Return transactions
+    deactivate DB
+
+    IWS -> IWS : Compare transactions (ID, amount, date, status)
+
+    alt "Fully matched?"
+        IWS -> IWS : Mark as matched
+        IWS -> AF : Export summary report
+        AF -> IWS : Download and archive report
+        deactivate IWS
+    else "Discrepancies"
+        note right of IWS : Common discrepancies: missing transactions, mismatched amounts, etc.
+        IWS -> AF : Review discrepancies
+
+        loop Handle discrepancies
+            IWS -> PG : Re-query transaction or verify settlement
+            PG --> IWS : Return results
+
+            alt "Adjust wallet?"
+                IWS -> DB : Apply adjustments (Add, update, refund)
+                IWS -> IWS : Record adjustments
+            end
+        end
+
+        IWS -> AF : Export detailed discrepancy report
+        AF -> IWS : Download and archive report
+        deactivate IWS
+    end
+else "Invalid file"
+    IWS -> AF : Notify invalid file
+    AF -> IWS : Request file resend
+    deactivate IWS
+end
+
+deactivate AF
+== End ==
+@enduml
