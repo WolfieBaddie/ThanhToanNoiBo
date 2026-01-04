@@ -132,9 +132,33 @@ public class VnPayUtil {
         }
 
         String queryUrl = query.toString();
-        String vnpSecureHash = hmacSHA512(vnpayConfig.getSecretKey(), hashData.toString());
+        String vnpSecureHash = hmacSHA512(vnpayConfig.getHashSecret(), hashData.toString());
         queryUrl += "&vnp_SecureHash=" + vnpSecureHash;
 
         return vnpayConfig.getPayUrl() + "?" + queryUrl;
+    }
+
+    public String createQueryUrl(Map<String, String> fields, boolean encode) {
+        // Logic to sort and build string for hashing comparison...
+        // (Similar to logic inside createPaymentUrl but only returning the hashData string part)
+        List<String> fieldNames = new ArrayList<>(fields.keySet());
+        Collections.sort(fieldNames);
+        StringBuilder hashData = new StringBuilder();
+        Iterator<String> itr = fieldNames.iterator();
+        while (itr.hasNext()) {
+            String fieldName = itr.next();
+            String fieldValue = fields.get(fieldName);
+            if ((fieldValue != null) && (fieldValue.length() > 0)) {
+                try {
+                    hashData.append(fieldName);
+                    hashData.append('=');
+                    hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
+                    if (itr.hasNext()) {
+                        hashData.append('&');
+                    }
+                } catch(Exception e){}
+            }
+        }
+        return hashData.toString();
     }
 }

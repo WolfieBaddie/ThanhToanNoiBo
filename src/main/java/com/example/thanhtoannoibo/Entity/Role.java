@@ -42,8 +42,12 @@ public class Role implements GrantedAuthority{
     )
     private Set<Permission> permissions = new HashSet<>();
 
+    @ManyToMany(mappedBy = "roles")
+    @ToString.Exclude // <--- Tránh lỗi StackOverflow khi in log
+    private Set<User> users = new HashSet<>();
+
     @Override
     public String getAuthority() {
-        return "ROLE_" + roleCode;
+        return roleCode; // Trả về role_code để Spring quản lý quyền (ví dụ: "ADMIN")
     }
 }

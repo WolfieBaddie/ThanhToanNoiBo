@@ -7,13 +7,11 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 
 @Entity
@@ -77,7 +75,23 @@ public class User implements UserDetails {
     // Spring Security methods
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return roles;
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>();
+
+        if (this.roles != null) {
+            for (Role role : this.roles) {
+                // Thêm Role vào list quyền (Ví dụ: ROLE_STUDENT)
+                // Spring Security thường yêu cầu prefix "ROLE_"
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getRoleCode()));
+
+                // Nếu bạn muốn mapping thêm permission (để dùng sau này)
+                if (role.getPermissions() != null) {
+                    role.getPermissions().forEach(permission -> {
+                        authorities.add(new SimpleGrantedAuthority(permission.getPermissionCode()));
+                    });
+                }
+            }
+        }
+        return authorities;
     }
 
     @Override

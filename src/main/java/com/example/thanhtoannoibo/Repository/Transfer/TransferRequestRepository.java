@@ -1,6 +1,8 @@
 package com.example.thanhtoannoibo.Repository.Transfer;
 import com.example.thanhtoannoibo.Entity.Transfer.TransferRequest;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -17,6 +19,7 @@ public interface TransferRequestRepository extends JpaRepository<TransferRequest
 
     List<TransferRequest> findByReceiverWalletId(UUID receiverWalletId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT t FROM TransferRequest t WHERE t.status = 'PENDING' AND t.expiresAt < :now")
     List<TransferRequest> findExpiredRequests(@Param("now") LocalDateTime now);
 }

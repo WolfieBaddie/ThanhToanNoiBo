@@ -1,8 +1,11 @@
 package com.example.thanhtoannoibo.Service;
+import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.Entity.Wallet.Wallet;
+import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Wallet.WalletRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -20,6 +23,7 @@ public class WalletService {
                 .map(Wallet::getWalletId);
     }
 
+    @Transactional(readOnly = true)
     public void validateWalletBalance(UUID walletId, BigDecimal amount) {
         // In real implementation, check wallet balance in database
         // For demo, just validate
@@ -27,8 +31,11 @@ public class WalletService {
             throw new RuntimeException("Amount must be greater than zero");
         }
 
-        // Mock validation - always pass for demo
-        // In real app: check if wallet.balance >= amount
+        Wallet wallet = walletRepository.findById(walletId).orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        if (wallet.getBalance().compareTo(amount) < 0)
+            throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
+
     }
 
     public boolean processTransfer(UUID senderWalletId, UUID receiverWalletId, BigDecimal amount) {

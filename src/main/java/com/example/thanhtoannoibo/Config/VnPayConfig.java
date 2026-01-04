@@ -8,8 +8,11 @@ import org.springframework.context.annotation.Configuration;
 @Data
 public class VnPayConfig {
     private String tmnCode;
-    private String secretKey;
+    private String hashSecret;
     private String apiUrl;
     private String payUrl;
     private String returnUrl;
+    private String version = "2.1.0";
+    private String command = "pay";
+    private String currCode = "VND";
 }

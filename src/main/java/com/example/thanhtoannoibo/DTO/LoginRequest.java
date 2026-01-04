@@ -10,11 +10,9 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 public class LoginRequest {
-    @NotNull
-    private IdentityProvider provider;
 
     @NotBlank
-    private String identifier;
+    private String username;
 
     @NotBlank
     private String password;

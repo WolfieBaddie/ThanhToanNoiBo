@@ -101,6 +101,11 @@ public class QrCodeService {
         return savedRequest;
     }
 
+    public QRCode validateQrCode(String qrCodeValue) {
+        return qrCodeRepository.findActiveQRCode(qrCodeValue)
+                .orElseThrow(() -> new RuntimeException("Invalid or expired QR code"));
+    }
+
     @Transactional
     public void incrementUsage(UUID qrId)
     {
