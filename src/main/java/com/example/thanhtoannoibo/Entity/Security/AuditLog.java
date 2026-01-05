@@ -2,6 +2,7 @@ package com.example.thanhtoannoibo.Entity.Security;
 import com.example.thanhtoannoibo.Entity.User;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnTransformer;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -40,6 +41,7 @@ public class AuditLog {
     private Map<String, Object> details;
 
     @Column(name = "ip_address")
+    @ColumnTransformer(write = "?::inet")
     private String ipAddress;
 
     @Column(name = "created_at", nullable = false)

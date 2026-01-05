@@ -20,11 +20,23 @@ public class PaymentDetailService {
     private final CounterRepository counterRepository; // Catalog repo
 
     /**
+     * NEW METHOD: Fetches receipt details for an existing transaction.
+     */
+    public PaymentDetailResponse getByTransaction(Transaction transaction) {
+        if (transaction == null) return null;
+
+        // Use the repository method we defined: findByTransactionTransactionId
+        return paymentDetailRepository.findByTransactionTransactionId(transaction.getTransactionId())
+                .map(this::toResponse)
+                .orElse(null); // Or throw exception if a receipt is mandatory
+    }
+
+    /**
      * Creates a payment detail record linked to a successfully completed transaction.
      * This is called when a QR Transfer is identified as a "Service Payment" (e.g. Canteen).
      */
     @Transactional
-    public PaymentDetail createPaymentDetail(Transaction transaction, PaymentDetailCreateRequest request) {
+    public PaymentDetailResponse createPaymentDetail(Transaction transaction, PaymentDetailCreateRequest request) {
         if (request == null) return null;
 
         // 1. Resolve optional catalog links
@@ -50,7 +62,8 @@ public class PaymentDetailService {
                 .build();
 
         // 3. Save
-        return paymentDetailRepository.save(detail);
+        PaymentDetail savedDetail = paymentDetailRepository.save(detail);
+        return toResponse(savedDetail);
     }
 
     /**
