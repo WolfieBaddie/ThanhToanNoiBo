@@ -1,6 +1,6 @@
 package com.example.thanhtoannoibo.Repository.Wallet;
 
-import com.example.thanhtoannoibo.Entity.Wallet.PaymentDetail;
+import com.example.thanhtoannoibo.Entity.Voucher.PaymentDetail;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

@@ -1,5 +1,7 @@
 package com.example.thanhtoannoibo.Repository.QrCode;
 
+import com.example.thanhtoannoibo.Common.QrCodeStatus;
+import com.example.thanhtoannoibo.Common.QrCodeType;
 import com.example.thanhtoannoibo.Entity.QrCode.QRCode;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,21 +14,31 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
+public interface QrCodeRepository extends JpaRepository<QRCode, UUID> {
 
-public interface QrCodeRepository  extends JpaRepository<QRCode, UUID>{
-    Optional<QRCode> findByQrCode(String qrCode);
+    // FIX 1: Rename findByQrCode -> findByCodeString
+    Optional<QRCode> findByCodeString(String codeString);
 
-    Optional<QRCode> findByQrCodeAndStatus(String qrCode, String status);
+    // FIX 2: Check your Entity for "type" vs "qrType"
+    // If your Entity has a field "User owner", use "Owner_Id"
+    // If your Entity has a field "QrCodeType type", use "Type"
+    boolean existsByOwner_UserIdAndTypeAndStatus(UUID ownerId, QrCodeType type, QrCodeStatus status);
 
-    @Query("SELECT q FROM QRCode q WHERE q.qrCode = :qrCode " +
+    // FIX 3: Rename findByQrCodeAndStatus -> findByCodeStringAndStatus
+    Optional<QRCode> findByCodeStringAndStatus(String codeString, String status);
+
+    // FIX 4: Update JPQL to use q.codeString
+    @Query("SELECT q FROM QRCode q WHERE q.codeString = :codeString " +
             "AND q.status = 'ACTIVE' " +
             "AND (q.expiresAt IS NULL OR q.expiresAt > CURRENT_TIMESTAMP) " +
             "AND (q.usageLimit IS NULL OR q.usageCount < q.usageLimit)")
-    Optional<QRCode> findActiveQRCode(@Param("qrCode") String qrCode);
+    Optional<QRCode> findActiveQRCode(@Param("codeString") String codeString);
 
-    // --- NEW: FOR UPDATING USAGE COUNTS ---
-    // Locks the QR row to safely increment usage_count
+    // FIX 5: Update JPQL to use q.codeString
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT q FROM QRCode q WHERE q.qrCode = :qrCode")
-    Optional<QRCode> findByQrCodeForUpdate(@Param("qrCode") String qrCode);
+    @Query("SELECT q FROM QRCode q WHERE q.codeString = :codeString " +
+            "AND q.status = 'ACTIVE' " +
+            "AND (q.expiresAt IS NULL OR q.expiresAt > CURRENT_TIMESTAMP) " +
+            "AND (q.usageLimit IS NULL OR q.usageCount < q.usageLimit)")
+    Optional<QRCode> findActiveQRCodeForUpdate(@Param("codeString") String codeString);
 }

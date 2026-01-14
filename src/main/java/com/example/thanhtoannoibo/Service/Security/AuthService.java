@@ -1,13 +1,18 @@
 package com.example.thanhtoannoibo.Service.Security;
 
 import com.example.thanhtoannoibo.Common.UserStatus;
+import com.example.thanhtoannoibo.Common.UserType;
 import com.example.thanhtoannoibo.DTO.LoginRequest;
 import com.example.thanhtoannoibo.DTO.LoginResponse;
+import com.example.thanhtoannoibo.DTO.Request.Register.RegisterRequest;
 import com.example.thanhtoannoibo.Entity.*;
-import com.example.thanhtoannoibo.Entity.Wallet.Wallet;
+import com.example.thanhtoannoibo.Entity.Security.AuditLog;
+import com.example.thanhtoannoibo.Repository.Security.AuditLogRepository;
+import com.example.thanhtoannoibo.Repository.Security.RoleRepository;
 import com.example.thanhtoannoibo.Repository.Security.SessionRepository;
 import com.example.thanhtoannoibo.Repository.Security.UserRepository;
-import com.example.thanhtoannoibo.Repository.Wallet.WalletRepository;
+import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherRepository;
+import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,10 +23,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -33,7 +40,10 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
-    private final WalletRepository walletRepository;
+    private final UserVoucherRepository userVoucherRepository;
+
+    private final RoleRepository roleRepository;
+    private final AuditLogRepository auditLogRepository;
 
     @Value("${app.jwt.access-ttl-minutes:15}")
     private long accessTtlMinutes;
@@ -158,6 +168,116 @@ public class AuthService {
     }
 
     @Transactional
+    public LoginResponse register(RegisterRequest req) {
+        // 1. Validate trùng lặp
+        if (userRepository.findByUsername(req.getUsername()).isPresent()) {
+            throw new RuntimeException("USERNAME_EXISTS");
+        }
+        if (userRepository.findByEmail(req.getEmail()).isPresent()) { // Giả sử repo có hàm này
+            throw new RuntimeException("EMAIL_EXISTS");
+        }
+
+        // 2. Tạo User Entity
+        User newUser = User.builder()
+                .username(req.getUsername())
+                .passwordHash(passwordEncoder.encode(req.getPassword()))
+                .fullName(req.getFullName())
+                .email(req.getEmail())
+                .phoneNumber(req.getPhoneNumber())
+                .userType(UserType.STUDENT) // Mặc định là Student
+                .status(UserStatus.ACTIVE)
+                .build();
+
+        // Gán Role mặc định (STUDENT hoặc USER)
+        // Lưu ý: Role code phải khớp với DB ("STUDENT" hoặc "USER")
+        Role defaultRole = roleRepository.findByRoleCode("STUDENT")
+                .orElseThrow(() -> new RuntimeException("DEFAULT_ROLE_NOT_FOUND"));
+
+        newUser.setRoles(new HashSet<>(Collections.singletonList(defaultRole)));
+
+        User savedUser = userRepository.save(newUser);
+
+        // 3. Tạo UserVoucher (Ví mặc định)
+        String uniqueVoucherCode = "V" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0,4).toUpperCase();
+
+        UserVoucher newVoucher = UserVoucher.builder()
+                .owner(savedUser) // Map tới user vừa tạo
+                .voucherCode(uniqueVoucherCode)
+//                .voucherType("VALUE") // Loại ví tiền (VALUE) thay vì ITEM
+                .balance(BigDecimal.ZERO)
+                .status("ACTIVE")
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        userVoucherRepository.save(newVoucher);
+
+        // 4. Ghi Audit Log
+        AuditLog auditLog = AuditLog.builder()
+                .user(savedUser)
+                .action("REGISTER_ACCOUNT")
+                .entityType("USER")
+                .entityId(savedUser.getUserId())
+                .details(Map.of("email", savedUser.getEmail(), "voucherCode", uniqueVoucherCode))
+                .ipAddress("UNKNOWN") // Trong ngữ cảnh register thường khó lấy IP chính xác nếu không truyền vào, hoặc lấy từ Request nếu controller truyền xuống
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        auditLogRepository.save(auditLog);
+
+        // 5. Tự động đăng nhập (Tạo Session & Token)
+        // Logic dưới đây tái sử dụng từ hàm login để trả về Token luôn
+
+        // Lấy danh sách quyền để tạo Token
+        List<String> permissionCodes = savedUser.getRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .map(Permission::getPermissionCode)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+
+        List<String> roleCodes = savedUser.getRoles().stream()
+                .map(Role::getRoleCode)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+
+        Instant accessExp = Instant.now().plus(Duration.ofMinutes(accessTtlMinutes));
+
+        String accessToken = jwtService.generateAccessToken(
+                savedUser.getUsername(),
+                savedUser.getUserId(),
+                savedUser.getUserType().name(),
+                permissionCodes,
+                roleCodes,
+                accessExp
+        );
+
+        String refreshTokenPlain = UUID.randomUUID().toString() + "." + UUID.randomUUID();
+        String refreshHash = sha256Base64(refreshTokenPlain);
+        Instant refreshExp = Instant.now().plus(Duration.ofDays(refreshTtlDays));
+
+        // Lưu Session
+        UserSession session = UserSession.builder()
+                .user(savedUser)
+                .token(refreshHash)
+                .ipAddress("REGISTER_IP") // Có thể update nếu truyền IP vào DTO
+                .expiresAt(LocalDateTime.now().plusDays(refreshTtlDays))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        sessionRepository.save(session);
+
+        // Trả về response giống hệt login
+        return LoginResponse.builder()
+                .userId(savedUser.getUserId())
+                .accessToken(accessToken)
+                .accessExpiresAt(accessExp)
+                .refreshToken(refreshTokenPlain)
+                .refreshExpiresAt(refreshExp)
+                .build();
+    }
+
+    @Transactional
     public LoginResponse refreshToken(String refreshToken, String ip, String userAgent, String deviceId) {
         String refreshHash = sha256Base64(refreshToken);
 
@@ -244,10 +364,13 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
     }
 
-    public UUID getWalletIdByUser(User user) {
-        return walletRepository.findByUserId(user.getUserId())
-                .map(Wallet::getWalletId)
-                .orElseThrow(() -> new RuntimeException("WALLET_NOT_FOUND_FOR_USER"));
+    // THAY ĐỔI: Phương thức này thay thế cho getWalletIdByUser
+    // Tìm Voucher ID (đóng vai trò là ví chính) của User
+    public UUID getVoucherIdByUser(User user) {
+        // Tìm Voucher đang ACTIVE của user này
+        return userVoucherRepository.findByOwner_UserIdAndStatus(user.getUserId(), "ACTIVE")
+                .map(UserVoucher::getVoucherId)
+                .orElseThrow(() -> new RuntimeException("NO_ACTIVE_VOUCHER_FOUND_FOR_USER"));
     }
 
     private static String sha256Base64(String plain) {

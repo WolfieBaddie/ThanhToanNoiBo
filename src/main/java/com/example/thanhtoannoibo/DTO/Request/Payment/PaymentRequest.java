@@ -15,5 +15,5 @@ public class PaymentRequest {
 
     private String bankCode;
 
-    private String locale;
+    private String language;
 }

@@ -7,10 +7,14 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+@Repository
 public interface AppServiceRepository extends JpaRepository<AppService, UUID>{
     Optional<AppService> findByServiceCode(String serviceCode);
 
     List<AppService> findByServiceCategoryAndIsActiveTrue(ServiceCategory category);
 
     boolean existsByServiceCode(String serviceCode);
+
+    List<AppService> findAllByIsActiveTrue();
 }

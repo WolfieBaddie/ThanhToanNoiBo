@@ -1,4 +1,8 @@
 package com.example.thanhtoannoibo.Entity.QrCode;
+import com.example.thanhtoannoibo.Common.QrCodeStatus;
+import com.example.thanhtoannoibo.Common.QrCodeType;
+import com.example.thanhtoannoibo.Entity.User;
+import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -8,6 +12,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -19,46 +24,53 @@ import java.util.UUID;
 @Builder
 public class QRCode {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "qr_id")
     private UUID qrId;
 
     @Column(name = "qr_code", unique = true, nullable = false)
-    private String qrCode;
+    private String codeString; // Chuỗi token trong QR image
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "qr_type", nullable = false)
-    private String qrType; // STATIC, DYNAMIC, MERCHANT
+    private QrCodeType type;
 
-    @Column(name = "owner_id", nullable = false)
-    private UUID ownerId;
+    // Người tạo QR (Người nhận xu hoặc người chuyển xu tùy ngữ cảnh)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private User owner;
 
-    @Column(name = "owner_type", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "voucher_id")
+    private UserVoucher payerVoucher;
+
+    @Column(name = "owner_type")
     private String ownerType;
 
     @Column(name = "amount")
-    private BigDecimal amount;
+    private BigDecimal amount; // Số xu set cứng (nếu có)
 
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
     @Column(name = "usage_limit")
-    private Integer usageLimit;
+    private int usageLimit;
 
     @Column(name = "usage_count")
-    private Integer usageCount = 0;
+    private int usageCount;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status")
-    private String status = "ACTIVE";
+    private QrCodeStatus status;
 
+    // Lưu metadata dạng JSON (Ví dụ: lời nhắn, transaction ID tham chiếu)
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "metadata", columnDefinition = "jsonb")
-    private String metadata;
+    @Column(name = "metadata")
+    private Map<String, Object> metadata;
 
-    @CreationTimestamp
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
     @Column(name = "last_used_at")
     private LocalDateTime lastUsedAt;
-
 }
