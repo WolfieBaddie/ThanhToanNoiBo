@@ -10,11 +10,12 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -30,20 +31,16 @@ public class VnPayService {
         if (depositRequest == null || depositRequest.getAmount() == null) {
             throw new IllegalArgumentException("amount is required");
         }
-        if (depositRequest.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("amount must be > 0");
-        }
-
         // Spec: VND * 100
         long amount100 = depositRequest.getAmount()
                 .multiply(BigDecimal.valueOf(100))
                 .setScale(0, RoundingMode.HALF_UP)
                 .longValueExact();
 
-        // txnRef tạo 1 lần duy nhất
         String txnRef = generateTxnRef();
+        String orderInfo = "Nap xu: " + txnRef;
 
-        String orderInfo = "Thanh toan don hang:" + txnRef;
+        // SỬA: Lấy IP thực tế thay vì hardcode 127.0.0.1
         String ipAddress = vnPayUtil.getIpAddress(request);
 
         Map<String, String> vnpParams = buildPaymentParams(
@@ -55,7 +52,8 @@ public class VnPayService {
                 ipAddress
         );
 
-        String paymentUrl = buildPaymentUrl(vnpParams);
+        // SỬA: Gọi method buildPaymentUrl mới trong Util
+        String paymentUrl = vnPayUtil.buildPaymentUrl(vnpParams, vnPayConfig.getHashSecret(), vnPayConfig.getPayUrl());
 
         return VnPayResponse.builder()
                 .paymentUrl(paymentUrl)
@@ -64,31 +62,73 @@ public class VnPayService {
     }
 
     /**
-     *  1 = success, 0 = failed, -1 = invalid signature / thiếu data
+     * Logic Verify tham khảo từ VNPayService.orderReturn (com.duc):
+     * Cần encode lại các params nhận được trước khi hash để so sánh.
      */
     public int verifyPayment(Map<String, String> queryParams) {
         if (queryParams == null || queryParams.isEmpty()) return -1;
 
-        String receivedHash = queryParams.get("vnp_SecureHash");
-        if (receivedHash == null || receivedHash.isBlank()) return -1;
+        String vnp_SecureHash = queryParams.get("vnp_SecureHash");
+        if (vnp_SecureHash == null || vnp_SecureHash.isBlank()) return -1;
 
-        // Không mutate map đầu vào
-        Map<String, String> params = new HashMap<>(queryParams);
-        params.remove("vnp_SecureHash");
-        params.remove("vnp_SecureHashType");
+        // Tạo Map mới để tính checksum (giống logic orderReturn của file tham khảo)
+        Map<String, String> fields = new HashMap<>();
 
-        // (a) hashData KHÔNG encode value
-        String hashData = vnPayUtil.buildHashData(params);
-        String expectedHash = vnPayUtil.hmacSHA512(vnPayConfig.getHashSecret(), hashData);
+        for (Map.Entry<String, String> entry : queryParams.entrySet()) {
+            String fieldName = entry.getKey();
+            String fieldValue = entry.getValue();
 
-        if (!expectedHash.equalsIgnoreCase(receivedHash)) {
-            return -1;
+            // Skip các field hash
+            if ("vnp_SecureHash".equals(fieldName) || "vnp_SecureHashType".equals(fieldName)) {
+                continue;
+            }
+
+            try {
+                // Logic quan trọng từ file tham khảo: Cần URLEncode cả Key và Value
+                // Spring Boot đã decode params, nên ta cần encode lại để tính hash khớp với VNPAY
+                String encodedName = URLEncoder.encode(fieldName, StandardCharsets.US_ASCII.toString());
+                String encodedValue = URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString());
+
+                if (encodedValue != null && encodedValue.length() > 0) {
+                    fields.put(encodedName, encodedValue);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
 
-        return "00".equals(params.get("vnp_TransactionStatus")) ? 1 : 0;
+        // Tính hash từ các field đã encode
+        // Vì trong Util.buildPaymentUrl ta đã code logic: sort -> key=value (value đã encode ở trên) -> hash
+        // Nên ta cần tự build chuỗi hashData ở đây tương tự
+        String signValue = hashAllFields(fields);
+
+        if (signValue.equals(vnp_SecureHash)) {
+            return "00".equals(queryParams.get("vnp_TransactionStatus")) ? 1 : 0;
+        } else {
+            return -1; // Invalid Signature
+        }
     }
 
-    // ================== Private business helpers ==================
+    // Helper riêng để hash cho phần Verify (Mô phỏng VNPayConfig.hashAllFields của file tham khảo)
+    private String hashAllFields(Map<String, String> fields) {
+        List<String> fieldNames = new ArrayList<>(fields.keySet());
+        Collections.sort(fieldNames);
+        StringBuilder sb = new StringBuilder();
+        Iterator<String> itr = fieldNames.iterator();
+        while (itr.hasNext()) {
+            String fieldName = itr.next();
+            String fieldValue = fields.get(fieldName);
+            if ((fieldValue != null) && (fieldValue.length() > 0)) {
+                sb.append(fieldName);
+                sb.append("=");
+                sb.append(fieldValue);
+            }
+            if (itr.hasNext()) {
+                sb.append("&");
+            }
+        }
+        return vnPayUtil.hmacSHA512(vnPayConfig.getHashSecret(), sb.toString());
+    }
 
     private Map<String, String> buildPaymentParams(
             String txnRef,
@@ -112,11 +152,11 @@ public class VnPayService {
 
         vnpParams.put("vnp_TxnRef", txnRef);
         vnpParams.put("vnp_OrderInfo", orderInfo);
-        vnpParams.put("vnp_OrderType", "other"); // TODO: map đúng orderType nếu cần
+        vnpParams.put("vnp_OrderType", "other"); // Sử dụng 'other' thay vì order-type để chuẩn hơn
 
         vnpParams.put("vnp_Locale", (locale == null || locale.isBlank()) ? "vn" : locale.trim());
         vnpParams.put("vnp_ReturnUrl", vnPayConfig.getReturnUrl());
-        vnpParams.put("vnp_IpAddr", ipAddress);
+        vnpParams.put("vnp_IpAddr", ipAddress); // IP thực tế
 
         ZonedDateTime now = ZonedDateTime.now(VN_TZ);
         vnpParams.put("vnp_CreateDate", now.format(VNP_DATE_FMT));
@@ -125,18 +165,7 @@ public class VnPayService {
         return vnpParams;
     }
 
-    private String buildPaymentUrl(Map<String, String> vnpParams) {
-        // (a) Theo Techspec: hashData KHÔNG encode value, chỉ queryString mới encode.
-        return vnPayUtil.buildSignedPaymentUrl(vnPayConfig.getPayUrl(), vnPayConfig.getHashSecret(), vnpParams);
-    }
-
-    /**
-     * Unique tốt hơn random 8 số: yyyyMMddHHmmss + 6 digits
-     * (Khuyến nghị vẫn nên map với orderId/paymentId trong DB để tuyệt đối idempotent)
-     */
     private String generateTxnRef() {
-        String ts = ZonedDateTime.now(VN_TZ)
-                .format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-        return ts + vnPayUtil.getRandomNumber(6);
+        return vnPayUtil.getRandomNumber(8);
     }
 }
