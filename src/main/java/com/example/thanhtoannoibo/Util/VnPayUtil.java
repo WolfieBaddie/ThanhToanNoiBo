@@ -1,43 +1,43 @@
 package com.example.thanhtoannoibo.Util;
-import com.example.thanhtoannoibo.Config.VnPayConfig;
-import lombok.RequiredArgsConstructor;
+
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import jakarta.servlet.http.HttpServletRequest;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 @Component
-@RequiredArgsConstructor
 public class VnPayUtil {
-    private final VnPayConfig vnpayConfig;
 
     public String hmacSHA512(String key, String data) {
         try {
             if (key == null || data == null) {
-                throw new NullPointerException();
+                throw new IllegalArgumentException("HMAC key/data must not be null");
             }
-            final Mac hmac512 = Mac.getInstance("HmacSHA512");
-            byte[] hmacKeyBytes = key.getBytes();
-            final SecretKeySpec secretKey = new SecretKeySpec(hmacKeyBytes, "HmacSHA512");
+            Mac hmac512 = Mac.getInstance("HmacSHA512");
+            SecretKeySpec secretKey =
+                    new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
             hmac512.init(secretKey);
-            byte[] dataBytes = data.getBytes(StandardCharsets.UTF_8);
-            byte[] result = hmac512.doFinal(dataBytes);
-            StringBuilder sb = new StringBuilder(2 * result.length);
+
+            byte[] result = hmac512.doFinal(data.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder sb = new StringBuilder(result.length * 2);
             for (byte b : result) {
                 sb.append(String.format("%02x", b & 0xff));
             }
             return sb.toString();
         } catch (Exception ex) {
-            return "";
+            // fail-fast để tránh tạo URL sai/verify sai âm thầm
+            throw new IllegalStateException("Cannot compute HmacSHA512", ex);
         }
     }
 
+    /** Random chuỗi số (0-9). */
     public String getRandomNumber(int len) {
+        if (len <= 0) return "";
         Random rnd = new Random();
         String chars = "0123456789";
         StringBuilder sb = new StringBuilder(len);
@@ -47,118 +47,126 @@ public class VnPayUtil {
         return sb.toString();
     }
 
+    /**
+     * Lấy IP client. Ưu tiên X-Forwarded-For (lấy IP đầu tiên nếu có nhiều IP).
+     */
     public String getIpAddress(HttpServletRequest request) {
-        String ipAdress;
-        try {
-            ipAdress = request.getHeader("X-FORWARDED-FOR");
-            if (ipAdress == null) {
-                ipAdress = request.getRemoteAddr();
-            }
-        } catch (Exception e) {
-            ipAdress = "Invalid IP:" + e.getMessage();
+        if (request == null) return "0.0.0.0";
+
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff == null || xff.isBlank()) {
+            xff = request.getHeader("X-FORWARDED-FOR"); // fallback
         }
-        return ipAdress;
+        if (xff != null && !xff.isBlank()) {
+            String first = xff.split(",")[0].trim();
+            if (!first.isEmpty()) return first;
+        }
+
+        String remote = request.getRemoteAddr();
+        return (remote == null || remote.isBlank()) ? "0.0.0.0" : remote;
     }
 
-    public Map<String, String> createPaymentParams(String amount, String orderInfo, String bankCode,
-                                                   String locale, String ipAddress) {
-        Map<String, String> vnpParams = new HashMap<>();
+    /**
+     * Build hashData theo Techspec: key=value&key=value (value THÔ, KHÔNG URL-encode).
+     * - Sort theo key tăng dần
+     * - Skip null/empty
+     * - Không bị dư '&' cuối
+     */
+    public String buildHashData(Map<String, String> params) {
+        if (params == null || params.isEmpty()) return "";
 
-        String vnpVersion = "2.1.0";
-        String vnpCommand = "pay";
-        String orderType = "other";
-        String vnpTxnRef = getRandomNumber(8);
-        String vnpTmnCode = vnpayConfig.getTmnCode();
+        List<String> keys = new ArrayList<>(params.keySet());
+        Collections.sort(keys);
 
-        vnpParams.put("vnp_Version", vnpVersion);
-        vnpParams.put("vnp_Command", vnpCommand);
-        vnpParams.put("vnp_TmnCode", vnpTmnCode);
-        vnpParams.put("vnp_Amount", amount);
-        vnpParams.put("vnp_CurrCode", "VND");
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
 
-        if (bankCode != null && !bankCode.isEmpty()) {
-            vnpParams.put("vnp_BankCode", bankCode);
+        for (String k : keys) {
+            String v = params.get(k);
+            if (v == null || v.isEmpty()) continue;
+
+            if (!first) sb.append('&');
+            first = false;
+
+            sb.append(k).append('=').append(v);
         }
-
-        vnpParams.put("vnp_TxnRef", vnpTxnRef);
-        vnpParams.put("vnp_OrderInfo", orderInfo);
-        vnpParams.put("vnp_OrderType", orderType);
-
-        if (locale != null && !locale.isEmpty()) {
-            vnpParams.put("vnp_Locale", locale);
-        } else {
-            vnpParams.put("vnp_Locale", "vn");
-        }
-
-        vnpParams.put("vnp_ReturnUrl", vnpayConfig.getReturnUrl());
-        vnpParams.put("vnp_IpAddr", ipAddress);
-
-        Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
-        String vnpCreateDate = formatter.format(cld.getTime());
-        vnpParams.put("vnp_CreateDate", vnpCreateDate);
-
-        cld.add(Calendar.MINUTE, 15);
-        String vnpExpireDate = formatter.format(cld.getTime());
-        vnpParams.put("vnp_ExpireDate", vnpExpireDate);
-
-        return vnpParams;
+        return sb.toString();
     }
 
-    public String createPaymentUrl(Map<String, String> vnpParams) {
-        List<String> fieldNames = new ArrayList<>(vnpParams.keySet());
-        Collections.sort(fieldNames);
-        StringBuilder hashData = new StringBuilder();
-        StringBuilder query = new StringBuilder();
+    /**
+     * Build query string redirect: key=urlEncode(value)&key=urlEncode(value)
+     * - Sort theo key tăng dần
+     * - Skip null/empty
+     * - Không bị dư '&' cuối
+     */
+    public String buildQueryString(Map<String, String> params) {
+        if (params == null || params.isEmpty()) return "";
 
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = itr.next();
-            String fieldValue = vnpParams.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                // Build hash data
-                hashData.append(fieldName);
-                hashData.append('=');
-                hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII));
-                // Build query
-                query.append(URLEncoder.encode(fieldName, StandardCharsets.US_ASCII));
-                query.append('=');
-                query.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII));
-                if (itr.hasNext()) {
-                    query.append('&');
-                    hashData.append('&');
-                }
-            }
+        List<String> keys = new ArrayList<>(params.keySet());
+        Collections.sort(keys);
+
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+
+        for (String k : keys) {
+            String v = params.get(k);
+            if (v == null || v.isEmpty()) continue;
+
+            if (!first) sb.append('&');
+            first = false;
+
+            sb.append(URLEncoder.encode(k, StandardCharsets.US_ASCII));
+            sb.append('=');
+            sb.append(URLEncoder.encode(v, StandardCharsets.US_ASCII));
         }
-
-        String queryUrl = query.toString();
-        String vnpSecureHash = hmacSHA512(vnpayConfig.getHashSecret(), hashData.toString());
-        queryUrl += "&vnp_SecureHash=" + vnpSecureHash;
-
-        return vnpayConfig.getPayUrl() + "?" + queryUrl;
+        return sb.toString();
     }
 
-    public String createQueryUrl(Map<String, String> fields, boolean encode) {
-        // Logic to sort and build string for hashing comparison...
-        // (Similar to logic inside createPaymentUrl but only returning the hashData string part)
-        List<String> fieldNames = new ArrayList<>(fields.keySet());
-        Collections.sort(fieldNames);
-        StringBuilder hashData = new StringBuilder();
-        Iterator<String> itr = fieldNames.iterator();
-        while (itr.hasNext()) {
-            String fieldName = itr.next();
-            String fieldValue = fields.get(fieldName);
-            if ((fieldValue != null) && (fieldValue.length() > 0)) {
-                try {
-                    hashData.append(fieldName);
-                    hashData.append('=');
-                    hashData.append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
-                    if (itr.hasNext()) {
-                        hashData.append('&');
-                    }
-                } catch(Exception e){}
-            }
+    /**
+     * Helper: build URL redirect sang VNPAY.
+     * - queryString: URL-encode (US_ASCII)
+     * - hashData: KHONG URL-encode value (theo Techspec)
+     */
+    public String buildSignedPaymentUrl(String payUrl, String hashSecret, Map<String, String> params) {
+        if (payUrl == null || payUrl.isBlank()) throw new IllegalArgumentException("payUrl is blank");
+        if (hashSecret == null) throw new IllegalArgumentException("hashSecret is null");
+        if (params == null || params.isEmpty()) throw new IllegalArgumentException("params is empty");
+
+        String hashData = buildHashData(params);
+        String query = buildQueryString(params);
+        String secureHash = hmacSHA512(hashSecret, hashData);
+
+        if (query == null || query.isEmpty()) {
+            return payUrl + "?vnp_SecureHash=" + secureHash;
         }
-        return hashData.toString();
+        return payUrl + "?" + query + "&vnp_SecureHash=" + secureHash;
     }
+
+    /**
+     * Helper: build chuỗi param để verify chữ ký.
+     * - encode=false: value THÔ (đúng cho verify vì Spring đã decode query param)
+     * - encode=true : value URL-encode (ít dùng, chủ yếu để debug)
+     */
+    public String buildParamString(Map<String, String> params, boolean encode) {
+        if (params == null || params.isEmpty()) return "";
+
+        List<String> keys = new ArrayList<>(params.keySet());
+        Collections.sort(keys);
+
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+
+        for (String k : keys) {
+            String v = params.get(k);
+            if (v == null || v.isEmpty()) continue;
+
+            if (!first) sb.append('&');
+            first = false;
+
+            sb.append(k).append('=');
+            sb.append(encode ? URLEncoder.encode(v, StandardCharsets.US_ASCII) : v);
+        }
+        return sb.toString();
+    }
+
 }

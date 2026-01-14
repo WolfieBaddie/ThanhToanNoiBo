@@ -1,0 +1,51 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+title 07. Role Assignment & Privilege Management
+
+|Admin|
+start
+:Select Target User;
+
+
+:Modify Role Assignments;
+note right
+  Add/Remove roles like
+  ACCOUNTANT or USER
+  (Mapped to security.roles)
+end note
+
+|Security System|
+:Validate Privilege Level;
+note right
+  **Security Check:**
+  Prevents an Admin from assigning
+  a role higher than their own
+  (Privilege Escalation).
+end note
+
+if (Authorized?) then (Yes)
+  :Update User Roles Table;
+
+  :Write to Audit Log;
+  note right
+    Records who changed what
+    (Mandatory for Compliance)
+  end note
+
+  :Invalidate Active User Sessions;
+  note right: Forces permission refresh
+
+else (No)
+  :Deny Request;
+  |Admin|
+  :Display "Insufficient Privileges";
+  stop
+endif
+
+|Target User|
+:Receive Role Update Notification;
+:Permissions Applied (Next Request);
+
+stop
+@enduml

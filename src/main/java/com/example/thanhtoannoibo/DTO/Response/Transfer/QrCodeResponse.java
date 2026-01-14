@@ -1,4 +1,6 @@
 package com.example.thanhtoannoibo.DTO.Response.Transfer;
+import com.example.thanhtoannoibo.Common.QrCodeStatus;
+import com.example.thanhtoannoibo.Common.QrCodeType;
 import lombok.Builder;
 import lombok.Data;
 
@@ -11,10 +13,10 @@ import java.util.UUID;
 public class QrCodeResponse {
     private UUID qrId;
     private String qrCode;
-    private String qrType;
+    private QrCodeType qrType;
     private BigDecimal amount;
     private LocalDateTime expiresAt;
     private Integer usageLimit;
     private Integer usageCount;
-    private String status;
+    private QrCodeStatus status;
 }

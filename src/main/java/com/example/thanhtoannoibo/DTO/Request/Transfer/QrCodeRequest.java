@@ -1,4 +1,5 @@
 package com.example.thanhtoannoibo.DTO.Request.Transfer;
+import com.example.thanhtoannoibo.Common.QrCodeType;
 import lombok.Data;
 
 import jakarta.validation.constraints.NotBlank;
@@ -12,7 +13,7 @@ public class QrCodeRequest {
     private UUID ownerId;
 
     @NotBlank
-    private String qrType; // STATIC, DYNAMIC, MERCHANT
+    private QrCodeType qrType; // STATIC, DYNAMIC, MERCHANT
 
     private BigDecimal amount;
 

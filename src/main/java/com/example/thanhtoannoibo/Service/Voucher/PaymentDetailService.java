@@ -1,10 +1,10 @@
-package com.example.thanhtoannoibo.Service.Wallet;
+package com.example.thanhtoannoibo.Service.Voucher;
 import com.example.thanhtoannoibo.DTO.Request.Payment.PaymentDetailCreateRequest;
 import com.example.thanhtoannoibo.DTO.Response.Payment.PaymentDetailResponse;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
 import com.example.thanhtoannoibo.Entity.Catalog.Counter;
-import com.example.thanhtoannoibo.Entity.Wallet.PaymentDetail;
-import com.example.thanhtoannoibo.Entity.Wallet.Transaction;
+import com.example.thanhtoannoibo.Entity.Voucher.PaymentDetail;
+import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
 import com.example.thanhtoannoibo.Repository.Catalog.AppServiceRepository;
 import com.example.thanhtoannoibo.Repository.Catalog.CounterRepository;
 import com.example.thanhtoannoibo.Repository.Wallet.PaymentDetailRepository;
@@ -56,7 +56,6 @@ public class PaymentDetailService {
         PaymentDetail detail = PaymentDetail.builder()
                 .transaction(transaction)
                 .service(service)
-                .counter(counter)
                 .quantity(request.getQuantity() != null ? request.getQuantity() : java.math.BigDecimal.ONE)
                 .amount(request.getAmount()) // Usually same as transaction.getAmount()
                 .build();
@@ -75,8 +74,6 @@ public class PaymentDetailService {
         return PaymentDetailResponse.builder()
                 .paymentDetailId(entity.getPaymentId())
                 .serviceName(entity.getService() != null ? entity.getService().getServiceName() : "N/A")
-                .counterName(entity.getCounter() != null ? entity.getCounter().getCounterName() : "N/A")
-                .counterLocation(entity.getCounter() != null ? entity.getCounter().getLocation() : null)
                 .quantity(entity.getQuantity())
                 .totalAmount(entity.getAmount())
                 .build();

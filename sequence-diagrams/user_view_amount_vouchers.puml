@@ -1,0 +1,48 @@
+@startuml
+skinparam dpi 300
+scale max 2000 width
+scale 1.2
+title User Voucher Search & Balance Inquiry
+
+autonumber
+skinparam SequenceMessageAlignment center
+hide footbox
+skinparam actorStyle awesome
+
+' Monochrome styling matching reference
+skinparam NoteBackgroundColor yellow
+skinparam NoteBorderColor black
+skinparam ParticipantBackgroundColor white
+skinparam ActorBackgroundColor white
+
+actor "User" as User
+participant "Mobile App" as App
+participant "Wallet Service" as API
+database "Database" as DB
+
+== Balance & Voucher Inquiry ==
+
+User -> App : Open "My Wallet" Screen
+activate App
+
+App -> API : GET /vouchers (status=ACTIVE)
+activate API
+
+API -> DB : Query vouchers by UserID
+activate DB
+note right
+  **Query Logic:**
+  Excludes 'EXPIRED' or 'DEPLETED'
+  items to show only usable funds.
+end note
+DB --> API : Return Voucher
+deactivate DB
+
+API --> App : Return {Amount, Other details}
+deactivate API
+
+App -> User : Display Available Balance & Items
+deactivate App
+
+== End ==
+@enduml
