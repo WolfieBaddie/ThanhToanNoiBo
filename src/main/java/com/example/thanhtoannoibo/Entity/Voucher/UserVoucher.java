@@ -1,5 +1,6 @@
 package com.example.thanhtoannoibo.Entity.Voucher;
 
+import com.example.thanhtoannoibo.Common.UserVoucherStatus;
 import com.example.thanhtoannoibo.Entity.User;
 // Giả sử bạn sẽ có Service Entity, nếu chưa có thì dùng UUID tạm
 // import com.example.thanhtoannoibo.Entity.App.Service;
@@ -39,7 +40,7 @@ public class UserVoucher {
 
     // TRẠNG THÁI: AVAILABLE, USED, EXPIRED
     @Column(name = "status")
-    private String status;
+    private UserVoucherStatus status;
 
     // Giá trị Xu đã trả để mua vé này (để hoàn tiền hoặc đối soát nếu cần)
     @Column(name = "price_at_purchase")

@@ -1,32 +1,57 @@
 package com.example.thanhtoannoibo.Service.Voucher;
+
+import com.example.thanhtoannoibo.Common.UserVoucherStatus;
+import com.example.thanhtoannoibo.Entity.User;
+import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
 import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
+import com.example.thanhtoannoibo.Repository.Security.UserRepository;
 import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class UserVoucherService {
-    private final UserVoucherRepository userVoucherRepository;
 
-    // Tìm ví chính đang hoạt động của User
-    public UserVoucher getUserActiveWallet(UUID userId) {
-        return userVoucherRepository.findByOwner_UserIdAndStatus(userId, "ACTIVE")
-                .orElseThrow(() -> new RuntimeException("User does not have an active wallet voucher"));
+    private final UserVoucherRepository userVoucherRepository;
+    private final UserRepository userRepository;
+
+    // Tạo vé mới (Gọi sau khi giao dịch mua vé thành công)
+    @Transactional
+    public UserVoucher createVoucher(UUID userId, UUID serviceId, BigDecimal purchasePrice, Transaction transaction) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Tạo mã vé (Format: VOUCHER-Time-Random)
+        String voucherCode = "V-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+
+        UserVoucher voucher = UserVoucher.builder()
+                .owner(user)
+                .serviceId(serviceId) // Link tới dịch vụ (Cơm, Gửi xe...)
+                .voucherCode(voucherCode)
+                .status(UserVoucherStatus.ACTIVE) // Mặc định là có thể dùng
+                .priceAtPurchase(purchasePrice)
+                .purchaseTransaction(transaction) // Link tới giao dịch mua để truy vết
+                .build();
+
+        return userVoucherRepository.save(voucher);
     }
 
-    // Logic cộng tiền vào ví (sẽ được gọi khi Transaction thành công)
-    @Transactional
-    public void topUpBalance(UUID voucherId, BigDecimal amount) {
-        UserVoucher voucher = userVoucherRepository.findById(voucherId)
-                .orElseThrow(() -> new RuntimeException("Voucher not found"));
+    // Lấy danh sách vé khả dụng của User
+    public List<UserVoucher> getAvailableVouchers(UUID userId) {
+        // Hàm này tìm theo status 'AVAILABLE' hoặc 'ACTIVE' tùy Enum bạn định nghĩa
+        // Giả sử Enum UserVoucherStatus có giá trị ACTIVE tương ứng AVAILABLE
+        return userVoucherRepository.findByOwner_UserIdAndStatus(userId, UserVoucherStatus.ACTIVE);
+    }
 
-        // Cộng dồn balance
-        voucher.setBalance(voucher.getBalance().add(amount));
-        userVoucherRepository.save(voucher);
+    // Tìm vé theo mã (Dùng cho API check vé)
+    public UserVoucher getVoucherByCode(String code) {
+        return userVoucherRepository.findByVoucherCode(code)
+                .orElseThrow(() -> new RuntimeException("Voucher not found"));
     }
 }

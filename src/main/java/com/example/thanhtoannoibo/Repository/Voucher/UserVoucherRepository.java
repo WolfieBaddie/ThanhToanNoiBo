@@ -1,5 +1,6 @@
 package com.example.thanhtoannoibo.Repository.Voucher;
 
+import com.example.thanhtoannoibo.Common.UserVoucherStatus;
 import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -16,7 +17,7 @@ public interface UserVoucherRepository extends JpaRepository<UserVoucher, UUID> 
 
     // Tìm các vé CHƯA SỬ DỤNG của User (Thay vì tìm ví active)
     // status thường là 'AVAILABLE'
-    List<UserVoucher> findByOwner_UserIdAndStatus(UUID userId, String status);
+    List<UserVoucher> findByOwner_UserIdAndStatus(UUID userId, UserVoucherStatus status);
 
     // Lấy lịch sử tất cả vé của user (bao gồm đã dùng/hết hạn)
     List<UserVoucher> findByOwner_UserId(UUID userId);
