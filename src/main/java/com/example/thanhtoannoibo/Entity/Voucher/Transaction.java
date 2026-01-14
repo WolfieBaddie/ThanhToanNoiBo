@@ -2,6 +2,7 @@ package com.example.thanhtoannoibo.Entity.Voucher;
 
 import com.example.thanhtoannoibo.Common.TransactionStatus;
 import com.example.thanhtoannoibo.Common.TransactionType;
+import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
 import com.example.thanhtoannoibo.Entity.QrCode.QRCode;
 import com.example.thanhtoannoibo.Entity.User;
 import jakarta.persistence.*;
@@ -34,13 +35,9 @@ public class Transaction {
     @Column(name = "transaction_type", nullable = false)
     private TransactionType transactionType;
 
-    // --- THAY ĐỔI LỚN ---
-    // Trước đây là voucher_id (Ví), giờ DB đổi thành credit_id (Kho Xu).
-    // Vì chưa có Entity UserCredit, ta tạm để UUID để code không bị lỗi compile.
-    // Sau này khi tạo UserCredit.java, bạn đổi thành:
-    // @ManyToOne \n @JoinColumn(name = "credit_id") \n private UserCredit credit;
-    @Column(name = "credit_id")
-    private UUID creditId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "credit_id")
+    private UserCredit credit;
     // --------------------
 
     // Người nhận tiền (nếu có - giữ nguyên logic cũ)

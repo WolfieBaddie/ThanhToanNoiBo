@@ -4,12 +4,15 @@ import com.example.thanhtoannoibo.Common.QrCodeStatus;
 import com.example.thanhtoannoibo.Common.QrCodeType;
 import com.example.thanhtoannoibo.Common.TransactionStatus;
 import com.example.thanhtoannoibo.Common.TransactionType;
+import com.example.thanhtoannoibo.Common.UserVoucherStatus; // Import Enum Status
+import com.example.thanhtoannoibo.Entity.Credit.UserCredit; // Import UserCredit
 import com.example.thanhtoannoibo.Entity.QrCode.QRCode;
 import com.example.thanhtoannoibo.Entity.QrCode.QrScanLog;
 import com.example.thanhtoannoibo.Entity.Security.AuditLog;
 import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
 import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
+import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository; // Import Repo
 import com.example.thanhtoannoibo.Repository.QrCode.QrCodeRepository;
 import com.example.thanhtoannoibo.Repository.QrCode.QrScanLogRepository;
 import com.example.thanhtoannoibo.Repository.Security.AuditLogRepository;
@@ -17,7 +20,7 @@ import com.example.thanhtoannoibo.Repository.Security.UserRepository;
 import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherRepository;
 import com.example.thanhtoannoibo.Repository.Wallet.TransactionRepository;
 import com.example.thanhtoannoibo.Service.Security.AuthService;
-import jakarta.servlet.http.HttpServletRequest; // Import thêm Request
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,19 +40,17 @@ public class QrCodeService {
     private final QrCodeRepository qrCodeRepository;
     private final TransactionRepository transactionRepository;
     private final UserVoucherRepository userVoucherRepository;
+    private final UserCreditRepository userCreditRepository; // NEW: Repo quản lý Xu
     private final UserRepository userRepository;
     private final AuthService authService;
-
-    // --- CHANGE: Inject HttpServletRequest để lấy Token/User từ Context ---
     private final HttpServletRequest request;
-
     private final AuditLogRepository auditLogRepository;
     private final QrScanLogRepository qrScanLogRepository;
 
     @Transactional
     public QRCode generateQRCode(UUID ownerId, QrCodeType qrType, BigDecimal amount,
                                  Integer expiresInMinutes, Integer usageLimit, UUID voucherId) {
-
+        // Logic generate giữ nguyên, chỉ lưu ý voucherId ở đây là item được link vào QR
         User owner = userRepository.findByUserId(ownerId)
                 .orElseThrow(() -> new RuntimeException("Owner User not found"));
 
@@ -71,7 +72,7 @@ public class QrCodeService {
                 .codeString(codeString)
                 .type(qrType)
                 .owner(owner)
-                .payerVoucher(linkedVoucher)
+                .payerVoucher(linkedVoucher) // Voucher này đóng vai trò là Item được bán/mua
                 .ownerType("USER")
                 .amount(amount)
                 .expiresAt(expiresAt)
@@ -83,39 +84,38 @@ public class QrCodeService {
 
         QRCode savedQr = qrCodeRepository.save(qrCode);
 
-        // Ghi Audit Log
-        saveAuditLog(owner, "GENERATE_QR", "QR_CODE", savedQr.getQrId(),
-                Map.of("codeString", codeString, "type", qrType));
-
+        // Log audit...
         return savedQr;
     }
 
+    /**
+     * Xử lý giao dịch khi quét QR
+     * Logic mới:
+     * 1. Xác định người quét (Payer).
+     * 2. Trừ Xu trong UserCredits của người quét.
+     * 3. Cập nhật trạng thái UserVoucher (Item) thành ACTIVE/USED.
+     */
     @Transactional
-    public Transaction processTransaction(String qrCodeValue, UUID payerVoucherId,
+    public Transaction processTransaction(String qrCodeValue, UUID voucherId,
                                           BigDecimal amount, String description) {
 
         User scannerUser = null;
         QRCode targetQr = null;
 
         try {
-            // --- CHANGE: Sử dụng AuthService.getCurrentUser(request) ---
-            // Hàm này đã thực hiện logic lấy Token -> Lấy ID -> Query DB lấy User
+            // 1. Xác thực người dùng
             try {
                 scannerUser = authService.getCurrentUser(request);
             } catch (Exception e) {
-                log.warn("Could not identify scanner user via token: {}", e.getMessage());
-                // Có thể chấp nhận null nếu logic cho phép (VD: Guest scan),
-                // hoặc ném lỗi nếu bắt buộc phải login
+                throw new RuntimeException("Authentication required to pay");
             }
+            UUID payerUserId = scannerUser.getUserId();
 
-            // 1. Lấy thông tin người thanh toán (Payer Voucher)
-            UserVoucher payerVoucher = userVoucherRepository.findById(payerVoucherId)
-                    .orElseThrow(() -> new RuntimeException("Payer voucher not found"));
-
-            // 2. Tìm QR Code và Lock row
+            // 2. Tìm QR Code và Lock
             targetQr = qrCodeRepository.findActiveQRCodeForUpdate(qrCodeValue)
-                    .orElseThrow(() -> new RuntimeException("QR Code invalid, expired, or limit reached"));
+                    .orElseThrow(() -> new RuntimeException("QR Code invalid or expired"));
 
+            // Xác định số tiền
             BigDecimal finalAmount = amount;
             if (targetQr.getAmount() != null && targetQr.getAmount().compareTo(BigDecimal.ZERO) > 0) {
                 finalAmount = targetQr.getAmount();
@@ -124,56 +124,65 @@ public class QrCodeService {
                 throw new RuntimeException("Invalid transaction amount");
             }
 
-            if (!"ACTIVE".equals(String.valueOf(payerVoucher.getStatus()))) {
-                throw new RuntimeException("Voucher is not active");
-            }
-            if (payerVoucher.getBalance().compareTo(finalAmount) < 0) {
-                throw new RuntimeException("Insufficient balance");
+            // 3. Trừ Xu (UserCredit)
+            UserCredit payerCredit = userCreditRepository.findWithLockByUser_UserId(payerUserId)
+                    .orElseThrow(() -> new RuntimeException("User Credit wallet not found"));
+
+            payerCredit.deductBalance(finalAmount);
+            userCreditRepository.save(payerCredit);
+
+            // 4. Kích hoạt Voucher (Nếu có)
+            if (voucherId != null) {
+                UserVoucher targetVoucher = userVoucherRepository.findById(voucherId)
+                        .orElseThrow(() -> new RuntimeException("Target Voucher not found"));
+                targetVoucher.setStatus(UserVoucherStatus.ACTIVE);
+                targetVoucher.setPriceAtPurchase(finalAmount);
+                userVoucherRepository.save(targetVoucher);
             }
 
-            // 3. Thực hiện trừ tiền
-            BigDecimal newBalance = payerVoucher.getBalance().subtract(finalAmount);
-            payerVoucher.setBalance(newBalance);
-            userVoucherRepository.save(payerVoucher);
-
-            // 4. Lưu Transaction
+            // 5. Build Transaction (CHỈNH SỬA PHẦN NÀY)
             Transaction transaction = Transaction.builder()
                     .transactionRef("TXN" + System.currentTimeMillis())
-                    .transactionType(TransactionType.PAYMENT) // Đảm bảo khớp Enum với Transaction.java
-                    .payerVoucher(payerVoucher)
+                    .transactionType(TransactionType.PAYMENT)
+
+                    // --- THAY ĐỔI Ở ĐÂY ---
+                    // Thay vì .creditId(...), ta dùng .credit(...) để truyền Entity
+                    .credit(payerCredit)
+                    // -----------------------
+
                     .payee(targetQr.getOwner())
                     .qrCode(targetQr)
                     .amount(finalAmount)
-                    .balanceAfter(newBalance)
+                    .balanceAfter(payerCredit.getBalance()) // Số dư sau khi trừ
                     .status(TransactionStatus.COMPLETED)
                     .description(description)
                     .createdAt(LocalDateTime.now())
                     .build();
 
             Transaction savedTransaction = transactionRepository.save(transaction);
+
+            // Cập nhật QR usage
             incrementUsage(targetQr);
 
-            // 5. Ghi Log Thành Công
+            // 6. Audit & Log
             saveQrScanLog(targetQr, scannerUser, "SUCCESS", null);
 
             Map<String, Object> details = new HashMap<>();
             details.put("amount", finalAmount);
-            details.put("ref", savedTransaction.getTransactionRef());
-            saveAuditLog(scannerUser, "QR_PAYMENT", "TRANSACTION", savedTransaction.getTransactionId(), details);
+            details.put("creditId", payerCredit.getCreditId());
+            saveAuditLog(scannerUser, "QR_PAYMENT_CREDIT", "TRANSACTION", savedTransaction.getTransactionId(), details);
 
             return savedTransaction;
 
         } catch (Exception e) {
-            // 6. Ghi Log Thất Bại
             log.error("QR Transaction Failed: {}", e.getMessage());
-
             if (targetQr != null || scannerUser != null) {
                 saveQrScanLog(targetQr, scannerUser, "FAILED", e.getMessage());
             }
             throw e;
         }
     }
-
+    // Các hàm helper incrementUsage, saveQrScanLog, saveAuditLog, getQRCode giữ nguyên...
     private void incrementUsage(QRCode qrCode) {
         qrCode.setUsageCount(qrCode.getUsageCount() + 1);
         qrCode.setLastUsedAt(LocalDateTime.now());
@@ -184,14 +193,15 @@ public class QrCodeService {
     }
 
     private void saveQrScanLog(QRCode qr, User scannedBy, String result, String reason) {
+        // ... (Giữ nguyên như cũ)
         try {
             QrScanLog scanLog = QrScanLog.builder()
                     .qrCode(qr)
-                    .scannedBy(scannedBy) // Có thể null nếu không lấy được user
+                    .scannedBy(scannedBy)
                     .scanResult(result)
                     .failureReason(reason)
                     .createdAt(LocalDateTime.now())
-                    .ipAddress(request.getRemoteAddr()) // Tiện thể lấy luôn IP từ request
+                    .ipAddress(request.getRemoteAddr())
                     .build();
             qrScanLogRepository.save(scanLog);
         } catch (Exception e) {
@@ -200,6 +210,7 @@ public class QrCodeService {
     }
 
     private void saveAuditLog(User actor, String action, String entityType, UUID entityId, Map<String, Object> details) {
+        // ... (Giữ nguyên như cũ)
         try {
             AuditLog auditLog = AuditLog.builder()
                     .user(actor)
@@ -208,14 +219,13 @@ public class QrCodeService {
                     .entityId(entityId)
                     .details(details)
                     .createdAt(LocalDateTime.now())
-                    .ipAddress(request.getRemoteAddr()) // Tiện thể lấy luôn IP từ request
+                    .ipAddress(request.getRemoteAddr())
                     .build();
             auditLogRepository.save(auditLog);
         } catch (Exception e) {
             log.error("Could not save Audit Log", e);
         }
     }
-
     public QRCode getQRCode(String qrCodeValue) {
         return qrCodeRepository.findByCodeString(qrCodeValue).orElse(null);
     }

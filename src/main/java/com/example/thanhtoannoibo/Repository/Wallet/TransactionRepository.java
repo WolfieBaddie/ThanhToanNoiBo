@@ -9,18 +9,22 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface TransactionRepository extends JpaRepository<Transaction, UUID>{
+public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
 
+    // Tìm giao dịch theo mã tham chiếu (duy nhất)
     Optional<Transaction> findByTransactionRef(String transactionRef);
 
-    // ĐÃ SỬA: Không còn tìm theo PayerVoucher nữa vì quan hệ đã bị cắt.
-    // Thay vào đó tìm theo Credit ID (Ví Xu)
-    List<Transaction> findByCreditId(UUID creditId);
+    // --- FIX: Sửa tên hàm để map đúng với quan hệ Entity ---
+
+    // Lấy lịch sử giao dịch của một Ví Xu cụ thể
+    // Transaction.credit -> UserCredit.creditId
+    List<Transaction> findByCredit_CreditId(UUID creditId);
+
+    // Lấy toàn bộ lịch sử giao dịch của một User (thông qua Ví Xu của họ)
+    // Transaction.credit -> UserCredit.user -> User.userId
+    List<Transaction> findByCredit_User_UserId(UUID userId);
 
     // Lấy lịch sử giao dịch liên quan đến 1 QR Code cụ thể
-    List<Transaction> findByQrCodeQrId(UUID qrId);
-
-    // Lấy lịch sử giao dịch mua vé của user (nếu cần join bảng)
-    // @Query("SELECT t FROM Transaction t WHERE t.creditId IN (SELECT c.creditId FROM UserCredit c WHERE c.userId = :userId)")
-    // List<Transaction> findByUserId(UUID userId);
+    // Transaction.qrCode -> QRCode.qrId
+    List<Transaction> findByQrCode_QrId(UUID qrId);
 }

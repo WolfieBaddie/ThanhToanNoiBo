@@ -1,7 +1,8 @@
-package com.example.thanhtoannoibo.Entity;
+package com.example.thanhtoannoibo.Entity.Security;
 
 
 import com.example.thanhtoannoibo.Common.TokenType;
+import com.example.thanhtoannoibo.Entity.User;
 import jakarta.persistence.*;
 import lombok.*;
 

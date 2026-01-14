@@ -1,6 +1,6 @@
 package com.example.thanhtoannoibo.Repository.Security;
 
-import com.example.thanhtoannoibo.Entity.UserSession;
+import com.example.thanhtoannoibo.Entity.Security.UserSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

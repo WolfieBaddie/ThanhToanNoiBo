@@ -2,11 +2,15 @@ package com.example.thanhtoannoibo.Service.Security;
 
 import com.example.thanhtoannoibo.Common.UserStatus;
 import com.example.thanhtoannoibo.Common.UserType;
+import com.example.thanhtoannoibo.Common.UserVoucherStatus;
 import com.example.thanhtoannoibo.DTO.LoginRequest;
 import com.example.thanhtoannoibo.DTO.LoginResponse;
 import com.example.thanhtoannoibo.DTO.Request.Register.RegisterRequest;
 import com.example.thanhtoannoibo.Entity.*;
+import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
 import com.example.thanhtoannoibo.Entity.Security.AuditLog;
+import com.example.thanhtoannoibo.Entity.Security.UserSession;
+import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository;
 import com.example.thanhtoannoibo.Repository.Security.AuditLogRepository;
 import com.example.thanhtoannoibo.Repository.Security.RoleRepository;
 import com.example.thanhtoannoibo.Repository.Security.SessionRepository;
@@ -19,11 +23,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -44,6 +48,7 @@ public class AuthService {
 
     private final RoleRepository roleRepository;
     private final AuditLogRepository auditLogRepository;
+    private final UserCreditRepository userCreditRepository;
 
     @Value("${app.jwt.access-ttl-minutes:15}")
     private long accessTtlMinutes;
@@ -204,8 +209,7 @@ public class AuthService {
                 .owner(savedUser) // Map tới user vừa tạo
                 .voucherCode(uniqueVoucherCode)
 //                .voucherType("VALUE") // Loại ví tiền (VALUE) thay vì ITEM
-                .balance(BigDecimal.ZERO)
-                .status("ACTIVE")
+                .status(UserVoucherStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -365,12 +369,12 @@ public class AuthService {
     }
 
     // THAY ĐỔI: Phương thức này thay thế cho getWalletIdByUser
-    // Tìm Voucher ID (đóng vai trò là ví chính) của User
-    public UUID getVoucherIdByUser(User user) {
+    // Tìm Credit ID (đóng vai trò là kho xu) của User
+    public UUID getCreditIdByUser(User user) {
         // Tìm Voucher đang ACTIVE của user này
-        return userVoucherRepository.findByOwner_UserIdAndStatus(user.getUserId(), "ACTIVE")
-                .map(UserVoucher::getVoucherId)
-                .orElseThrow(() -> new RuntimeException("NO_ACTIVE_VOUCHER_FOUND_FOR_USER"));
+        return userCreditRepository.findByUser_UserId(user.getUserId())
+                .map(UserCredit::getCreditId)
+                .orElseThrow(() -> new RuntimeException("Can't find user"));
     }
 
     private static String sha256Base64(String plain) {
