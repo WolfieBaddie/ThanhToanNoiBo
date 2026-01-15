@@ -1,19 +1,25 @@
 package com.example.thanhtoannoibo.Service.Order;
 
-import com.example.thanhtoannoibo.Common.OrderMethod;
-import com.example.thanhtoannoibo.Common.OrderStatus;
-import com.example.thanhtoannoibo.Common.TransactionStatus;
-import com.example.thanhtoannoibo.Common.TransactionType; // Import Enum
+import com.example.thanhtoannoibo.Common.*;
+import com.example.thanhtoannoibo.DTO.Request.Payment.PaymentRequest;
+import com.example.thanhtoannoibo.DTO.Request.Payment.VerifyResult;
+import com.example.thanhtoannoibo.DTO.Response.Payment.VnPayResponse;
 import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
-import com.example.thanhtoannoibo.Entity.Credit.UserCredit; // Import UserCredit
+import com.example.thanhtoannoibo.Entity.Catalog.AppService;
+import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
 import com.example.thanhtoannoibo.Entity.Order.Order;
 import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
+import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Catalog.AppPackageRepository;
-import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository; // Import Repo
+import com.example.thanhtoannoibo.Repository.Catalog.AppServiceRepository;
 import com.example.thanhtoannoibo.Repository.Order.OrderRepository;
-import com.example.thanhtoannoibo.Repository.Security.UserRepository;
-import com.example.thanhtoannoibo.Repository.Wallet.TransactionRepository;
+import com.example.thanhtoannoibo.Service.Credit.UserCreditService;
+import com.example.thanhtoannoibo.Service.Security.AuthService;
+import com.example.thanhtoannoibo.Service.Voucher.PaymentDetailService;
+import com.example.thanhtoannoibo.Service.Transaction.TransactionService;
+import com.example.thanhtoannoibo.Service.VnPay.VnPayService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -30,113 +37,161 @@ public class OrderService {
 
     private final OrderRepository orderRepository;
     private final AppPackageRepository packageRepository;
-    private final UserRepository userRepository;
-    private final TransactionRepository transactionRepository;
+    private final AppServiceRepository serviceRepository;
 
-    // --- THAY ĐỔI: Sử dụng UserCreditRepository thay vì UserVoucherRepository ---
-    private final UserCreditRepository userCreditRepository;
+    // Services nghiệp vụ
+    private final VnPayService vnPayService;
+    private final UserCreditService userCreditService;
+    private final TransactionService transactionService;
+    private final PaymentDetailService paymentDetailService;
 
-    // --- 1. TẠO ĐƠN HÀNG MUA GÓI (TOP-UP) ---
-    // User chọn gói 50k -> Tạo Order trạng thái PENDING -> Trả về URL thanh toán VNPay
+    // Authentication
+    private final AuthService authService;
+    private final HttpServletRequest httpRequest;
+
+    // --- BƯỚC 1: TẠO ORDER PENDING (Có xác thực Token) ---
     @Transactional
-    public Order initiatePackageOrder(UUID userId, String packageCode, OrderMethod method) {
+    public VnPayResponse initiateOrder(PaymentRequest request, OrderMethod method) {
+        // 1. Lấy User & Validate (Giữ nguyên)
+        User user = authService.getCurrentUser(httpRequest);
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Người dùng không tồn tại"));
-
-        AppPackage pkg = packageRepository.findByPackageCode(packageCode)
-                .orElseThrow(() -> new RuntimeException("Gói cước không tồn tại hoặc ngưng hoạt động"));
-
-        if (!Boolean.TRUE.equals(pkg.getIsActive())) {
-            throw new RuntimeException("Gói cước này đang tạm khóa");
+        AppPackage pkg = null;
+        if (request.getPackageId() != null) {
+            pkg = packageRepository.findById(request.getPackageId())
+                    .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_NOT_FOUND));
+        }
+        AppService service = null;
+        if (request.getServiceId() != null) {
+            service = serviceRepository.findById(request.getServiceId())
+                    .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
         }
 
-        // Tạo mã đơn hàng duy nhất
-        String orderRef = "ORD-" + System.currentTimeMillis() + "-" + UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+        // 2. GỌI VNPAY TRƯỚC ĐỂ LẤY MÃ GIAO DỊCH (TXN_REF)
+        // Lưu ý: Nếu bước này lỗi thì Transactional chưa có gì để rollback -> An toàn
+        VnPayResponse vnpResponse = vnPayService.createVnPayPayment(httpRequest, request);
+        String txnRef = vnpResponse.getTxnRef(); // Lấy mã do VNPay Service sinh ra
 
+        // 3. Lưu Order (PENDING) với mã txnRef vừa lấy được
         Order order = Order.builder()
-                .orderRef(orderRef)
+                .orderRef(txnRef) // Map 1-1 với mã VNPay
                 .user(user)
                 .packageEntity(pkg)
-                .amountPaid(pkg.getPrice()) // Giá VNĐ
+                .serviceEntity(service)
+                .amountPaid(request.getAmount())
                 .paymentMethod(method)
-                .paymentStatus(OrderStatus.PENDING) // Chờ thanh toán
+                .paymentStatus(OrderStatus.PENDING)
+                .createdAt(LocalDateTime.now())
                 .build();
+        Order savedOrder = orderRepository.save(order);
 
-        return orderRepository.save(order);
+        // 4. Lưu Transaction (PENDING)
+        UserCredit userCredit = userCreditService.getUserCredit(user.getUserId());
+
+        Transaction pendingTxn = transactionService.initiateTransaction(
+                userCredit,
+                txnRef, // Dùng chung mã
+                request.getAmount(),
+                "Thanh toán đơn hàng: " + txnRef,
+                Map.of("order_id", savedOrder.getOrderId().toString(), "gateway", "VN_PAY")
+        );
+
+        // 6. Trả về kết quả cho Controller
+        return vnpResponse;
     }
 
-    // --- 2. XỬ LÝ KHI THANH TOÁN THÀNH CÔNG (CALLBACK) ---
-    // Hàm này được gọi khi VNPay/Webhook báo về là tiền đã vào tài khoản
+    // --- BƯỚC 2: XỬ LÝ CALLBACK TỪ VNPAY (Giữ nguyên logic đã tối ưu) ---
     @Transactional
-    public void completeOrder(String orderRef, String gatewayTransactionId) {
-        // 1. Tìm đơn hàng
-        Order order = orderRepository.findByOrderRef(orderRef)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy đơn hàng: " + orderRef));
+    public void processVnPayCallback(Map<String, String> queryParams) {
+        // 1. Gọi hàm Verify mới trả về Object
+        VerifyResult result = vnPayService.verifyPaymentAndGetRef(queryParams);
 
-        // Idempotency Check: Nếu đơn đã PAID rồi thì không làm gì cả (tránh cộng tiền 2 lần)
-        if (order.getPaymentStatus() == OrderStatus.PAID) {
-            log.warn("Đơn hàng {} đã được xử lý trước đó.", orderRef);
+        String orderRef = queryParams.get("vnp_TxnRef");
+        String gatewayTxnId = queryParams.get("vnp_TransactionNo");
+
+        Order order = orderRepository.findByOrderRef(orderRef)
+                .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
+
+        if (order.getPaymentStatus() == OrderStatus.PAID || order.getPaymentStatus() == OrderStatus.FAILED) {
             return;
         }
 
-        // 2. Cập nhật trạng thái đơn
-        order.setPaymentStatus(OrderStatus.PAID);
-        order.setGatewayTransactionId(gatewayTransactionId);
-        order.setCompletedAt(LocalDateTime.now());
-        orderRepository.save(order);
-
-        // 3. CỘNG XU VÀO VÍ NGƯỜI DÙNG (NEW LOGIC)
-        // Tìm ví Xu (Credit) của người dùng, nếu chưa có thì tạo mới
-        UserCredit userCredit = userCreditRepository.findByUser_UserId(order.getUser().getUserId())
-                .orElseGet(() -> createNewCreditForUser(order.getUser()));
-
-        // Lấy giá trị Xu của gói (VD: Gói 50k được 50 Xu)
-        BigDecimal creditToAdd = order.getPackageEntity().getCreditValue();
-
-        // Cộng tiền (Hàm này đã có trong Entity UserCredit)
-        userCredit.addBalance(creditToAdd);
-        userCreditRepository.save(userCredit);
-
-        // 4. GHI LOG BIẾN ĐỘNG SỐ DƯ (TRANSACTION)
-        // Lưu ý: Transaction giờ đây link với Credit, không phải Voucher
-        Transaction txn = Transaction.builder()
-                .transactionRef("TXN-" + orderRef) // Link với mã đơn hàng
-                .transactionType(TransactionType.DEPOSIT) // Loại giao dịch: Nạp tiền
-                .credit(userCredit) // Liên kết với Ví Xu
-                .amount(creditToAdd)
-                .balanceAfter(userCredit.getBalance())
-                .status(TransactionStatus.COMPLETED)
-                .description("Nạp gói: " + order.getPackageEntity().getPackageName())
-                .metadata(java.util.Map.of("order_id", order.getOrderId()))
-                .build();
-
-        transactionRepository.save(txn);
-
-        log.info("Hoàn tất nạp tiền (DEPOSIT) cho đơn hàng {}, User Balance: {}", orderRef, userCredit.getBalance());
-    }
-
-    // --- 3. XỬ LÝ HỦY ĐƠN / THẤT BẠI ---
-    @Transactional
-    public void failOrder(String orderRef, String reason) {
-        Order order = orderRepository.findByOrderRef(orderRef)
-                .orElseThrow(() -> new RuntimeException("Đơn hàng không tồn tại"));
-
-        if (order.getPaymentStatus() == OrderStatus.PENDING) {
-            order.setPaymentStatus(OrderStatus.FAILED);
-            order.setCompletedAt(LocalDateTime.now());
-            // Có thể lưu reason vào log hoặc field note
-            orderRepository.save(order);
+        // 2. Kiểm tra kết quả bằng boolean success
+        if (result.isSuccess()) {
+            handlePaymentSuccess(order, gatewayTxnId);
+        } else {
+            handlePaymentFailure(order, result.getMessage());
         }
     }
 
-    // Helper: Tự động tạo Ví Xu mới nếu User chưa có (Onboarding)
-    private UserCredit createNewCreditForUser(User user) {
-        UserCredit newCredit = UserCredit.builder()
-                .user(user)
-                .balance(BigDecimal.ZERO)
-                .totalDeposited(BigDecimal.ZERO)
-                .build();
-        return userCreditRepository.save(newCredit);
+// ...
+
+    // XỬ LÝ THÀNH CÔNG: Update Order & Transaction -> COMPLETED
+    private void handlePaymentSuccess(Order order, String gatewayTxnId) {
+        log.info("Payment Success: {}", order.getOrderRef());
+
+        // 1. Update Order
+        order.setPaymentStatus(OrderStatus.PAID);
+        order.setGatewayTransactionId(gatewayTxnId);
+        order.setCompletedAt(LocalDateTime.now());
+        orderRepository.save(order);
+
+        // 2. Cộng tiền
+        BigDecimal creditToAdd = calculateCreditAmount(order);
+        userCreditService.addBalance(order.getUser().getUserId(), creditToAdd);
+        UserCredit updatedCredit = userCreditService.getUserCredit(order.getUser().getUserId());
+
+        // 3. Update Transaction -> COMPLETED
+        Transaction transaction = transactionService.findByRef(order.getOrderRef());
+        transactionService.completeTransaction(
+                transaction.getTransactionId(),
+                TransactionStatus.COMPLETED,
+                updatedCredit.getBalance()
+        );
+
+        // 4. --- TẠO PAYMENT DETAIL TẠI ĐÂY (VÀ LƯU XUỐNG DB) ---
+        // Lưu ý: Hàm này return DTO nhưng ở đây ta chỉ cần nó lưu xuống DB là được
+        // Controller sẽ query lại sau.
+        paymentDetailService.createFromOrder(transaction, order);
+    }
+
+    // XỬ LÝ THẤT BẠI: Update Order & Transaction -> FAILED
+    private void handlePaymentFailure(Order order, String failureMessage) {
+        log.error("Payment Failed: {}. Reason: {}", order.getOrderRef(), failureMessage);
+
+        // 1. Update Order -> FAILED
+        order.setPaymentStatus(OrderStatus.FAILED);
+        order.setCompletedAt(LocalDateTime.now());
+        orderRepository.save(order);
+
+        // 2. Update Transaction -> FAILED
+        try {
+            Transaction transaction = transactionService.findByRef(order.getOrderRef());
+
+            // Với giao dịch lỗi, số dư không đổi, ta truyền vào số dư hiện tại hoặc 0 tùy logic
+            // (Trong TransactionService.completeTransaction đã có check: nếu FAILED thì không update balanceAfter)
+            transactionService.completeTransaction(
+                    transaction.getTransactionId(),
+                    TransactionStatus.FAILED,
+                    BigDecimal.ZERO
+            );
+        } catch (Exception e) {
+            log.warn("Transaction not found for failed order: {}", order.getOrderRef());
+        }
+
+        // 3. Ném lỗi để Controller trả về Client
+        if (failureMessage.contains("Checksum")) {
+            throw new AppException(ErrorCode.VNPAY_INVALID_CHECKSUM);
+        } else {
+            throw new AppException(ErrorCode.VNPAY_PAYMENT_FAILED);
+        }
+    }
+
+    // ...
+
+    private BigDecimal calculateCreditAmount(Order order) {
+        if (order.getPackageEntity() != null && order.getPackageEntity().getCreditValue() != null) {
+            return order.getPackageEntity().getCreditValue();
+        }
+        return order.getAmountPaid();
     }
 }

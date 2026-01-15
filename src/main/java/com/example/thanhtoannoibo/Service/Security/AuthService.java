@@ -130,7 +130,7 @@ public class AuthService {
         String accessToken = jwtService.generateAccessToken(
                 user.getUsername(), // <--- Change this to getUsername()
                 user.getUserId(),
-                user.getUserType().name(),
+                user.getUserType(),
                 permissionCodes,
                 roleCodes,
                 accessExp
@@ -189,7 +189,7 @@ public class AuthService {
                 .fullName(req.getFullName())
                 .email(req.getEmail())
                 .phoneNumber(req.getPhoneNumber())
-                .userType(UserType.STUDENT) // Mặc định là Student
+                .userType(UserType.USER) // Mặc định là Student
                 .status(UserStatus.ACTIVE)
                 .build();
 
@@ -250,7 +250,7 @@ public class AuthService {
         String accessToken = jwtService.generateAccessToken(
                 savedUser.getUsername(),
                 savedUser.getUserId(),
-                savedUser.getUserType().name(),
+                savedUser.getUserType(),
                 permissionCodes,
                 roleCodes,
                 accessExp
@@ -321,7 +321,7 @@ public class AuthService {
         String newAccessToken = jwtService.generateAccessToken(
                 user.getUsername(),
                 user.getUserId(),
-                user.getUserType().name(),
+                user.getUserType(),
                 permissionCodes,
                 roleCodes,
                 accessExp

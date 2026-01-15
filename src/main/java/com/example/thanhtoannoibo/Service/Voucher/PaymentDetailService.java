@@ -1,81 +1,127 @@
 package com.example.thanhtoannoibo.Service.Voucher;
+
+import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.DTO.Request.Payment.PaymentDetailCreateRequest;
 import com.example.thanhtoannoibo.DTO.Response.Payment.PaymentDetailResponse;
+import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
-import com.example.thanhtoannoibo.Entity.Catalog.Counter;
+import com.example.thanhtoannoibo.Entity.Order.Order;
 import com.example.thanhtoannoibo.Entity.Voucher.PaymentDetail;
 import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
+import com.example.thanhtoannoibo.Exception.AppException; // Import Exception tùy chỉnh
+import com.example.thanhtoannoibo.Repository.Catalog.AppPackageRepository;
 import com.example.thanhtoannoibo.Repository.Catalog.AppServiceRepository;
-import com.example.thanhtoannoibo.Repository.Catalog.CounterRepository;
 import com.example.thanhtoannoibo.Repository.Wallet.PaymentDetailRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 @Service
 @RequiredArgsConstructor
 public class PaymentDetailService {
     private final PaymentDetailRepository paymentDetailRepository;
-    private final AppServiceRepository serviceRepository; // Catalog repo
-    private final CounterRepository counterRepository; // Catalog repo
+    private final AppServiceRepository serviceRepository;
+    private final AppPackageRepository packageRepository;
 
     /**
-     * NEW METHOD: Fetches receipt details for an existing transaction.
+     * Lấy chi tiết hóa đơn theo Transaction
      */
     public PaymentDetailResponse getByTransaction(Transaction transaction) {
-        if (transaction == null) return null;
+        if (transaction == null) {
+            // Ném lỗi nếu không có transaction đầu vào
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
 
-        // Use the repository method we defined: findByTransactionTransactionId
         return paymentDetailRepository.findByTransactionTransactionId(transaction.getTransactionId())
                 .map(this::toResponse)
-                .orElse(null); // Or throw exception if a receipt is mandatory
+                .orElse(null); // Hoặc ném lỗi nếu bắt buộc phải có Detail
     }
 
     /**
-     * Creates a payment detail record linked to a successfully completed transaction.
-     * This is called when a QR Transfer is identified as a "Service Payment" (e.g. Canteen).
+     * Tạo PaymentDetail mới
      */
     @Transactional
     public PaymentDetailResponse createPaymentDetail(Transaction transaction, PaymentDetailCreateRequest request) {
-        if (request == null) return null;
+        // Kiểm tra tính hợp lệ của request và transaction
+        if (transaction == null || request == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
 
-        // 1. Resolve optional catalog links
+        // 1. Tìm Service (nếu có)
         AppService service = null;
         if (request.getServiceId() != null) {
             service = serviceRepository.findById(request.getServiceId())
-                    .orElse(null); // Or throw exception if strict validation needed
+                    .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST)); // Báo lỗi nếu ID Service sai
         }
 
-        Counter counter = null;
-        if (request.getCounterId() != null) {
-            counter = counterRepository.findById(request.getCounterId())
-                    .orElse(null);
+        // 2. Tìm Package (nếu có)
+        AppPackage appPackage = null;
+        if (request.getPackageId() != null) {
+            appPackage = packageRepository.findById(request.getPackageId())
+                    .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST)); // Báo lỗi nếu ID Package sai
         }
 
-        // 2. Build Entity
+        // 3. Build Entity
         PaymentDetail detail = PaymentDetail.builder()
                 .transaction(transaction)
                 .service(service)
+                .packageRef(appPackage)
                 .quantity(request.getQuantity() != null ? request.getQuantity() : java.math.BigDecimal.ONE)
-                .amount(request.getAmount()) // Usually same as transaction.getAmount()
+                .amount(request.getAmount())
                 .build();
 
-        // 3. Save
         PaymentDetail savedDetail = paymentDetailRepository.save(detail);
         return toResponse(savedDetail);
     }
 
     /**
-     * Convert Entity to DTO for API responses
+     * Convert Entity sang DTO Response
      */
     public PaymentDetailResponse toResponse(PaymentDetail entity) {
         if (entity == null) return null;
 
+        Transaction txn = entity.getTransaction();
+
+        // Logic hiển thị tên cho Top-up (khi Service/Package null)
+        String itemName = "Nạp tiền vào ví";
+        if (entity.getService() != null) itemName = entity.getService().getServiceName();
+        else if (entity.getPackageRef() != null) itemName = entity.getPackageRef().getPackageName();
+
         return PaymentDetailResponse.builder()
                 .paymentDetailId(entity.getPaymentId())
-                .serviceName(entity.getService() != null ? entity.getService().getServiceName() : "N/A")
+                .transactionId(txn != null ? txn.getTransactionId() : null)
+                .transactionRef(txn != null ? txn.getTransactionRef() : null)
+
+                .serviceId(entity.getService() != null ? entity.getService().getServiceId() : null)
+                .packageId(entity.getPackageRef() != null ? entity.getPackageRef().getPackageId() : null)
+
+                // Trả về tên hiển thị chung (Service Name hoặc Package Name hoặc "Nạp tiền")
+                // Frontend có thể ưu tiên hiển thị field này
+                .serviceName(itemName)
+                .packageName(entity.getPackageRef() != null ? entity.getPackageRef().getPackageName() : null)
+
                 .quantity(entity.getQuantity())
                 .totalAmount(entity.getAmount())
                 .build();
+    }
+
+    @Transactional
+    public PaymentDetailResponse createFromOrder(Transaction transaction, Order order) {
+        // Lưu ý: Không chặn null package/service nữa để hỗ trợ hiển thị hóa đơn Nạp tiền (Top-up)
+
+        PaymentDetail detail = PaymentDetail.builder()
+                .transaction(transaction)
+                .packageRef(order.getPackageEntity())
+                .service(order.getServiceEntity())
+                .quantity(BigDecimal.ONE)
+                .amount(order.getAmountPaid())
+                .build();
+
+        PaymentDetail savedDetail = paymentDetailRepository.save(detail);
+
+        // Trả về DTO ngay lập tức
+        return toResponse(savedDetail);
     }
 }

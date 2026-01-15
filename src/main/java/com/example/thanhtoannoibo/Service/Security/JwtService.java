@@ -1,5 +1,6 @@
 package com.example.thanhtoannoibo.Service.Security;
 
+import com.example.thanhtoannoibo.Common.UserType;
 import com.example.thanhtoannoibo.Config.JwtProperties;
 import com.example.thanhtoannoibo.Entity.User;
 import io.jsonwebtoken.Claims;
@@ -100,7 +101,8 @@ public class JwtService {
         return generateToken(new HashMap<>(), userDetails);
     }
 
-    public String generateAccessToken(String username, UUID userId, String userType, List<String> permissionCodes, List<String> roleCodes, Instant expiresAt) {
+    public String generateAccessToken(String username, UUID userId, UserType userType, List<String> permissionCodes, List<String> roleCodes, Instant expiresAt) {
+
         return Jwts.builder()
                 .setIssuer(jwtProperties.getIssuer())
                 .setSubject(username)       // Standard subject is now Username (for Security)

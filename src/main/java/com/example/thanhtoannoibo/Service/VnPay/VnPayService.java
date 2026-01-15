@@ -2,6 +2,7 @@ package com.example.thanhtoannoibo.Service.VnPay;
 
 import com.example.thanhtoannoibo.Config.VnPayConfig;
 import com.example.thanhtoannoibo.DTO.Request.Payment.PaymentRequest;
+import com.example.thanhtoannoibo.DTO.Request.Payment.VerifyResult;
 import com.example.thanhtoannoibo.DTO.Response.Payment.VnPayResponse;
 import com.example.thanhtoannoibo.Util.VnPayUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -65,30 +66,35 @@ public class VnPayService {
      * Logic Verify tham khảo từ VNPayService.orderReturn (com.duc):
      * Cần encode lại các params nhận được trước khi hash để so sánh.
      */
-    public int verifyPayment(Map<String, String> queryParams) {
-        if (queryParams == null || queryParams.isEmpty()) return -1;
+    public VerifyResult verifyPaymentAndGetRef(Map<String, String> queryParams) {
+        VerifyResult result = new VerifyResult();
+
+        if (queryParams == null || queryParams.isEmpty()) {
+            result.setResult("false");
+            result.message = "Empty params";
+            return result;
+        }
 
         String vnp_SecureHash = queryParams.get("vnp_SecureHash");
-        if (vnp_SecureHash == null || vnp_SecureHash.isBlank()) return -1;
+        String vnp_TxnRef = queryParams.get("vnp_TxnRef");
+        result.setTransactionRef(vnp_TxnRef);
 
-        // Tạo Map mới để tính checksum (giống logic orderReturn của file tham khảo)
+        if (vnp_SecureHash == null || vnp_SecureHash.isBlank()) {
+            result.setSuccess(false);
+            result.message = "Missing SecureHash";
+            return result;
+        }
+
+        // Logic tính toán checksum (Giữ nguyên logic cũ của bạn)
         Map<String, String> fields = new HashMap<>();
-
         for (Map.Entry<String, String> entry : queryParams.entrySet()) {
             String fieldName = entry.getKey();
             String fieldValue = entry.getValue();
-
-            // Skip các field hash
-            if ("vnp_SecureHash".equals(fieldName) || "vnp_SecureHashType".equals(fieldName)) {
-                continue;
-            }
-
+            if ("vnp_SecureHash".equals(fieldName) || "vnp_SecureHashType".equals(fieldName)) continue;
             try {
-                // Logic quan trọng từ file tham khảo: Cần URLEncode cả Key và Value
-                // Spring Boot đã decode params, nên ta cần encode lại để tính hash khớp với VNPAY
+                // Encode lại theo chuẩn VNPay (Giữ nguyên logic cũ)
                 String encodedName = URLEncoder.encode(fieldName, StandardCharsets.US_ASCII.toString());
                 String encodedValue = URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString());
-
                 if (encodedValue != null && encodedValue.length() > 0) {
                     fields.put(encodedName, encodedValue);
                 }
@@ -97,16 +103,22 @@ public class VnPayService {
             }
         }
 
-        // Tính hash từ các field đã encode
-        // Vì trong Util.buildPaymentUrl ta đã code logic: sort -> key=value (value đã encode ở trên) -> hash
-        // Nên ta cần tự build chuỗi hashData ở đây tương tự
-        String signValue = hashAllFields(fields);
+        String signValue = hashAllFields(fields); // Hàm hashAllFields giữ nguyên
 
         if (signValue.equals(vnp_SecureHash)) {
-            return "00".equals(queryParams.get("vnp_TransactionStatus")) ? 1 : 0;
+            if ("00".equals(queryParams.get("vnp_TransactionStatus"))) {
+                result.setSuccess(true);
+                result.message = "Success";
+            } else {
+                result.setSuccess(false);
+                result.message = "Payment Failed by Bank";
+            }
         } else {
-            return -1; // Invalid Signature
+            result.setSuccess(false);
+            result.message = "Invalid Checksum";
         }
+
+        return result;
     }
 
     // Helper riêng để hash cho phần Verify (Mô phỏng VNPayConfig.hashAllFields của file tham khảo)
