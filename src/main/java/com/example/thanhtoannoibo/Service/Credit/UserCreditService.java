@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Service
@@ -24,18 +25,15 @@ public class UserCreditService {
                 .orElseGet(() -> createNewCredit(userId));
     }
 
-    // Logic nạp tiền (Thay thế topUpBalance cũ)
     @Transactional
     public void addBalance(UUID userId, BigDecimal amount) {
-        // Dùng khóa (Lock) để tránh race condition khi nạp tiền
         UserCredit credit = userCreditRepository.findWithLockByUser_UserId(userId)
                 .orElseGet(() -> createNewCredit(userId));
-
         credit.addBalance(amount);
         userCreditRepository.save(credit);
     }
 
-    // Helper: Tạo ví mới
+    // --- UPDATE: Khởi tạo giá trị mặc định cho Spending Control ---
     private UserCredit createNewCredit(UUID userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -44,6 +42,26 @@ public class UserCreditService {
                 .user(user)
                 .balance(BigDecimal.ZERO)
                 .totalDeposited(BigDecimal.ZERO)
+
+                // Mặc định: Không giới hạn (null), đã tiêu 0, ngày hôm nay
+                .dailyLimitAmount(null)
+                .currentDaySpending(BigDecimal.ZERO)
+                .lastSpendingDate(LocalDate.now())
                 .build());
+    }
+
+    /**
+     * API cho phép Phụ huynh cập nhật hạn mức (Gọi từ Controller)
+     */
+    @Transactional
+    public void updateDailyLimit(UUID userId, BigDecimal limit) {
+        UserCredit credit = getUserCredit(userId);
+        // Nếu limit <= 0 hoặc null nghĩa là bỏ giới hạn
+        if (limit != null && limit.compareTo(BigDecimal.ZERO) <= 0) {
+            credit.setDailyLimitAmount(null);
+        } else {
+            credit.setDailyLimitAmount(limit);
+        }
+        userCreditRepository.save(credit);
     }
 }

@@ -1,20 +1,23 @@
 package com.example.thanhtoannoibo.DTO.Request.Payment;
+
 import lombok.Data;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Data
 public class PaymentDetailCreateRequest {
-    // If the QR code scanned was bound to a specific service (e.g., "Parking Ticket")
+    // Người dùng mua Dịch vụ lẻ...
     private UUID serviceId;
 
-    // If the QR code scanned belongs to a specific counter (e.g., "Library Desk")
-    private UUID counterId;
+    // ...HOẶC mua Gói cước (Package)
+    private UUID packageId;
 
-    @NotNull
+    @NotNull(message = "Số lượng không được để trống")
+    @Min(value = 1, message = "Số lượng phải lớn hơn 0")
     private BigDecimal quantity;
 
-    @NotNull
-    private BigDecimal amount; // Should match the transaction amount usually
+    @NotNull(message = "Thành tiền không được để trống")
+    private BigDecimal amount;
 }

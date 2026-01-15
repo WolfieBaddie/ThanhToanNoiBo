@@ -1,33 +1,56 @@
 package com.example.thanhtoannoibo.Common;
+
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
 @Getter
 public enum ErrorCode {
-    // General
-    UNCATEGORIZED_EXCEPTION("E0001", "Uncategorized error", HttpStatus.INTERNAL_SERVER_ERROR),
-    INVALID_REQUEST("E0002", "Invalid request", HttpStatus.BAD_REQUEST),
+    // --- 1. GENERAL (Lỗi chung) ---
+    UNCATEGORIZED_EXCEPTION("E0001", "Lỗi hệ thống chưa được phân loại", HttpStatus.INTERNAL_SERVER_ERROR),
+    INVALID_REQUEST("E0002", "Yêu cầu không hợp lệ hoặc thiếu thông tin bắt buộc", HttpStatus.BAD_REQUEST),
+    UNAUTHORIZED("E0003", "Bạn không có quyền truy cập hoặc phiên đăng nhập đã hết hạn", HttpStatus.UNAUTHORIZED),
+    FORBIDDEN("E0004", "Bạn không có quyền thực hiện thao tác này", HttpStatus.FORBIDDEN),
 
-    // Wallet & Transfer
-    WALLET_NOT_FOUND("W0001", "Wallet not found", HttpStatus.NOT_FOUND),
-    INSUFFICIENT_BALANCE("W0002", "Insufficient wallet balance", HttpStatus.BAD_REQUEST),
-    CANNOT_TRANSFER_TO_SELF("W0003", "Cannot transfer to yourself", HttpStatus.BAD_REQUEST),
+    // --- 2. USER (Người dùng) ---
+    USER_NOT_FOUND("U0001", "Người dùng không tồn tại", HttpStatus.NOT_FOUND),
+    USER_LOCKED("U0002", "Tài khoản người dùng đang bị khóa", HttpStatus.FORBIDDEN),
 
-    // QR Code
-    QR_CODE_NOT_FOUND("Q0001", "QR Code not found", HttpStatus.NOT_FOUND),
-    QR_CODE_EXPIRED("Q0002", "QR Code has expired", HttpStatus.BAD_REQUEST),
-    QR_CODE_INACTIVE("Q0003", "QR Code is not active", HttpStatus.BAD_REQUEST),
+    // --- 3. CREDIT WALLET (Ví Xu - UserCredit) ---
+    CREDIT_NOT_FOUND("W0001", "Không tìm thấy ví Xu của người dùng", HttpStatus.NOT_FOUND),
+    INSUFFICIENT_BALANCE("W0002", "Số dư Xu không đủ để thực hiện giao dịch", HttpStatus.BAD_REQUEST),
+    CANNOT_TRANSFER_TO_SELF("W0003", "Không thể chuyển Xu cho chính mình", HttpStatus.BAD_REQUEST),
+    INVALID_AMOUNT("W0004", "Số tiền giao dịch không hợp lệ (phải lớn hơn 0)", HttpStatus.BAD_REQUEST),
 
-    // Transfer Request
-    REQUEST_NOT_FOUND("R0001", "Transfer request not found", HttpStatus.NOT_FOUND),
-    REQUEST_NOT_PENDING("R0002", "Transfer request is not pending", HttpStatus.BAD_REQUEST),
-    REQUEST_EXPIRED("R0003", "Transfer request has expired", HttpStatus.BAD_REQUEST),
+    // --- 4. ORDER & PAYMENT (Đơn hàng & Thanh toán) ---
+    ORDER_NOT_FOUND("O0001", "Đơn hàng không tồn tại", HttpStatus.NOT_FOUND),
+    ORDER_ALREADY_PROCESSED("O0002", "Đơn hàng này đã được xử lý (đã thanh toán hoặc bị hủy)", HttpStatus.BAD_REQUEST),
+    PAYMENT_FAILED("O0003", "Thanh toán thất bại", HttpStatus.BAD_REQUEST),
 
-    // VNPAY
-    VNPAY_INVALID_CHECKSUM("V0001", "Invalid VNPAY Checksum", HttpStatus.UNAUTHORIZED),
-    VNPAY_PAYMENT_FAILED("V0002", "VNPAY Payment failed", HttpStatus.BAD_REQUEST),
+    // --- 5. CATALOG (Gói cước & Dịch vụ) ---
+    PACKAGE_NOT_FOUND("P0001", "Gói cước không tồn tại", HttpStatus.NOT_FOUND),
+    PACKAGE_INACTIVE("P0002", "Gói cước này đang tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
+    SERVICE_NOT_FOUND("S0001", "Dịch vụ không tồn tại", HttpStatus.NOT_FOUND),
+    SERVICE_INACTIVE("S0002", "Dịch vụ này đang tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
 
-    UNAUTHORIZED("U001", "Invalid user", HttpStatus.UNAUTHORIZED);
+    // --- 6. VOUCHER & ITEMS (Kho vé) ---
+    VOUCHER_NOT_FOUND("V0001", "Không tìm thấy vé/voucher", HttpStatus.NOT_FOUND),
+    VOUCHER_USED_OR_EXPIRED("V0002", "Voucher đã được sử dụng hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
+    VOUCHER_LOCKED("V0003", "Voucher đang bị khóa", HttpStatus.BAD_REQUEST),
+
+    // --- 7. QR CODE ---
+    QR_CODE_NOT_FOUND("Q0001", "Mã QR không tồn tại", HttpStatus.NOT_FOUND),
+    QR_CODE_EXPIRED("Q0002", "Mã QR đã hết hạn sử dụng", HttpStatus.BAD_REQUEST),
+    QR_CODE_INACTIVE("Q0003", "Mã QR chưa được kích hoạt hoặc bị vô hiệu hóa", HttpStatus.BAD_REQUEST),
+    QR_CODE_LIMIT_REACHED("Q0004", "Mã QR đã hết lượt sử dụng", HttpStatus.BAD_REQUEST),
+
+    // --- 8. VNPAY INTEGRATION ---
+    VNPAY_INVALID_CHECKSUM("VP001", "Sai chữ ký VnPay (Sai Checksum)", HttpStatus.UNAUTHORIZED),
+    VNPAY_PAYMENT_FAILED("VP002", "Giao dịch thanh toán qua VNPay không thành công", HttpStatus.BAD_REQUEST),
+
+    DAILY_LIMIT_EXCEEDED("W0005", "Giao dịch vượt quá hạn mức chi tiêu trong ngày", HttpStatus.BAD_REQUEST),
+
+    TRANSACTION_NOT_FOUND("T0001", "Không tìm thấy giao dịch", HttpStatus.NOT_FOUND),
+    PAYMENT_DETAIL_NOT_FOUND("T0002", "Không tìm thấy chi tiết hóa đơn", HttpStatus.NOT_FOUND);
 
     private final String code;
     private final String message;
