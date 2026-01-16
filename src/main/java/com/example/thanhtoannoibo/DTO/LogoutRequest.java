@@ -1,5 +1,5 @@
 package com.example.thanhtoannoibo.DTO;
-import jakarta.validation.constraints.NotBlank;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,8 +10,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LogoutRequest {
-    @NotBlank(message = "Refresh token is required")
+    // Bỏ @NotBlank vì token sẽ lấy từ Cookie
     private String refreshToken;
-
     private String deviceId;
 }
