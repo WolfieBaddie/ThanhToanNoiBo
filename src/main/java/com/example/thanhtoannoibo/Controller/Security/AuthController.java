@@ -1,13 +1,15 @@
 package com.example.thanhtoannoibo.Controller.Security;
 
-import com.example.thanhtoannoibo.DTO.LoginRequest;
-import com.example.thanhtoannoibo.DTO.LoginResponse;
-import com.example.thanhtoannoibo.DTO.LogoutRequest;
-import com.example.thanhtoannoibo.DTO.RefreshTokenRequest;
+import com.example.thanhtoannoibo.DTO.*;
+import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Service.Security.AuthService;
+import com.example.thanhtoannoibo.Util.CookieUtil;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,48 +19,67 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final CookieUtil cookieUtil;
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(
-            @Valid @RequestBody LoginRequest loginRequest,
-            HttpServletRequest httpRequest) {
-
+    public ResponseEntity<UserResponse> login(@Valid @RequestBody LoginRequest loginRequest, HttpServletRequest request) { // Return UserResponse thay vì LoginResponse chứa token
+        // ... (Giữ nguyên logic xác thực IP/Device) ...
         // Extract request metadata
         if (loginRequest.getIp() == null) {
-            loginRequest.setIp(getClientIp(httpRequest));
+            loginRequest.setIp(getClientIp(request));
         }
 
-        if (loginRequest.getUserAgent() == null) {
-            loginRequest.setUserAgent(httpRequest.getHeader("User-Agent"));
-        }
+        // 1. Lấy kết quả login từ Service (vẫn trả về token string bình thường)
+        LoginResponse loginResult = authService.login(loginRequest);
 
-        if (loginRequest.getDeviceId() == null) {
-            loginRequest.setDeviceId(httpRequest.getHeader("X-Device-Id"));
-        }
+        // 2. Đóng gói Token vào HttpOnly Cookie
+        ResponseCookie accessCookie = cookieUtil.createAccessTokenCookie(loginResult.getAccessToken(), 15);
+        ResponseCookie refreshCookie = cookieUtil.createRefreshTokenCookie(loginResult.getRefreshToken(), 30);
 
-        LoginResponse response = authService.login(loginRequest);
-        return ResponseEntity.ok(response);
+        // 3. Trả về User Info trong Body, còn Token nằm trong Header Set-Cookie
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, accessCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .body(loginResult.getUser()); // Chỉ trả về thông tin User, KHÔNG trả token text
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            @Valid @RequestBody LogoutRequest logoutRequest,
-            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+            @RequestBody(required = false) LogoutRequest logoutRequest, // Cho phép body null
+            HttpServletRequest request,
+            HttpServletResponse response // Để xóa cookie
+    ) {
+        // Logic cũ của bạn: Xóa session trong DB (nếu cần)
+        // String refreshToken = ... (Lấy từ Cookie nếu body null)
 
-        // Option 1: Use provided refresh token
-        if (logoutRequest.getRefreshToken() != null) {
-            // Call service method to invalidate specific refresh token
-            // authService.logoutByRefreshToken(logoutRequest.getRefreshToken());
-        }
+        // Quan trọng nhất: Xóa Cookie ở trình duyệt
+        ResponseCookie cleanAccess = cookieUtil.clearCookie("accessToken");
+        ResponseCookie cleanRefresh = cookieUtil.clearCookie("refreshToken");
 
-        // Option 2: Use Authorization header
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String accessToken = authHeader.substring(7);
-            // Call service method to handle logout (invalidate session, etc.)
-            // authService.logoutByAccessToken(accessToken);
-        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cleanAccess.toString())
+                .header(HttpHeaders.SET_COOKIE, cleanRefresh.toString())
+                .build();
+    }
 
-        return ResponseEntity.ok().build();
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getCurrentUser(HttpServletRequest request) {
+        // 1. Lấy User Entity từ Token (AuthService đã handle việc parse header)
+        User user = authService.getCurrentUser(request);
+
+        // 2. Map sang DTO UserResponse (Cần đảm bảo khớp với DTO bên Frontend)
+        UserResponse response = UserResponse.builder()
+                .userId(user.getUserId())
+                .username(user.getUsername())
+                .fullName(user.getFullName())
+                .email(user.getEmail())
+                .phoneNumber(user.getPhoneNumber())
+                .userType(user.getUserType()) // Enum
+                .status(user.getStatus())     // Enum
+                // Nếu UserResponse của bạn có field role, hãy map ở đây
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/refresh")

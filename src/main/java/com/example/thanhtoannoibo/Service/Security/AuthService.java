@@ -1,15 +1,18 @@
 package com.example.thanhtoannoibo.Service.Security;
 
+import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.Common.UserStatus;
 import com.example.thanhtoannoibo.Common.UserType;
 import com.example.thanhtoannoibo.Common.UserVoucherStatus;
 import com.example.thanhtoannoibo.DTO.LoginRequest;
 import com.example.thanhtoannoibo.DTO.LoginResponse;
 import com.example.thanhtoannoibo.DTO.Request.Register.RegisterRequest;
+import com.example.thanhtoannoibo.DTO.UserResponse;
 import com.example.thanhtoannoibo.Entity.*;
 import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
 import com.example.thanhtoannoibo.Entity.Security.AuditLog;
 import com.example.thanhtoannoibo.Entity.Security.UserSession;
+import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository;
 import com.example.thanhtoannoibo.Repository.Security.AuditLogRepository;
 import com.example.thanhtoannoibo.Repository.Security.RoleRepository;
@@ -17,6 +20,7 @@ import com.example.thanhtoannoibo.Repository.Security.SessionRepository;
 import com.example.thanhtoannoibo.Repository.Security.UserRepository;
 import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherRepository;
 import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -127,14 +131,7 @@ public class AuthService {
                 .collect(Collectors.toList());
 
         Instant accessExp = Instant.now().plus(Duration.ofMinutes(accessTtlMinutes));
-        String accessToken = jwtService.generateAccessToken(
-                user.getUsername(), // <--- Change this to getUsername()
-                user.getUserId(),
-                user.getUserType(),
-                permissionCodes,
-                roleCodes,
-                accessExp
-        );
+        String accessToken = jwtService.generateAccessToken(user.getUsername(), user.getUserId(), user.getUserType(), permissionCodes, roleCodes, accessExp);
 
         // Generate refresh token
         String refreshTokenPlain = UUID.randomUUID().toString() + "." + UUID.randomUUID();
@@ -158,7 +155,13 @@ public class AuthService {
                 .accessToken(accessToken)
                 .accessExpiresAt(accessExp)
                 .refreshToken(refreshTokenPlain)
-                .refreshExpiresAt(refreshExp)
+                .refreshExpiresAt(Instant.now().plus(Duration.ofDays(refreshTtlDays)))
+                .user(UserResponse.builder() // Mapping sơ bộ để trả về
+                        .userId(user.getUserId())
+                        .username(user.getUsername())
+                        .fullName(user.getFullName())
+                        .userType(user.getUserType())
+                        .build())
                 .build();
     }
 
@@ -351,21 +354,55 @@ public class AuthService {
     /**
      * Extracts the User from the JWT in the Authorization header.
      */
-    public User getCurrentUser(HttpServletRequest request) { // Changed return type to UserAccount to match repo
-        String header = request.getHeader("Authorization");
+// === ĐÂY LÀ HÀM QUAN TRỌNG CẦN SỬA ===
+    public User getCurrentUser(HttpServletRequest request) {
+        System.out.println("========== DEBUG: getCurrentUser START ==========");
 
-        if (header == null || !header.startsWith("Bearer ")) {
-            throw new RuntimeException("MISSING_OR_INVALID_TOKEN");
+        String token = null;
+
+        // 1. Check Header
+        String header = request.getHeader("Authorization");
+        System.out.println("1. Authorization Header: " + header);
+
+        if (header != null && header.startsWith("Bearer ")) {
+            token = header.substring(7);
+            System.out.println("=> Tìm thấy Token trong Header!");
         }
 
-        String token = header.substring(7);
+        // 2. Check Cookie (Logic mới cần thêm vào)
+        if (token == null) {
+            System.out.println("2. Header null, đang tìm trong Cookie...");
+            if (request.getCookies() != null) {
+                System.out.println("   So luong Cookie nhan duoc: " + request.getCookies().length);
+                for (Cookie cookie : request.getCookies()) {
+                    System.out.println("   - Cookie Name: [" + cookie.getName() + "]");
+                    if ("accessToken".equals(cookie.getName())) {
+                        token = cookie.getValue();
+                        System.out.println("=> CHECK MATCH: Tìm thấy Cookie 'accessToken'!");
+                        break;
+                    }
+                }
+            } else {
+                System.out.println("   request.getCookies() is NULL (Trình duyệt không gửi cookie nào)");
+            }
+        }
 
-        // Assuming JwtService has a method to extract the Subject (UserId)
-        // If your JwtService returns a String, we parse it to UUID
-        UUID userId = jwtService.extractUserId(token);
+        // 3. Kết quả
+        if (token == null) {
+            System.out.println("========== DEBUG: FAILED (Token is null) ==========");
+            // Sửa lại ném AppException ErrorCode.UNAUTHORIZED (401) thay vì RuntimeException (500)
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
 
-        return userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("USER_NOT_FOUND"));
+        try {
+            UUID userId = jwtService.extractUserId(token);
+            System.out.println("=> User ID extracted: " + userId);
+            return userRepository.findById(userId)
+                    .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED));
+        } catch (Exception e) {
+            System.out.println("ERROR: Giải mã token thất bại: " + e.getMessage());
+            throw new AppException(ErrorCode.UNAUTHORIZED);
+        }
     }
 
     // THAY ĐỔI: Phương thức này thay thế cho getWalletIdByUser
