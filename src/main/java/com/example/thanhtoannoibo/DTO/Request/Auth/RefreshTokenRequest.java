@@ -1,4 +1,4 @@
-package com.example.thanhtoannoibo.DTO;
+package com.example.thanhtoannoibo.DTO.Request.Auth;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;

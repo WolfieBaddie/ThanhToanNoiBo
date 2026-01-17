@@ -1,4 +1,5 @@
 package com.example.thanhtoannoibo.Controller;
+import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.DTO.Response.ErrorResponse;
 import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.Exception.AppException;
@@ -14,18 +15,12 @@ import java.time.LocalDateTime;
 public class GlobalExceptionHandler {
     // 1. Handle our Custom AppExceptions
     @ExceptionHandler(AppException.class)
-    public ResponseEntity<ErrorResponse> handleAppException(AppException e, HttpServletRequest request) {
-        ErrorCode errorCode = e.getErrorCode();
+    public ResponseEntity<BaseResponse<Object>> handleAppException(AppException ex) {
+        ErrorCode errorCode = ex.getErrorCode();
 
-        ErrorResponse response = ErrorResponse.builder()
-                .timestamp(LocalDateTime.now())
-                .status(errorCode.getHttpStatus().value())
-                .error(errorCode.getCode())
-                .message(errorCode.getMessage())
-                .path(request.getRequestURI())
-                .build();
-
-        return ResponseEntity.status(errorCode.getHttpStatus()).body(response);
+        return ResponseEntity
+                .status(errorCode.getHttpStatus())
+                .body(BaseResponse.error(errorCode.getHttpStatus().value(), errorCode.getMessage()));
     }
 
     // 2. Handle Validation Errors (e.g., @NotNull in DTOs)

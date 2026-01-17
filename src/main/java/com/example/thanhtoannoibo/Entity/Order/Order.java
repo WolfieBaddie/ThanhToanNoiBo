@@ -1,6 +1,7 @@
 package com.example.thanhtoannoibo.Entity.Order;
 import com.example.thanhtoannoibo.Common.OrderMethod;
 import com.example.thanhtoannoibo.Common.OrderStatus;
+import com.example.thanhtoannoibo.Common.PaymentStatus;
 import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
 import com.example.thanhtoannoibo.Entity.User;
@@ -49,8 +50,12 @@ public class Order {
     private OrderMethod paymentMethod;
 
     @Enumerated(EnumType.STRING)
+    @Column(name="payment_status")
+    private PaymentStatus paymentStatus;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "order_status")
-    private OrderStatus paymentStatus;
+    private OrderStatus orderStatus;
 
     @Column(name = "gateway_transaction_id")
     private String gatewayTransactionId; // Mã giao dịch trả về từ VNPay/Bank

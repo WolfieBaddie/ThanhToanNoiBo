@@ -4,6 +4,7 @@ import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.Common.OrderMethod;
 import com.example.thanhtoannoibo.DTO.Request.Payment.PaymentRequest;
 import com.example.thanhtoannoibo.DTO.Request.Payment.VerifyResult;
+import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.DTO.Response.Payment.PaymentDetailResponse;
 import com.example.thanhtoannoibo.DTO.Response.Payment.VnPayResponse;
 import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
@@ -31,14 +32,15 @@ public class PaymentController {
 
     // --- SỬA ĐỔI Ở ĐÂY ---
     @PostMapping("/create-payment")
-    public VnPayResponse createVnPayPayment(@RequestBody PaymentRequest depositRequest) {
-        // Gọi OrderService để nó vừa tạo Order/Transaction vừa lấy URL từ VNPay
-        return orderService.initiateOrder(depositRequest, OrderMethod.VN_PAY);
+    public ResponseEntity<BaseResponse<VnPayResponse>> createVnPayPayment(@RequestBody PaymentRequest depositRequest) {
+
+        VnPayResponse response = orderService.initiateOrder(depositRequest, OrderMethod.VN_PAY);
+        return ResponseEntity.ok(BaseResponse.success(response, "Tạo giao dịch thành công"));
     }
     // ---------------------
 
     @GetMapping("/vnpay-return")
-    public ResponseEntity<PaymentDetailResponse> verifyAndGetReceipt(@RequestParam Map<String, String> queryParams) {
+    public ResponseEntity<BaseResponse<PaymentDetailResponse>> verifyAndGetReceipt(@RequestParam Map<String, String> queryParams) {
         // 1. Verify Checksum
         VerifyResult verifyResult = vnPayService.verifyPaymentAndGetRef(queryParams);
         if (!verifyResult.isSuccess()) {
@@ -62,6 +64,6 @@ public class PaymentController {
             throw new AppException(ErrorCode.PAYMENT_DETAIL_NOT_FOUND);
         }
 
-        return ResponseEntity.ok(receipt);
+        return ResponseEntity.ok(BaseResponse.success(receipt, "Xác thực thanh toán thành công"));
     }
 }
