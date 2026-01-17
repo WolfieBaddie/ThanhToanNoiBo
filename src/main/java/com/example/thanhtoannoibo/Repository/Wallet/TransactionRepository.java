@@ -2,6 +2,7 @@ package com.example.thanhtoannoibo.Repository.Wallet;
 
 import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -9,7 +10,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
+public interface TransactionRepository extends JpaRepository<Transaction, UUID>, JpaSpecificationExecutor<Transaction> {
 
     // Tìm giao dịch theo mã tham chiếu (duy nhất)
     Optional<Transaction> findByTransactionRef(String transactionRef);

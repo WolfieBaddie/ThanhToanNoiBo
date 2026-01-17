@@ -1,7 +1,6 @@
-import axios from 'axios';
+import axios, {AxiosError} from 'axios';
 import { storage } from '../utils/storage';
 
-// Base URL nên lấy từ biến môi trường
 const BASE_URL = process.env.PUBLIC_API_URL || 'http://localhost:8080/api';
 
 export const axiosClient = axios.create({
@@ -14,25 +13,33 @@ export const axiosClient = axios.create({
 
 axiosClient.interceptors.response.use(
     (response) => {
-        return response.data;
+        const apiResponse = response.data;
+
+        // Trường hợp 1: HTTP 200 & Business Code 200 => Thành công
+        if (response.status === 200 && apiResponse.code === 200) {
+            // Trả về dữ liệu lõi (T) để Service/Component dùng luôn
+            return apiResponse.data;
+        }
+
+        // Trường hợp 2: HTTP 200 nhưng Business Code lỗi (VD: code 400, message "Hết hàng")
+        // Cần ném lỗi để nhảy vào catch của Component
+        return Promise.reject(new AxiosError(
+            apiResponse.message,
+            String(apiResponse.code),
+            response.config,
+            response.request,
+            response // Trả về nguyên response để component đọc được data
+        ));
     },
     (error) => {
-        // Lấy thông tin request gây ra lỗi
+        // Trường hợp 3: HTTP Lỗi (400, 401, 500...) từ Backend (GlobalExceptionHandler trả về)
         const originalRequest = error.config;
 
-        // Nếu lỗi 401 (Unauthorized)
+        // Xử lý 401 (Hết hạn token) như cũ
         if (error.response?.status === 401) {
-
-            // --- KHẮC PHỤC VÒNG LẶP TẠI ĐÂY ---
-            // Nếu API bị lỗi chính là API lấy thông tin user (VD: '/auth/me', '/users/profile'...)
-            // Thì KHÔNG ĐƯỢC redirect hay reload trang.
-            // Hãy để AuthContext tự bắt lỗi và set user = null.
             if (originalRequest.url.includes('/auth/me') || originalRequest.url.includes('/profile')) {
                 return Promise.reject(error);
             }
-
-            // Với các API khác, có thể redirect về login hoặc logout
-            // window.location.href = '/login';
         }
 
         return Promise.reject(error);

@@ -1,4 +1,4 @@
-package com.example.thanhtoannoibo.DTO;
+package com.example.thanhtoannoibo.DTO.Response.Auth;
 import com.example.thanhtoannoibo.Common.UserStatus;
 import com.example.thanhtoannoibo.Common.UserType;
 import lombok.AllArgsConstructor;

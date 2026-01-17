@@ -30,7 +30,8 @@ export const useUserCredit = (userId: string | undefined | null) => {
             setCreditInfo(data);
         } catch (err: any) {
             console.error("[useUserCredit] Error:", err);
-            setError(err.response?.data?.message || "Không thể tải thông tin ví.");
+            const errorMessage = err.response?.data?.message || err.message || "Không thể tải thông tin ví.";
+            setError(errorMessage);
             setCreditInfo(null);
         } finally {
             setIsLoading(false);
