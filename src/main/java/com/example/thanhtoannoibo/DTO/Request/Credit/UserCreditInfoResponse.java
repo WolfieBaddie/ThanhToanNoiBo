@@ -1,4 +1,4 @@
-package com.example.thanhtoannoibo.DTO.Credit;
+package com.example.thanhtoannoibo.DTO.Request.Credit;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;

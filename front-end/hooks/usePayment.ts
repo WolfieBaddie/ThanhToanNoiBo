@@ -33,8 +33,8 @@ export const usePayment = (): UsePaymentReturn => {
             }
         } catch (err: any) {
             console.error("Payment Error:", err);
-            // Axios error thường nằm trong err.response.data
-            setError(err.response?.data?.message || "Lỗi khi khởi tạo thanh toán.");
+            const errorMessage = err.response?.data?.message || err.message || "Lỗi khi khởi tạo thanh toán.";
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }
@@ -48,8 +48,9 @@ export const usePayment = (): UsePaymentReturn => {
             const receipt = await paymentService.verifyPayment(queryParams);
             setPaymentReceipt(receipt);
         } catch (err: any) {
-            console.error("Verify Error:", err);
-            setError(err.response?.data?.message || "Xác thực thanh toán thất bại.");
+            console.error("Payment Error:", err);
+            const errorMessage = err.response?.data?.message || err.message || "Lỗi khi khởi tạo thanh toán.";
+            setError(errorMessage);
         } finally {
             setIsLoading(false);
         }

@@ -39,8 +39,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onForgotPasswor
             onSuccess();
         } catch (err: any) {
             // 4. Nếu lỗi -> Hiển thị lỗi
-            console.error("Login Error:", err);
-            onError(err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại.');
+            const serverMessage = err.response?.data?.message || err.message || 'Đăng nhập thất bại';
+            onError(serverMessage || 'Đăng nhập thất bại. Vui lòng kiểm tra lại.');
             setIsSubmitting(false); // Mở lại nút để bấm tiếp
         }
     };
@@ -49,7 +49,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess, onForgotPasswor
     const isLoading = isAuthLoading || isSubmitting;
 
     return (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             <Input
                 label="Email / Tài khoản"
                 name="username"

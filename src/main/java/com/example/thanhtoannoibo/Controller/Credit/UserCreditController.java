@@ -1,6 +1,7 @@
 package com.example.thanhtoannoibo.Controller.Credit;
 
-import com.example.thanhtoannoibo.DTO.Credit.UserCreditInfoResponse;
+import com.example.thanhtoannoibo.DTO.Request.Credit.UserCreditInfoResponse;
+import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
 
 import com.example.thanhtoannoibo.Service.Credit.UserCreditService;
@@ -24,14 +25,17 @@ public class UserCreditController {
      * GET /api/v1/credits/{userId}
      */
     @GetMapping("/{userId}")
-    public ResponseEntity<UserCreditInfoResponse> getUserCreditInfo(@PathVariable UUID userId) {
-        // 1. Lấy Entity từ Service (Service đã có logic tự tạo mới nếu chưa có)
+    // 2. Sửa kiểu trả về thành ResponseEntity<BaseResponse<...>>
+    public ResponseEntity<BaseResponse<UserCreditInfoResponse>> getUserCreditInfo(@PathVariable UUID userId) {
+
+        // Lấy Entity từ Service
         UserCredit credit = userCreditService.getUserCredit(userId);
 
-        // 2. Mapping Entity sang DTO (Kèm logic xử lý hiển thị cho ngày mới)
+        // Mapping Entity sang DTO
         UserCreditInfoResponse response = mapToResponse(credit);
 
-        return ResponseEntity.ok(response);
+        // 3. Bọc kết quả trong BaseResponse.success(...)
+        return ResponseEntity.ok(BaseResponse.success(response));
     }
 
     // --- Helper Method: Convert Entity to DTO ---
@@ -39,10 +43,7 @@ public class UserCreditController {
         LocalDate today = LocalDate.now();
         LocalDate lastSpending = credit.getLastSpendingDate();
 
-        // LOGIC HIỂN THỊ QUAN TRỌNG:
-        // Trong DB, 'currentDaySpending' chỉ được reset khi có giao dịch trừ tiền (deductBalance).
-        // Nếu hôm nay user chưa tiêu gì, DB vẫn lưu số liệu của ngày hôm qua.
-        // -> Khi hiển thị lên UI, phải kiểm tra ngày. Nếu khác ngày hiện tại -> Coi như đã tiêu = 0.
+        // Logic reset chi tiêu ngày mới
         boolean isNewDay = lastSpending == null || !lastSpending.isEqual(today);
         BigDecimal realSpentToday = isNewDay ? BigDecimal.ZERO : credit.getCurrentDaySpending();
 
@@ -53,20 +54,18 @@ public class UserCreditController {
 
         if (dailyLimit != null) {
             isUnlimited = false;
-            // Còn lại = Hạn mức - Đã tiêu thực tế
             remaining = dailyLimit.subtract(realSpentToday);
-            // Đảm bảo không hiển thị số âm (nếu có lỗi logic nào đó)
             if (remaining.compareTo(BigDecimal.ZERO) < 0) {
                 remaining = BigDecimal.ZERO;
             }
         }
 
         return UserCreditInfoResponse.builder()
-                .balance(credit.getBalance()) //
-                .totalDeposited(credit.getTotalDeposited()) //
-                .dailyLimitAmount(dailyLimit) //
-                .currentDaySpending(realSpentToday) // Giá trị đã xử lý theo ngày
-                .remainingDailyLimit(remaining) // Giá trị tính toán
+                .balance(credit.getBalance())
+                .totalDeposited(credit.getTotalDeposited())
+                .dailyLimitAmount(dailyLimit)
+                .currentDaySpending(realSpentToday)
+                .remainingDailyLimit(remaining)
                 .isUnlimited(isUnlimited)
                 .build();
     }

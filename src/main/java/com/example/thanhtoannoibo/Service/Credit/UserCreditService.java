@@ -1,7 +1,9 @@
 package com.example.thanhtoannoibo.Service.Credit;
 
+import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
 import com.example.thanhtoannoibo.Entity.User;
+import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository;
 import com.example.thanhtoannoibo.Repository.Security.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -31,6 +34,34 @@ public class UserCreditService {
                 .orElseGet(() -> createNewCredit(userId));
         credit.addBalance(amount);
         userCreditRepository.save(credit);
+    }
+
+    @Transactional
+    public UserCredit deductBalance(UUID userId, BigDecimal amount) {
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new AppException(ErrorCode.INVALID_AMOUNT);
+        }
+
+        UserCredit credit = getUserCredit(userId);
+
+        if (credit.getBalance().compareTo(amount) < 0) {
+            throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
+        }
+
+        if (credit.getDailyLimitAmount() != null) {
+            throw new AppException(ErrorCode.DAILY_LIMIT_EXCEEDED);
+        }
+
+        // Trừ tiền
+        credit.setBalance(credit.getBalance().subtract(amount));
+
+        // Update chi tiêu trong ngày
+        BigDecimal currentSpent = credit.getCurrentDaySpending() == null ? BigDecimal.ZERO : credit.getCurrentDaySpending();
+        credit.setCurrentDaySpending(currentSpent.add(amount));
+        credit.setLastSpendingDate(LocalDate.now());
+        credit.setLastUpdatedAt(LocalDateTime.now());
+
+        return userCreditRepository.save(credit);
     }
 
     // --- UPDATE: Khởi tạo giá trị mặc định cho Spending Control ---

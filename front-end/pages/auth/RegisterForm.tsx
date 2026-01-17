@@ -49,8 +49,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchMode, onErro
     };
 
     return (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Nhóm thông tin cá nhân */}
             <Input
                 label="Họ tên Phụ huynh"
@@ -84,7 +83,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchMode, onErro
             />
 
             {/* Nhóm tài khoản */}
-            <div className="my-2 border-t border-slate-100"></div>
+            <div className="my-4 border-t border-slate-100"></div>
 
             <Input
                 label="Email / Tài khoản"
@@ -105,7 +104,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchMode, onErro
                 value={formData.password}
                 onChange={handleInputChange}
                 error={errors.password}
-                showStrength={true} // Hiển thị thanh độ mạnh mật khẩu
+                showStrength={true} // Input mới sẽ render thanh sức mạnh đẹp hơn ở đây
             />
 
             <Input
