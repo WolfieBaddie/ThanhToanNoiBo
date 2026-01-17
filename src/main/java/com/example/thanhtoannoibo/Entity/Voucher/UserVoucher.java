@@ -40,6 +40,7 @@ public class UserVoucher {
 
     // TRẠNG THÁI: AVAILABLE, USED, EXPIRED
     @Column(name = "status")
+    @Enumerated(EnumType.STRING)
     private UserVoucherStatus status;
 
     // Giá trị Xu đã trả để mua vé này (để hoàn tiền hoặc đối soát nếu cần)
