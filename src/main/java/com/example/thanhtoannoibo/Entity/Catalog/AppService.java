@@ -37,6 +37,9 @@ public class AppService {
     @Column(name = "unit_price", precision = 15, scale = 2)
     private BigDecimal unitPrice;
 
+    @Column(name = "image_url", length = 500) // Độ dài 500 để thoải mái lưu link S3/Firebase
+    private String imageUrl;
+
     @Column(name = "is_active")
     @Builder.Default
     private Boolean isActive = true;
