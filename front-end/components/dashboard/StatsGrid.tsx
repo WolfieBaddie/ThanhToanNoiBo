@@ -1,55 +1,53 @@
-import React from 'react';
-import { MoreHorizontal, LucideIcon } from 'lucide-react';
 
-export interface StatItem {
-    label: string;
-    value: string;
-    change: string;
-    isPositive: boolean;
-    icon: LucideIcon;
-    colorClass: string;
-}
+import React from 'react';
+import { WalletCard } from './WalletCard';
+import { Target } from 'lucide-react';
 
 interface StatsGridProps {
-    stats: StatItem[];
+    onNavigate: (tab: string) => void;
 }
 
-export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
-    return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {stats.map((stat, index) => (
-                <div
-                    key={index}
-                    className="bg-dark-surface p-5 rounded-2xl border border-dark-border hover:border-slate-600 transition-colors group"
-                >
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
-                            <stat.icon size={18} className={stat.colorClass} />
-                            {stat.label}
-                        </div>
-                        <button className="text-slate-600 hover:text-white transition-colors">
-                            <MoreHorizontal size={18} />
-                        </button>
-                    </div>
-                    <div className="flex items-end justify-between">
-                        <div>
-                            <h3 className="text-2xl font-bold text-white mb-1">
-                                {stat.value}
-                            </h3>
-                            <p className="text-xs text-slate-500">Last 30 days</p>
-                        </div>
-                        <div
-                            className={`flex items-center text-xs font-bold px-2 py-1 rounded-lg ${
-                                stat.isPositive
-                                    ? 'bg-emerald-500/10 text-emerald-400'
-                                    : 'bg-orange-500/10 text-orange-400'
-                            }`}
-                        >
-                            {stat.isPositive ? '↑' : '↓'} {stat.change}
-                        </div>
-                    </div>
-                </div>
-            ))}
+export const StatsGrid: React.FC<StatsGridProps> = ({ onNavigate }) => {
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        {/* Main Balance Card - Takes 2 cols on XL */}
+        <div className="xl:col-span-2">
+            <div className="relative group h-full">
+                <WalletCard 
+                    balance={1250000} 
+                    studentName="NGUYEN VAN B" 
+                    studentId="HS2024-0058"
+                    onAction={(action) => {
+                        if(action === 'send') onNavigate('wallet');
+                        if(action === 'receive') onNavigate('menu');
+                        if(action === 'history') onNavigate('history');
+                    }}
+                    className="h-full"
+                />
+            </div>
         </div>
-    );
+
+        {/* Right Side Stats - Only Limit Card remains */}
+        <div className="xl:col-span-1">
+             <div className="bg-white dark:bg-slate-800 rounded-[32px] p-8 border border-slate-100 dark:border-slate-700 shadow-sm h-full flex flex-col justify-center relative overflow-hidden group hover:border-primary transition-colors">
+                  <div className="relative z-10">
+                      <div className="flex justify-between items-start mb-6">
+                          <h4 className="font-bold text-slate-500 text-sm uppercase tracking-wider">Hạn mức ngày</h4>
+                          <span className="bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white p-2 rounded-xl"><Target size={20} /></span>
+                      </div>
+                      
+                      <div className="flex items-end gap-2 mb-4">
+                          <span className="text-4xl font-extrabold text-slate-900 dark:text-white">15.000</span>
+                          <span className="text-lg font-bold text-slate-400 mb-1">/ 50.000đ</span>
+                      </div>
+
+                      <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-3 mb-3 overflow-hidden">
+                          <div className="bg-primary h-full rounded-full w-[30%]"></div>
+                      </div>
+                      <p className="text-xs text-slate-500 font-bold">Bạn đã dùng 30% hạn mức hôm nay.</p>
+                  </div>
+             </div>
+        </div>
+    </div>
+  );
 };

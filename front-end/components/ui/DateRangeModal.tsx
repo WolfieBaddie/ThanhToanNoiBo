@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react';
 
@@ -134,15 +135,15 @@ export const DateRangeModal: React.FC<DateRangeModalProps> = ({
         key={i}
         onClick={() => handleDateClick(i)}
         className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition-all relative z-10
-          ${isSelected ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : ''}
-          ${isRange ? 'bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-none w-full !mx-0' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'}
+          ${isSelected ? 'bg-slate-900 text-white shadow-md shadow-slate-300' : ''}
+          ${isRange ? 'bg-slate-100 dark:bg-slate-700/50 text-slate-800 dark:text-slate-300 rounded-none w-full !mx-0' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300'}
           ${isStart && toDate ? 'rounded-r-none pr-1' : ''}
           ${isEnd && fromDate ? 'rounded-l-none pl-1' : ''}
         `}
       >
         {i}
-        {(isStart && toDate) && <div className="absolute top-0 right-0 w-1/2 h-full bg-indigo-50 dark:bg-indigo-900/40 -z-10" />}
-        {(isEnd && fromDate) && <div className="absolute top-0 left-0 w-1/2 h-full bg-indigo-50 dark:bg-indigo-900/40 -z-10" />}
+        {(isStart && toDate) && <div className="absolute top-0 right-0 w-1/2 h-full bg-slate-100 dark:bg-slate-700/50 -z-10" />}
+        {(isEnd && fromDate) && <div className="absolute top-0 left-0 w-1/2 h-full bg-slate-100 dark:bg-slate-700/50 -z-10" />}
       </button>
     );
   }
@@ -157,27 +158,27 @@ export const DateRangeModal: React.FC<DateRangeModalProps> = ({
         {/* Header Dates */}
         <div className="px-5 pt-5 pb-3 flex justify-between items-center bg-white dark:bg-slate-800">
           <div>
-             <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Từ ngày</p>
+             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Từ ngày</p>
              <p className="text-base font-bold text-slate-800 dark:text-white">{formatDate(fromDate)}</p>
           </div>
           <div className="h-8 w-[1px] bg-slate-100 dark:bg-slate-700"></div>
           <div className="text-right">
-             <p className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wide mb-1">Đến ngày</p>
+             <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">Đến ngày</p>
              <p className="text-base font-bold text-slate-800 dark:text-white">{formatDate(toDate)}</p>
           </div>
         </div>
 
         {/* Calendar Controls */}
         <div className="px-4 pb-2">
-          <div className="flex items-center justify-between mb-3 bg-indigo-50/50 dark:bg-slate-700/50 p-1.5 rounded-xl">
-             <button onClick={() => changeMonth(-1)} className="p-1.5 hover:bg-white dark:hover:bg-slate-600 rounded-lg transition-colors text-indigo-700 dark:text-indigo-300">
+          <div className="flex items-center justify-between mb-3 bg-slate-50 dark:bg-slate-700/50 p-1.5 rounded-xl">
+             <button onClick={() => changeMonth(-1)} className="p-1.5 hover:bg-white dark:hover:bg-slate-600 rounded-lg transition-colors text-slate-600 dark:text-slate-300">
                <ChevronLeft size={16} />
              </button>
-             <div className="flex items-center gap-2 font-bold text-sm text-indigo-900 dark:text-indigo-200">
+             <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-slate-200">
                <CalendarIcon size={14} />
                <span>{viewDate.getMonth() + 1}/{viewDate.getFullYear()}</span>
              </div>
-             <button onClick={() => changeMonth(1)} className="p-1.5 hover:bg-white dark:hover:bg-slate-600 rounded-lg transition-colors text-indigo-700 dark:text-indigo-300">
+             <button onClick={() => changeMonth(1)} className="p-1.5 hover:bg-white dark:hover:bg-slate-600 rounded-lg transition-colors text-slate-600 dark:text-slate-300">
                <ChevronRight size={16} />
              </button>
           </div>
@@ -185,7 +186,7 @@ export const DateRangeModal: React.FC<DateRangeModalProps> = ({
           {/* Days Header */}
           <div className="grid grid-cols-7 mb-2 text-center">
             {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(d => (
-              <span key={d} className="text-[10px] font-bold text-indigo-400 dark:text-indigo-500 uppercase">{d}</span>
+              <span key={d} className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">{d}</span>
             ))}
           </div>
 
@@ -203,7 +204,7 @@ export const DateRangeModal: React.FC<DateRangeModalProps> = ({
                 <button 
                   key={d}
                   onClick={() => handleQuickSelect(d)}
-                  className="flex-1 py-1.5 rounded-lg border border-indigo-100 dark:border-slate-600 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold hover:bg-indigo-50 dark:hover:bg-slate-700 transition-colors"
+                  className="flex-1 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 text-[10px] font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                 >
                   {d} Ngày
                 </button>
@@ -213,7 +214,7 @@ export const DateRangeModal: React.FC<DateRangeModalProps> = ({
            <button 
              onClick={handleApply}
              disabled={!fromDate}
-             className="w-full bg-indigo-600 text-white font-bold py-2.5 rounded-xl shadow-md shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+             className="w-full bg-slate-900 text-white font-bold py-2.5 rounded-xl shadow-md shadow-slate-200 hover:bg-black active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
            >
              Chọn ngày
            </button>

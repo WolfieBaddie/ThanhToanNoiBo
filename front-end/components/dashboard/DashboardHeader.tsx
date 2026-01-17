@@ -1,45 +1,30 @@
-import React from 'react';
-import { Search, Bell, Plus } from 'lucide-react';
 
-interface HeaderProps {
-    onNavigate: (tab: string) => void;
-    userName?: string;
+import React from 'react';
+import { TicketPercent } from 'lucide-react';
+import { Button } from '../ui/Button';
+
+interface DashboardHeaderProps {
+  onScanClick: () => void; // Function này sẽ được dùng để chuyển tab sang Voucher
 }
 
-export const DashboardHeader: React.FC<HeaderProps> = ({ onNavigate, userName = "Student" }) => {
-    return (
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-            <div>
-                <h1 className="text-3xl font-bold text-white mb-1">Tổng quan</h1>
-                <p className="text-slate-400 text-sm">Chào {userName}, đây là tình hình tài chính của bạn.</p>
-            </div>
-
-            <div className="flex items-center gap-4">
-                {/* Search Bar */}
-                <div className="hidden md:flex items-center bg-dark-input border border-slate-700/50 rounded-xl px-4 py-2.5 w-64 focus-within:border-brand-primary transition-colors">
-                    <Search size={18} className="text-slate-500 mr-2" />
-                    <input
-                        type="text"
-                        placeholder="Tìm kiếm..."
-                        className="bg-transparent border-none outline-none text-sm text-white w-full placeholder:text-slate-600"
-                    />
-                </div>
-
-                {/* Notification Bell */}
-                <button className="p-2.5 bg-dark-surface hover:bg-dark-hover text-slate-400 rounded-xl border border-dark-border transition-colors relative group">
-                    <Bell size={20} className="group-hover:text-white transition-colors"/>
-                    <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-dark-surface"></span>
-                </button>
-
-                {/* Primary Action */}
-                <button
-                    onClick={() => onNavigate('wallet')}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-2.5 rounded-xl font-semibold flex items-center gap-2 shadow-lg shadow-blue-900/20 transition-all active:scale-95"
-                >
-                    <Plus size={18} />
-                    <span>Nạp tiền</span>
-                </button>
-            </div>
-        </header>
-    );
+export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onScanClick }) => {
+  return (
+    <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+             <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white">Dashboard</h1>
+        </div>
+        <p className="text-slate-500 font-medium text-sm">Quản lý chi tiêu dễ dàng & hiệu quả.</p>
+      </div>
+      <div className="flex gap-3">
+        <Button 
+            onClick={onScanClick}
+            className="px-6 py-3 h-auto text-sm bg-slate-900 text-white hover:bg-black shadow-xl shadow-slate-900/10 rounded-2xl"
+        >
+          <TicketPercent size={18} />
+          Kho Voucher
+        </Button>
+      </div>
+    </div>
+  );
 };

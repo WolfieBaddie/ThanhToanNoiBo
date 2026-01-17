@@ -1,70 +1,42 @@
-import React from 'react';
-import { ChevronRight, QrCode, Utensils, CreditCard } from 'lucide-react';
 
-interface QuickActionsProps {
-    onScanQR: () => void;
+import React from 'react';
+import { ArrowRight, Utensils, Zap, CreditCard, ChevronRight } from 'lucide-react';
+
+interface QuickActionPanelProps {
     onNavigate: (tab: string) => void;
 }
 
-export const QuickActionsPanel: React.FC<QuickActionsProps> = ({ onScanQR, onNavigate }) => {
-    return (
-        <div className="bg-dark-surface p-6 rounded-2xl border border-dark-border h-full flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-bold text-white">Tiện ích nhanh</h3>
-                <span className="text-xs bg-blue-500/10 text-blue-400 px-2 py-1 rounded-md font-medium">Phổ biến</span>
-            </div>
+export const QuickActionPanel: React.FC<QuickActionPanelProps> = ({ onNavigate }) => {
+  const actions = [
+      { id: 'wallet', label: 'Nạp tiền', icon: <CreditCard size={18} /> },
+      { id: 'services', label: 'Đặt món', icon: <Utensils size={18} /> },
+      { id: 'history', label: 'Lịch sử', icon: <ArrowRight size={18} /> },
+      { id: 'ai', label: 'Tư vấn AI', icon: <Zap size={18} /> },
+  ];
 
-            <div className="space-y-4 flex-1">
-                {/* Action Item: Scan QR */}
-                <button
-                    onClick={onScanQR}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-indigo-900/40 to-indigo-800/40 border border-indigo-500/20 hover:border-indigo-500/50 transition-all group"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-brand-secondary flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 group-hover:scale-110 transition-transform">
-                            <QrCode size={20} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-sm font-bold text-white">Quét QR</p>
-                            <p className="text-xs text-indigo-200">Thanh toán tại quầy</p>
-                        </div>
-                    </div>
-                    <ChevronRight size={16} className="text-indigo-400" />
-                </button>
-
-                {/* Action Item: Menu */}
-                <button
-                    onClick={() => onNavigate('menu')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-orange-900/40 to-orange-800/40 border border-orange-500/20 hover:border-orange-500/50 transition-all group"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/20 group-hover:scale-110 transition-transform">
-                            <Utensils size={20} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-sm font-bold text-white">Đặt món</p>
-                            <p className="text-xs text-orange-200">Xem thực đơn</p>
-                        </div>
-                    </div>
-                    <ChevronRight size={16} className="text-orange-400" />
-                </button>
-
-                {/* Action Item: History */}
-                <button
-                    onClick={() => onNavigate('wallet')}
-                    className="w-full flex items-center justify-between p-4 rounded-xl bg-dark-bg border border-slate-700 hover:border-slate-500 transition-all group"
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-lg bg-slate-700 flex items-center justify-center text-slate-300 group-hover:text-white transition-colors">
-                            <CreditCard size={20} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-sm font-bold text-slate-300 group-hover:text-white">Lịch sử</p>
-                            <p className="text-xs text-slate-500">Biến động số dư</p>
-                        </div>
-                    </div>
-                </button>
-            </div>
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-[32px] p-6 border border-slate-100 dark:border-slate-700 shadow-sm h-full">
+        <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-lg text-slate-900 dark:text-white">Truy cập nhanh</h3>
+            <button className="text-xs font-bold text-slate-900 hover:text-slate-600 transition-colors underline">Tùy chỉnh</button>
         </div>
-    );
+        <div className="space-y-3">
+            {actions.map((action) => (
+                <button 
+                    key={action.id}
+                    onClick={() => onNavigate(action.id === 'ai' ? 'dashboard' : action.id)}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-primary dark:hover:bg-slate-700/50 transition-colors group"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-50 group-hover:bg-white/50 text-slate-900 dark:bg-slate-700 dark:text-white`}>
+                            {action.icon}
+                        </div>
+                        <span className="font-bold text-sm text-slate-700 dark:text-slate-200 group-hover:text-slate-900">{action.label}</span>
+                    </div>
+                    <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-900" />
+                </button>
+            ))}
+        </div>
+    </div>
+  );
 };

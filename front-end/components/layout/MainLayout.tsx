@@ -1,109 +1,154 @@
-import React from 'react';
-import { useNavigate, useLocation, Outlet } from 'react-router-dom'; // Import mới
-import { LayoutDashboard, Wallet, UtensilsCrossed, History, Settings, LogOut } from 'lucide-react';
-// ... imports UI components (Header, Sidebar...)
+
+import React, { useState } from 'react';
+import { Logo } from '../ui/Logo';
+import { 
+  LayoutDashboard, 
+  Wallet, 
+  UtensilsCrossed, 
+  History, 
+  Settings, 
+  LogOut, 
+  Menu, 
+  Bell, 
+  Search,
+  X,
+  TicketPercent
+} from 'lucide-react';
 
 interface MainLayoutProps {
-    children?: React.ReactNode;
-    user: any;
-    onLogout: () => void;
-    // Bỏ currentTab và onChangeTab cũ
+  children: React.ReactNode;
+  onLogout: () => void;
+  currentTab: string;
+  onChangeTab: (tab: string) => void;
 }
 
-export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
-    const navigate = useNavigate();
-    const location = useLocation();
+export const MainLayout: React.FC<MainLayoutProps> = ({ children, onLogout, currentTab, onChangeTab }) => {
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-    // Mapping đường dẫn URL với tab để highlight
-    const getActiveTab = (path: string) => {
-        if (path.includes('/dashboard')) return 'dashboard';
-        if (path.includes('/wallet')) return 'wallet';
-        if (path.includes('/menu')) return 'menu';
-        if (path.includes('/history')) return 'history';
-        if (path.includes('/settings')) return 'settings';
-        return 'dashboard';
-    };
+  const navItems = [
+    { id: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard size={20} /> },
+    { id: 'wallet', label: 'Ví & Nạp tiền', icon: <Wallet size={20} /> },
+    { id: 'voucher', label: 'Voucher', icon: <TicketPercent size={20} /> },
+    { id: 'services', label: 'Dịch vụ', icon: <UtensilsCrossed size={20} /> },
+    { id: 'history', label: 'Lịch sử GD', icon: <History size={20} /> },
+    { id: 'settings', label: 'Cài đặt', icon: <Settings size={20} /> },
+  ];
 
-    const activeTab = getActiveTab(location.pathname);
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 transition-colors">
+      <div className="p-8 pb-8 flex items-center justify-between">
+        <Logo className="text-slate-900 dark:text-white" />
+        <button 
+            onClick={() => setIsMobileMenuOpen(false)} 
+            className="lg:hidden p-2 text-slate-400 hover:bg-slate-100 rounded-xl"
+        >
+            <X size={20} />
+        </button>
+      </div>
 
-    // Hàm điều hướng mới
-    const handleNavigate = (key: string) => {
-        navigate(`/${key}`);
-    };
+      <div className="flex-1 px-6 space-y-2 py-4 overflow-y-auto">
+        {navItems.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => {
+              onChangeTab(item.id);
+              setIsMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-start px-5 py-4 rounded-2xl transition-all font-bold text-sm group ${
+              currentTab === item.id 
+                ? 'bg-primary text-slate-900 shadow-md shadow-lime-200/50' 
+                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800'
+            }`}
+          >
+            <span className={`mr-3 ${currentTab === item.id ? 'text-slate-900' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                {item.icon}
+            </span>
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </div>
 
-    const menuItems = [
-        { id: 'dashboard', label: 'Tổng quan', icon: LayoutDashboard },
-        { id: 'wallet', label: 'Ví & Nạp tiền', icon: Wallet },
-        { id: 'menu', label: 'Thực đơn', icon: UtensilsCrossed },
-        { id: 'history', label: 'Lịch sử', icon: History },
-        { id: 'settings', label: 'Cài đặt', icon: Settings },
-    ];
+      <div className="p-6 border-t border-slate-100 dark:border-slate-800">
+        <button 
+          onClick={onLogout}
+          className="w-full flex items-center gap-3 px-5 py-3 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-colors font-bold text-sm"
+        >
+          <LogOut size={20} />
+          <span>Đăng xuất</span>
+        </button>
+      </div>
+    </div>
+  );
 
-    return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-            {/* SIDEBAR */}
-            <aside className="hidden md:flex flex-col w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 transition-colors duration-300">
-                <div className="p-6 flex items-center gap-3">
-                    {/* Logo... */}
-                    <span className="font-bold text-xl text-slate-800 dark:text-white">Swallet</span>
-                </div>
+  return (
+    <div className="min-h-screen bg-app-bg dark:bg-slate-950 text-slate-900 dark:text-white font-sans transition-colors duration-300 flex">
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:block w-[280px] h-screen sticky top-0 z-20">
+        <SidebarContent />
+      </aside>
 
-                <nav className="flex-1 px-4 space-y-2 mt-4">
-                    {menuItems.map((item) => {
-                        const isActive = activeTab === item.id;
-                        return (
-                            <button
-                                key={item.id}
-                                onClick={() => handleNavigate(item.id)} // Dùng navigate thay vì onChangeTab
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium ${
-                                    isActive
-                                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none'
-                                        : 'text-slate-500 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-slate-700 hover:text-indigo-600 dark:hover:text-indigo-400'
-                                }`}
-                            >
-                                <item.icon size={20} />
-                                {item.label}
-                            </button>
-                        );
-                    })}
-                </nav>
-
-                <div className="p-4 mt-auto border-t border-slate-100 dark:border-slate-700">
-                    <button
-                        onClick={onLogout}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-                    >
-                        <LogOut size={20} />
-                        Đăng xuất
-                    </button>
-                </div>
-            </aside>
-
-            {/* MAIN CONTENT */}
-            <main className="flex-1 overflow-y-auto">
-                <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md sticky top-0 z-30 border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white capitalize">
-                        {menuItems.find(i => i.id === activeTab)?.label}
-                    </h2>
-                    <div className="flex items-center gap-3">
-                        <div className="text-right hidden sm:block">
-                            <p className="text-sm font-bold text-slate-800 dark:text-white">{user?.fullName || 'User'}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">{user?.username}</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center font-bold">
-                            {user?.fullName?.charAt(0) || 'U'}
-                        </div>
-                    </div>
-                </header>
-
-                <div className="p-4 sm:p-6 lg:p-8">
-                    {/* Thay vì render {children}, ta dùng <Outlet /> của Router */}
-                    <Outlet />
-                </div>
-            </main>
-
-            {/* MOBILE BOTTOM NAV (Nếu có) */}
-            {/* Logic tương tự: activeTab check location, onClick gọi navigate */}
+      {/* Mobile Sidebar (Drawer) */}
+      <div className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 ${isMobileMenuOpen ? 'visible' : 'invisible'}`}>
+        <div 
+          className={`absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0'}`}
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+        <div className={`absolute top-0 left-0 w-[280px] h-full bg-white shadow-2xl transition-transform duration-300 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <SidebarContent />
         </div>
-    );
+      </div>
+
+      {/* Main Content Area */}
+      <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden relative">
+        {/* Header - Transparent/Minimal */}
+        <header className="bg-app-bg/80 dark:bg-slate-900/80 backdrop-blur-xl sticky top-0 z-10 px-6 py-4 flex items-center justify-between transition-colors">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="lg:hidden p-2 -ml-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+            >
+              <Menu size={24} />
+            </button>
+            
+            {/* Search Bar (Desktop) */}
+            <div className="hidden md:flex items-center bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-2.5 w-80 transition-all focus-within:ring-2 focus-within:ring-primary dark:focus-within:ring-slate-700 shadow-sm">
+              <Search size={18} className="text-slate-400 mr-2" />
+              <input 
+                type="text" 
+                placeholder="Tìm kiếm..." 
+                className="bg-transparent border-none outline-none text-sm w-full text-slate-700 dark:text-slate-200 placeholder:text-slate-400 font-medium"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 sm:gap-6">
+            <button className="relative p-2.5 bg-white rounded-full text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white transition-colors shadow-sm">
+              <Bell size={20} />
+              <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-slate-900"></span>
+            </button>
+            <div className="flex items-center gap-3 pl-4">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold text-slate-900 dark:text-white">Nguyễn Văn A</p>
+                <p className="text-xs font-semibold text-slate-500">HS2024</p>
+              </div>
+              <div className="p-0.5 rounded-full border-2 border-white shadow-sm">
+                <img 
+                    src="https://picsum.photos/100/100?random=1" 
+                    alt="Avatar" 
+                    className="w-9 h-9 rounded-full object-cover"
+                />
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 scroll-smooth">
+           <div className="max-w-[1600px] mx-auto pb-10">
+             {children}
+           </div>
+        </div>
+      </main>
+    </div>
+  );
 };

@@ -1,48 +1,51 @@
+
 import React from 'react';
-import { Wifi, Copy, CreditCard } from 'lucide-react';
-import {formatCurrency} from "@/utils/format.ts";
+import { ArrowRight, ArrowDownLeft, Utensils } from 'lucide-react';
+
 interface WalletCardProps {
   balance: number;
   studentName: string;
   studentId: string;
   className?: string;
+  onAction?: (action: string) => void;
 }
 
-export const WalletCard: React.FC<WalletCardProps> = ({ balance, studentName, studentId, className = '' }) => {
+export const WalletCard: React.FC<WalletCardProps> = ({ balance, studentName, studentId, className = '', onAction }) => {
   return (
-    <div className={`relative overflow-hidden rounded-[24px] bg-gradient-to-br from-indigo-500 via-purple-600 to-indigo-700 text-white p-6 sm:p-8 shadow-2xl shadow-indigo-500/30 ${className}`}>
-      {/* Background Decor */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
-
-      {/* Content */}
-      <div className="relative z-10 flex flex-col justify-between h-full min-h-[180px]">
-        <div className="flex items-start justify-between mb-8">
-          <div>
-            <p className="text-indigo-100 text-sm font-medium mb-1">Số dư khả dụng</p>
-            <h3 className="text-3xl sm:text-4xl font-bold tracking-tight">
-              {formatCurrency(balance)} <span className="text-2xl text-indigo-200"></span>
-            </h3>
-          </div>
-          <div className="w-12 h-8 rounded border border-white/20 relative flex items-center justify-center bg-white/5 backdrop-blur-sm">
-             <div className="w-8 h-5 border border-white/40 rounded-sm"></div>
-             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-3 bg-yellow-400/80 rounded-[2px]"></div>
-          </div>
+    <div className={`relative overflow-hidden rounded-[32px] bg-white dark:bg-slate-800 text-slate-900 dark:text-white p-8 border border-slate-100 dark:border-slate-700 shadow-sm transition-all hover:shadow-md duration-500 ${className}`}>
+      
+      <div className="relative z-10 flex flex-col h-full justify-between min-h-[220px]">
+        {/* Top Info */}
+        <div className="flex justify-between items-start">
+            <div className="flex flex-col">
+                <span className="font-bold text-slate-500 text-sm mb-1">Tổng số dư khả dụng</span>
+                <div className="flex items-baseline gap-1">
+                     <h3 className="text-5xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                      {balance.toLocaleString('vi-VN')}
+                    </h3>
+                    <span className="text-2xl font-bold text-slate-400">₫</span>
+                </div>
+            </div>
+            <div className="w-12 h-12 rounded-2xl bg-slate-50 dark:bg-slate-700 flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full border-[3px] border-slate-900 dark:border-white opacity-20"></div>
+            </div>
         </div>
 
-        <div className="flex items-end justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <p className="font-mono text-lg text-indigo-100 tracking-wider">
-                {studentId}
-              </p>
-              <button className="text-indigo-200 hover:text-white transition-colors">
-                <Copy size={14} />
-              </button>
-            </div>
-            <p className="text-sm font-medium uppercase tracking-wide opacity-90">{studentName}</p>
-          </div>
-          <Wifi className="text-white/50 rotate-90" size={28} />
+        {/* Action Buttons */}
+        <div className="flex gap-3 mt-8">
+             <button 
+                onClick={() => onAction && onAction('send')}
+                className="flex-1 bg-slate-900 text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition-colors"
+             >
+                 Nạp tiền <ArrowDownLeft size={16} />
+             </button>
+
+             <button 
+                onClick={() => onAction && onAction('receive')}
+                className="flex-1 bg-primary text-slate-900 py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-primary-hover transition-colors"
+             >
+                 Đặt món <Utensils size={16} />
+             </button>
         </div>
       </div>
     </div>
