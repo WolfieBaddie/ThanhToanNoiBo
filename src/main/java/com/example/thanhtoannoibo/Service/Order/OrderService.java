@@ -8,12 +8,14 @@ import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
 import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
 import com.example.thanhtoannoibo.Entity.Order.Order;
+import com.example.thanhtoannoibo.Entity.Security.AuditLog;
 import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
 import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Catalog.AppPackageRepository;
 import com.example.thanhtoannoibo.Repository.Catalog.AppServiceRepository;
 import com.example.thanhtoannoibo.Repository.Order.OrderRepository;
+import com.example.thanhtoannoibo.Repository.Security.AuditLogRepository;
 import com.example.thanhtoannoibo.Service.Credit.UserCreditService;
 import com.example.thanhtoannoibo.Service.Security.AuthService;
 import com.example.thanhtoannoibo.Service.Voucher.PaymentDetailService;
@@ -27,8 +29,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +50,7 @@ public class OrderService {
     // Authentication
     private final AuthService authService;
     private final HttpServletRequest httpRequest;
+    private final AuditLogRepository auditLogRepository;
 
     // --- BƯỚC 1: TẠO ORDER PENDING (Có xác thực Token) ---
     @Transactional
@@ -79,7 +82,8 @@ public class OrderService {
                 .serviceEntity(service)
                 .amountPaid(request.getAmount())
                 .paymentMethod(method)
-                .paymentStatus(OrderStatus.PENDING)
+                .orderStatus(OrderStatus.PENDING)
+                .paymentStatus(PaymentStatus.PENDING)
                 .createdAt(LocalDateTime.now())
                 .build();
         Order savedOrder = orderRepository.save(order);
@@ -111,9 +115,13 @@ public class OrderService {
         Order order = orderRepository.findByOrderRef(orderRef)
                 .orElseThrow(() -> new AppException(ErrorCode.ORDER_NOT_FOUND));
 
-        if (order.getPaymentStatus() == OrderStatus.PAID || order.getPaymentStatus() == OrderStatus.FAILED) {
+        if(order.getOrderStatus().equals(OrderStatus.COMPLETED) && order.getPaymentStatus().equals(PaymentStatus.PAID))
+        {
             return;
         }
+
+        if(order.getPaymentStatus().equals(PaymentStatus.FAILED))
+            throw new AppException(ErrorCode.VNPAY_PAYMENT_FAILED);
 
         // 2. Kiểm tra kết quả bằng boolean success
         if (result.isSuccess()) {
@@ -123,6 +131,7 @@ public class OrderService {
         }
     }
 
+
 // ...
 
     // XỬ LÝ THÀNH CÔNG: Update Order & Transaction -> COMPLETED
@@ -130,7 +139,8 @@ public class OrderService {
         log.info("Payment Success: {}", order.getOrderRef());
 
         // 1. Update Order
-        order.setPaymentStatus(OrderStatus.PAID);
+        order.setOrderStatus(OrderStatus.COMPLETED);
+        order.setPaymentStatus(PaymentStatus.PAID);
         order.setGatewayTransactionId(gatewayTxnId);
         order.setCompletedAt(LocalDateTime.now());
         orderRepository.save(order);
@@ -152,6 +162,8 @@ public class OrderService {
         // Lưu ý: Hàm này return DTO nhưng ở đây ta chỉ cần nó lưu xuống DB là được
         // Controller sẽ query lại sau.
         paymentDetailService.createFromOrder(transaction, order);
+
+        savePaymentSuccessLog(order, transaction, gatewayTxnId);
     }
 
     // XỬ LÝ THẤT BẠI: Update Order & Transaction -> FAILED
@@ -159,7 +171,8 @@ public class OrderService {
         log.error("Payment Failed: {}. Reason: {}", order.getOrderRef(), failureMessage);
 
         // 1. Update Order -> FAILED
-        order.setPaymentStatus(OrderStatus.FAILED);
+        order.setPaymentStatus(PaymentStatus.FAILED);
+        order.setOrderStatus(OrderStatus.FAILED);
         order.setCompletedAt(LocalDateTime.now());
         orderRepository.save(order);
 
@@ -183,6 +196,44 @@ public class OrderService {
             throw new AppException(ErrorCode.VNPAY_INVALID_CHECKSUM);
         } else {
             throw new AppException(ErrorCode.VNPAY_PAYMENT_FAILED);
+        }
+    }
+
+    // [Hàm hỗ trợ mới] Logic tạo đối tượng AuditLog và lưu xuống DB
+    private void savePaymentSuccessLog(Order order, Transaction transaction, String gatewayTxnId) {
+        try {
+            // Chuẩn bị dữ liệu JSON cho cột details
+            Map<String, Object> details = new HashMap<>();
+            details.put("amount", order.getAmountPaid());
+            details.put("currency", "VND");
+            details.put("gateway", "VN_PAY");
+            details.put("gateway_transaction_no", gatewayTxnId);
+            details.put("transaction_ref", transaction.getTransactionRef());
+            details.put("balance_after", transaction.getBalanceAfter());
+
+            // Nếu có package hoặc service, thêm thông tin vào details
+            if (order.getPackageEntity() != null) {
+                details.put("package_code", order.getPackageEntity().getPackageCode());
+            }
+
+            // Build Entity AuditLog
+            AuditLog auditLog = AuditLog.builder()
+                    .user(order.getUser()) // User thực hiện giao dịch
+                    .action("PAYMENT_DEPOSIT_SUCCESS") // Hành động
+                    .entityType("ORDER") // Đối tượng bị tác động
+                    .entityId(order.getOrderId()) // ID của đối tượng
+                    .details(details) // Map jsonb
+                    .ipAddress("SYSTEM_CALLBACK") // Vì đây là callback từ server VNPay, không phải trực tiếp từ browser user
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            // Lưu vào DB
+            auditLogRepository.save(auditLog);
+            log.info("Audit log saved for order: {}", order.getOrderRef());
+
+        } catch (Exception e) {
+            // Bắt lỗi để đảm bảo việc ghi log thất bại KHÔNG làm rollback giao dịch thanh toán đã thành công
+            log.error("Failed to save audit log for order {}: {}", order.getOrderRef(), e.getMessage());
         }
     }
 

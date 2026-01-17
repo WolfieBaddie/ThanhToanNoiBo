@@ -1,4 +1,4 @@
-package com.example.thanhtoannoibo.DTO;
+package com.example.thanhtoannoibo.DTO.Response.Auth;
 import lombok.Builder;
 import lombok.Data;
 

@@ -1,7 +1,5 @@
-package com.example.thanhtoannoibo.DTO;
-import com.example.thanhtoannoibo.Common.IdentityProvider;
+package com.example.thanhtoannoibo.DTO.Request.Auth;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 @Data
