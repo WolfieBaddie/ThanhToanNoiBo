@@ -15,5 +15,5 @@ public interface ServiceCategoryRepository extends JpaRepository<ServiceCategory
     Optional<ServiceCategory> findByCategoryCode(String categoryCode);
 
     // Lấy danh sách đang hoạt động
-    List<ServiceCategory> findByIsActiveTrue();
+    List<ServiceCategory> findAllByIsActiveTrue();
 }
