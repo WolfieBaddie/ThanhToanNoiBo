@@ -1,104 +1,174 @@
-
-import React, { useState } from 'react';
-import { Ticket, Clock, Copy, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Button } from './ui/Button';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Ticket, Clock, Copy, ArrowRight, ChevronLeft, ChevronRight, Filter, Search } from 'lucide-react';
+import { useMyVouchers } from '@/hooks/useMyVoucher';
+import { UserVoucherStatusEnum } from '@/types/voucher.type';
+import { formatCurrency } from '../utils/format';
 
 const VoucherPage: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+    const navigate = useNavigate();
 
-  // Generate more mock data for pagination
-  const generateVouchers = () => {
-    const baseVouchers = [
-      { id: 1, title: 'Giảm 50% Bữa Sáng', code: 'SANGVUI50', exp: '30/06/2024', color: 'bg-primary', textColor: 'text-slate-900' },
-      { id: 2, title: 'Tặng 1 Nước Ngọt', code: 'FREEWATER', exp: '15/06/2024', color: 'bg-white', textColor: 'text-slate-900' },
-      { id: 3, title: 'Giảm 10K Đơn > 50K', code: 'GIAM10K', exp: '30/05/2024', color: 'bg-slate-900', textColor: 'text-white' },
-      { id: 4, title: 'Combo Trưa 25K', code: 'LUNCH25', exp: '01/06/2024', color: 'bg-white', textColor: 'text-slate-900' },
-      { id: 5, title: 'Free Upsize Nước', code: 'UPSIZE', exp: '10/06/2024', color: 'bg-white', textColor: 'text-slate-900' },
-      { id: 6, title: 'Giảm 20% Snack', code: 'SNACK20', exp: '20/06/2024', color: 'bg-primary', textColor: 'text-slate-900' },
-      { id: 7, title: 'Mua 1 Tặng 1', code: 'B1G1TEA', exp: '05/06/2024', color: 'bg-slate-900', textColor: 'text-white' },
-      { id: 8, title: 'Giảm 5K Bánh Mì', code: 'BANHMI5', exp: '12/06/2024', color: 'bg-white', textColor: 'text-slate-900' },
-      { id: 9, title: 'Combo Bạn Bè 50K', code: 'FRIEND50', exp: '25/06/2024', color: 'bg-white', textColor: 'text-slate-900' },
-      { id: 10, title: 'Giảm 15% Tổng Bill', code: 'ALL15', exp: '30/06/2024', color: 'bg-primary', textColor: 'text-slate-900' },
-    ];
-    return baseVouchers;
-  };
+    // Sử dụng Hook
+    const {
+        vouchers,
+        pagination,
+        isLoading,
+        filters,
+        changePage,
+        filterByStatus
+    } = useMyVouchers();
 
-  const vouchers = generateVouchers();
-  const totalPages = Math.ceil(vouchers.length / itemsPerPage);
-  
-  const currentVouchers = vouchers.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+    // Helper: Chọn màu sắc dựa trên trạng thái vé
+    const getCardStyle = (status: string) => {
+        switch (status) {
+            case 'ACTIVE':
+                return 'bg-white dark:bg-slate-800 border-indigo-100 dark:border-slate-700 hover:border-indigo-300';
+            case 'USED':
+                return 'bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800 opacity-75 grayscale';
+            case 'EXPIRED':
+                return 'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/20 opacity-75';
+            default:
+                return 'bg-white';
+        }
+    };
 
-  return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2">Kho Voucher</h1>
-        <p className="text-slate-500 font-medium">Săn ưu đãi, ăn uống thả ga!</p>
-      </div>
+    // Helper: Label trạng thái
+    const getStatusLabel = (status: string) => {
+        switch (status) {
+            case 'ACTIVE': return { text: 'Có hiệu lực', color: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20' };
+            case 'USED': return { text: 'Đã sử dụng', color: 'text-slate-500 bg-slate-100 dark:bg-slate-800' };
+            case 'EXPIRED': return { text: 'Hết hạn', color: 'text-red-500 bg-red-50 dark:bg-red-900/20' };
+            default: return { text: status, color: 'text-slate-500' };
+        }
+    };
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {currentVouchers.map((v) => (
-          <div key={v.id} className={`relative p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col min-h-[220px] justify-between group overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl ${v.color === 'bg-slate-900' ? 'dark:border-slate-700' : ''} ${v.color}`}>
-            {/* Background Pattern */}
-            <div className="absolute -right-8 -top-8 w-32 h-32 bg-current opacity-5 rounded-full pointer-events-none"></div>
-            
-            <div className={`relative z-10 flex justify-between items-start ${v.textColor}`}>
-                <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl">
-                    <Ticket size={24} />
+    return (
+        <div className="space-y-8 max-w-7xl mx-auto p-4 md:p-6">
+            {/* Header & Filters */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2">Kho Voucher</h1>
+                    <p className="text-slate-500 font-medium">Quản lý vé ăn và dịch vụ của bạn</p>
                 </div>
-                <div className="flex items-center gap-1 text-xs font-bold opacity-70 bg-white/20 backdrop-blur px-3 py-1 rounded-full">
-                    <Clock size={12} />
-                    <span>HSD: {v.exp}</span>
+
+                {/* Filter Buttons */}
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    <button
+                        onClick={() => filterByStatus(UserVoucherStatusEnum.ACTIVE)}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                            filters.status === UserVoucherStatusEnum.ACTIVE
+                                ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                        }`}
+                    >
+                        Khả dụng
+                    </button>
+                    <button
+                        onClick={() => filterByStatus('')} // Truyền rỗng để lấy tất cả (Lịch sử)
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                            filters.status === ''
+                                ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm'
+                                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                        }`}
+                    >
+                        Lịch sử
+                    </button>
                 </div>
             </div>
 
-            <div className={`relative z-10 mt-4 ${v.textColor}`}>
-                <h3 className="text-2xl font-bold leading-tight mb-1">{v.title}</h3>
-                <p className="text-sm opacity-70 font-medium">Áp dụng tại tất cả căng tin</p>
-            </div>
-
-            <div className="relative z-10 pt-6 mt-4 border-t border-current/10 flex items-center justify-between gap-4">
-                <div className={`px-4 py-2 rounded-xl font-mono font-bold text-sm tracking-wider border border-current/20 flex items-center gap-2 ${v.textColor}`}>
-                    {v.code}
-                    <Copy size={14} className="cursor-pointer hover:scale-110 transition-transform"/>
+            {/* Loading State */}
+            {isLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {[1, 2, 3].map(i => (
+                        <div key={i} className="h-56 bg-slate-100 dark:bg-slate-800 rounded-[32px] animate-pulse"></div>
+                    ))}
                 </div>
-                <button className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform group-hover:scale-110 ${v.textColor === 'text-white' ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'}`}>
-                    <ArrowRight size={18} />
-                </button>
-            </div>
-          </div>
-        ))}
-      </div>
+            ) : (
+                <>
+                    {/* Empty State */}
+                    {vouchers.length === 0 && (
+                        <div className="text-center py-20">
+                            <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                                <Ticket size={32} />
+                            </div>
+                            <h3 className="text-lg font-bold text-slate-700 dark:text-slate-300">Chưa có voucher nào</h3>
+                            <p className="text-slate-500">Bạn chưa mua voucher nào hoặc chưa có giao dịch phù hợp.</p>
+                        </div>
+                    )}
 
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-2 pt-4">
-            <button 
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-                <ChevronLeft size={20} />
-            </button>
-            
-            <span className="px-4 font-bold text-slate-500">
-                Trang <span className="text-slate-900 dark:text-white">{currentPage}</span> / {totalPages}
-            </span>
+                    {/* Voucher Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {vouchers.map((v) => {
+                            const statusInfo = getStatusLabel(v.status);
+                            return (
+                                <div
+                                    key={v.voucherId}
+                                    onClick={() => navigate(`/vouchers/${v.voucherId}`)}
+                                    className={`relative p-6 rounded-[32px] border shadow-sm flex flex-col min-h-[220px] justify-between group overflow-hidden transition-all cursor-pointer ${getCardStyle(v.status)}`}
+                                >
+                                    {/* Top Section */}
+                                    <div className="relative z-10 flex justify-between items-start">
+                                        <div className="p-3 bg-slate-50 dark:bg-slate-700 rounded-2xl text-indigo-600 dark:text-indigo-400">
+                                            <Ticket size={24} />
+                                        </div>
+                                        <div className={`flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full ${statusInfo.color}`}>
+                                            {statusInfo.text}
+                                        </div>
+                                    </div>
 
-            <button 
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-                <ChevronRight size={20} />
-            </button>
+                                    {/* Content */}
+                                    <div className="relative z-10 mt-4">
+                                        <h3 className="text-xl font-bold text-slate-800 dark:text-white leading-tight mb-1 line-clamp-2">
+                                            {v.serviceName}
+                                        </h3>
+                                        <p className="text-sm text-slate-500 font-medium">
+                                            Giá trị: {formatCurrency(v.priceAtPurchase)}
+                                        </p>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="relative z-10 pt-5 mt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-2 text-xs text-slate-400 font-mono bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg">
+                                            {v.voucherCode}
+                                        </div>
+                                        {v.expiresAt && (
+                                            <div className="flex items-center gap-1 text-xs text-slate-400">
+                                                <Clock size={12} />
+                                                <span>{new Date(v.expiresAt).toLocaleDateString('vi-VN')}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Pagination */}
+                    {pagination.totalPages > 1 && (
+                        <div className="flex justify-center items-center gap-4 pt-6">
+                            <button
+                                onClick={() => changePage(pagination.pageNumber - 1)}
+                                disabled={pagination.pageNumber === 0}
+                                className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <ChevronLeft size={20} />
+                            </button>
+                            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                                Trang {pagination.pageNumber + 1} / {pagination.totalPages}
+                            </span>
+                            <button
+                                onClick={() => changePage(pagination.pageNumber + 1)}
+                                disabled={pagination.pageNumber >= pagination.totalPages - 1}
+                                className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <ChevronRight size={20} />
+                            </button>
+                        </div>
+                    )}
+                </>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
 export default VoucherPage;
