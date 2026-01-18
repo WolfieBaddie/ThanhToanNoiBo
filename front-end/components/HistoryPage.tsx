@@ -1,116 +1,158 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
-import { Transaction } from './history/types';
-import { generateMockData } from './history/mockData';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { HistoryHeader } from './history/HistoryHeader';
 import { HistoryToolbar } from './history/HistoryToolbar';
 import { HistoryTable } from './history/HistoryTable';
 import { HistoryPagination } from './history/HistoryPagination';
+import { useTransactions } from '@/hooks/useTransaction';
+import { Transaction as ApiTransaction } from '@/types/transaction.type';
 
-interface HistoryPageProps {
-  onViewDetail?: (id: number) => void;
+// Interface cho UI khớp với HistoryTable
+interface UiTransaction {
+    id: string;
+    title: string;
+    displayDate: string;
+    date: string;
+    ref: string;
+    status: string;
+    amount: number;
+    type: 'in' | 'out';
 }
 
-const HistoryPage: React.FC<HistoryPageProps> = ({ onViewDetail }) => {
-  // State
-  const [allTransactions] = useState<Transaction[]>(generateMockData());
-  const [searchTerm, setSearchTerm] = useState('');
-  const [dateRange, setDateRange] = useState<{from: string, to: string}>({ from: '', to: '' });
-  const [isDateModalOpen, setIsDateModalOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 7;
+// Helper: Dịch trạng thái sang tiếng Việt
+const getStatusLabel = (status: string): string => {
+    switch (status) {
+        case 'COMPLETED': return 'Thành công';
+        case 'PENDING': return 'Đang xử lý';
+        case 'FAILED': return 'Thất bại';
+        case 'CANCELLED': return 'Đã hủy';
+        default: return status;
+    }
+};
 
-  // Filter Logic
-  const filteredTransactions = useMemo(() => {
-    return allTransactions.filter(item => {
-      const itemDate = new Date(item.date);
-      
-      const matchesSearch = 
-        item.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        item.ref.toLowerCase().includes(searchTerm.toLowerCase());
+const HistoryPage: React.FC = () => {
+    const navigate = useNavigate();
 
-      if (!matchesSearch) return false;
+    // 1. State UI
+    const [searchTerm, setSearchTerm] = useState('');
+    const [dateRange, setDateRange] = useState<{ from: string, to: string }>({ from: '', to: '' });
+    const [isDateModalOpen, setIsDateModalOpen] = useState(false);
 
-      if (dateRange.from && dateRange.to) {
-        const fromDate = new Date(dateRange.from);
-        fromDate.setHours(0, 0, 0, 0);
-        
-        const toDate = new Date(dateRange.to);
-        toDate.setHours(23, 59, 59, 999);
+    // 2. Fetch Data Hook
+    const {
+        data: apiTransactions,
+        loading,
+        totalItems,
+        totalPages,
+        filters,
+        setFilters,
+        setPage
+    } = useTransactions({ page: 0, size: 7 });
 
-        if (itemDate < fromDate || itemDate > toDate) return false;
-      } else if (dateRange.from) {
-         const fromDate = new Date(dateRange.from);
-         fromDate.setHours(0, 0, 0, 0);
-         const endOfDay = new Date(dateRange.from);
-         endOfDay.setHours(23, 59, 59, 999);
-         if (itemDate < fromDate || itemDate > endOfDay) return false;
-      }
+    // 3. Debounce Search
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setFilters(prev => ({
+                ...prev,
+                page: 0,
+                transactionRef: searchTerm || undefined // Map search term vào transactionRef
+            }));
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchTerm, setFilters]);
 
-      return true;
+    // 4. Handle Date Filter
+    const handleDateRangeApply = (from: Date, to: Date) => {
+        // Format yyyy-MM-dd cho API filter
+        const fromStr = from.toISOString().split('T')[0];
+        const toStr = to.toISOString().split('T')[0];
+
+        setDateRange({ from: from.toISOString(), to: to.toISOString() });
+        setFilters(prev => ({
+            ...prev,
+            page: 0,
+            fromDate: fromStr,
+            toDate: toStr
+        }));
+        setIsDateModalOpen(false);
+    };
+
+    const handleClearFilters = () => {
+        setSearchTerm('');
+        setDateRange({ from: '', to: '' });
+        setFilters({ page: 0, size: 7, fromDate: undefined, toDate: undefined, transactionRef: undefined });
+    };
+
+    // 5. MAPPING DATA (CẬP NHẬT)
+    const uiTransactions: UiTransaction[] = apiTransactions.map((tx: ApiTransaction) => {
+        const dateObj = new Date(tx.createdAt);
+
+        // Xử lý Title: Ưu tiên Title từ API > Description > Fallback
+        const displayTitle = tx.title
+            ? tx.title
+            : (tx.description || 'Giao dịch hệ thống');
+
+        return {
+            id: tx.transactionId,
+            title: displayTitle,
+            // Format: "10:30 - 20/05/2026"
+            displayDate: `${dateObj.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${dateObj.toLocaleDateString('vi-VN')}`,
+            date: tx.createdAt, // Giữ nguyên ISO string để sort nếu cần
+            ref: tx.transactionRef,
+            status: getStatusLabel(tx.status), // Dịch status
+            amount: tx.amount, // Số tiền (API trả về dương, UI tự thêm dấu +/- dựa vào type)
+            type: tx.direction === 'IN' ? 'in' : 'out' // Map direction
+        };
     });
-  }, [allTransactions, searchTerm, dateRange]);
 
-  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
-  const currentItems = filteredTransactions.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+    // 6. Navigate Detail
+    const handleViewDetail = (id: string | number) => {
+        navigate(`/transactions/${id}`);
+    };
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, dateRange]);
+    return (
+        <div className="space-y-6">
+            <div className="flex flex-col gap-6">
+                <HistoryHeader />
+                <HistoryToolbar
+                    searchTerm={searchTerm}
+                    onSearchChange={setSearchTerm}
+                    dateRange={dateRange}
+                    onClearDate={() => {
+                        setDateRange({ from: '', to: '' });
+                        setFilters(prev => ({ ...prev, fromDate: undefined, toDate: undefined }));
+                    }}
+                    isDateModalOpen={isDateModalOpen}
+                    onToggleDateModal={() => setIsDateModalOpen(!isDateModalOpen)}
+                    onDateRangeApply={handleDateRangeApply}
+                />
+            </div>
 
-  const handleDateRangeApply = (from: Date, to: Date) => {
-     setDateRange({
-         from: from.toISOString(),
-         to: to.toISOString()
-     });
-     setIsDateModalOpen(false);
-  };
+            <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col min-h-[400px] transition-colors relative">
+                {loading && (
+                    <div className="absolute inset-0 bg-white/50 dark:bg-slate-800/50 z-10 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    </div>
+                )}
 
-  const handleClearFilters = () => {
-    setSearchTerm('');
-    setDateRange({from: '', to: ''});
-  };
+                <HistoryTable
+                    transactions={uiTransactions as any}
+                    onViewDetail={handleViewDetail}
+                    onClearFilters={handleClearFilters}
+                />
 
-  return (
-    <div className="space-y-6">
-      {/* Header & Controls */}
-      <div className="flex flex-col gap-6">
-        <HistoryHeader />
-
-        <HistoryToolbar 
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          dateRange={dateRange}
-          onClearDate={() => setDateRange({from: '', to: ''})}
-          isDateModalOpen={isDateModalOpen}
-          onToggleDateModal={() => setIsDateModalOpen(!isDateModalOpen)}
-          onDateRangeApply={handleDateRangeApply}
-        />
-      </div>
-
-      {/* Table Section */}
-      <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden flex flex-col min-h-[400px] transition-colors">
-        <HistoryTable 
-          transactions={currentItems} 
-          onViewDetail={onViewDetail}
-          onClearFilters={handleClearFilters}
-        />
-
-        {filteredTransactions.length > 0 && (
-          <HistoryPagination 
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={filteredTransactions.length}
-            itemsPerPage={itemsPerPage}
-            onPageChange={setCurrentPage}
-          />
-        )}
-      </div>
-    </div>
-  );
+                {uiTransactions.length > 0 && (
+                    <HistoryPagination
+                        currentPage={filters.page ? filters.page + 1 : 1}
+                        totalPages={totalPages}
+                        totalItems={totalItems}
+                        itemsPerPage={filters.size || 7}
+                        onPageChange={(page) => setPage(page - 1)}
+                    />
+                )}
+            </div>
+        </div>
+    );
 };
 
 export default HistoryPage;

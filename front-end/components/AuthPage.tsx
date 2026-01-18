@@ -35,23 +35,31 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLoginSuccess }) => {
     setNotification(prev => ({ ...prev, isOpen: false }));
   };
 
+  const showError = (msg: string) => setNotification({ isOpen: true, type: 'error', message: msg });
+  const showSuccess = (msg: string) => setNotification({ isOpen: true, type: 'success', message: msg });
+
   const renderForm = () => {
     switch (mode) {
       case AuthMode.LOGIN:
         return (
-          <LoginForm 
-            onLoginSuccess={() => onLoginSuccess?.()}
-            onForgotPassword={() => setMode(AuthMode.FORGOT_PASSWORD)}
-            onRegister={() => setMode(AuthMode.REGISTER)}
-            showNotification={showNotification}
-          />
+            <LoginForm
+                onSuccess={() => {
+                    console.log("Login success, redirecting...");
+                }}
+                onForgotPassword={() => setMode(AuthMode.FORGOT_PASSWORD)}
+                onError={showError}
+            />
         );
       case AuthMode.REGISTER:
         return (
-          <RegisterForm 
-            onRegisterSuccess={() => setMode(AuthMode.LOGIN)}
-            onLogin={() => setMode(AuthMode.LOGIN)}
-            showNotification={showNotification}
+          <RegisterForm
+              onSwitchMode={() => setMode(AuthMode.LOGIN)}
+              // Đăng ký xong thì cần hiện thông báo để user biết mà đăng nhập
+              onError={showError}
+              onSuccess={() => {
+                  showSuccess('Đăng ký thành công! Vui lòng đăng nhập.');
+                  setMode(AuthMode.LOGIN);
+              }}
           />
         );
       case AuthMode.FORGOT_PASSWORD:

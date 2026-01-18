@@ -1,66 +1,64 @@
 
 import React, { useState } from 'react';
-import { User, Check } from 'lucide-react';
+import {User, Check, Mail, Lock} from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
+import {useAuth} from "@/context/AuthContext.tsx";
+import {useAuthForm} from "@/hooks/useAuthForm.ts";
+import {AuthMode} from "@/types.ts";
 
 interface LoginFormProps {
   onLoginSuccess: () => void;
   onForgotPassword: () => void;
   onRegister: () => void;
   showNotification: (type: 'success' | 'error' | 'info', message: React.ReactNode) => void;
+  onSuccess: () => void;
+  onError: (msg: string) => void;
 }
 
 export const LoginForm: React.FC<LoginFormProps> = ({ 
   onLoginSuccess, 
   onForgotPassword, 
   onRegister,
-  showNotification 
+  showNotification ,
+    onSuccess,
+    onError
 }) => {
-  const [formData, setFormData] = useState({
-    email: 'admin@school.edu.vn',
-    password: '123456',
-  });
-  const [rememberMe, setRememberMe] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+
   const [isLoading, setIsLoading] = useState(false);
 
-  const validate = () => {
-    const newErrors: Record<string, string> = {};
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-    if (!formData.email) {
-      newErrors.email = 'Vui lòng nhập email';
-    } else if (!emailRegex.test(formData.email)) {
-      newErrors.email = 'Email không hợp lệ';
-    }
+    const { login, isLoading: isAuthLoading } = useAuth();
 
-    if (!formData.password) {
-      newErrors.password = 'Vui lòng nhập mật khẩu';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
-    }
+    // State local để xử lý validation form
+    const { formData, errors, handleInputChange, validate } = useAuthForm(AuthMode.LOGIN);
+    const [rememberMe, setRememberMe] = useState(false);
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    // State loading cục bộ (phòng hờ nếu bạn muốn control riêng)
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) {
-      showNotification('error', 'Vui lòng kiểm tra lại thông tin nhập liệu');
-      return;
-    }
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
 
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      showNotification('success', 'Đăng nhập thành công!');
-      setTimeout(() => {
-        onLoginSuccess();
-      }, 800);
-    }, 1500);
-  };
+        // 1. Validate Form
+        if (!validate()) return;
+
+        setIsSubmitting(true);
+        try {
+            // 2. Gọi API Login
+            await login({ username: formData.username, password: formData.password });
+
+            // 3. Nếu thành công -> Gọi callback (AuthPage xử lý)
+            // Lưu ý: Lúc này AuthContext đã update user -> App sẽ redirect ngay lập tức
+            onSuccess();
+        } catch (err: any) {
+            // 4. Nếu lỗi -> Hiển thị lỗi
+            const serverMessage = err.response?.data?.message || err.message || 'Đăng nhập thất bại';
+            onError(serverMessage || 'Đăng nhập thất bại. Vui lòng kiểm tra lại.');
+            setIsSubmitting(false); // Mở lại nút để bấm tiếp
+        }
+    };
+
 
   return (
     <div className="max-w-md mx-auto w-full animate-in fade-in slide-in-from-right-4 duration-300">
@@ -78,14 +76,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             <Input 
                 className="!mb-0"
                 label="Email / Tài khoản" 
-                name="email" 
-                placeholder="example@school.edu.vn" 
-                value={formData.email} 
-                onChange={(e) => {
-                    setFormData({...formData, email: e.target.value});
-                    if (errors.email) setErrors({...errors, email: ''});
-                }} 
-                error={errors.email}
+                name="username"
+                type="text"
+                icon={<Mail size={20} />}
+                value={formData.username}
+                onChange={handleInputChange}
+                error={errors.username}
+                disabled={isLoading}
             />
             
             <Input 
@@ -93,13 +90,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 label="Mật khẩu" 
                 name="password" 
                 type="password" 
-                placeholder="••••••••" 
-                value={formData.password} 
-                onChange={(e) => {
-                    setFormData({...formData, password: e.target.value});
-                    if (errors.password) setErrors({...errors, password: ''});
-                }} 
-                error={errors.password} 
+                placeholder="••••••••"
+                icon={<Lock size={20} />}
+                value={formData.password}
+                onChange={handleInputChange}
+                error={errors.password}
+                disabled={isLoading}
             />
 
             <div className="flex items-center justify-between mt-1 mb-2">
@@ -115,7 +111,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 </button>
             </div>
 
-            <Button type="submit" isLoading={isLoading} fullWidth className="mt-4 shadow-xl shadow-slate-900/10">
+            <Button  type="submit"
+                     isLoading={isLoading}
+                     fullWidth
+                     disabled={isLoading}
+                     className="mt-4 shadow-xl shadow-slate-900/10">
                 Đăng nhập
             </Button>
         </form>

@@ -1,85 +1,103 @@
-
-import React, { useState, useMemo } from 'react';
-import { UtensilsCrossed, Coffee, Apple, Pizza, Filter } from 'lucide-react';
-import { MenuHeader } from './menu/MenuHeader';
-import { MenuFilter } from './menu/MenuFilter';
-import { DaySelector } from './menu/DaySelector';
-import { MenuGrid } from './menu/MenuGrid';
-import { Category, Day, MenuItem } from './menu/types';
-
-// Constants
-const CATEGORIES: Category[] = [
-  { id: 'all', label: 'Tất cả', icon: <UtensilsCrossed size={16} /> },
-  { id: 'breakfast', label: 'Bữa sáng', icon: <Coffee size={16} /> },
-  { id: 'lunch', label: 'Bữa trưa', icon: <Pizza size={16} /> },
-  { id: 'dessert', label: 'Tráng miệng', icon: <Apple size={16} /> },
-  { id: 'drink', label: 'Đồ uống', icon: <Filter size={16} /> },
-];
-
-const DAYS: Day[] = [
-  { id: 'Mon', label: 'Thứ 2', date: '20/05' },
-  { id: 'Tue', label: 'Thứ 3', date: '21/05' },
-  { id: 'Wed', label: 'Thứ 4', date: '22/05' },
-  { id: 'Thu', label: 'Thứ 5', date: '23/05' },
-  { id: 'Fri', label: 'Thứ 6', date: '24/05' },
-];
-
-const MENU_ITEMS: MenuItem[] = [
-  { id: 1, name: 'Cơm sườn bì chả', cal: '450kcal', price: 35000, img: 'https://picsum.photos/200/200?random=101', categoryId: 'lunch', type: 'Bữa trưa' },
-  { id: 2, name: 'Bún bò Huế', cal: '500kcal', price: 35000, img: 'https://picsum.photos/200/200?random=102', categoryId: 'lunch', type: 'Bữa trưa' },
-  { id: 3, name: 'Sandwich gà', cal: '250kcal', price: 15000, img: 'https://picsum.photos/200/200?random=103', categoryId: 'breakfast', type: 'Bữa sáng' },
-  { id: 4, name: 'Sữa chua trái cây', cal: '120kcal', price: 10000, img: 'https://picsum.photos/200/200?random=104', categoryId: 'dessert', type: 'Tráng miệng' },
-  { id: 5, name: 'Bánh mì ốp la', cal: '300kcal', price: 20000, img: 'https://picsum.photos/200/200?random=105', categoryId: 'breakfast', type: 'Bữa sáng' },
-  { id: 6, name: 'Nước cam ép', cal: '80kcal', price: 15000, img: 'https://picsum.photos/200/200?random=106', categoryId: 'drink', type: 'Đồ uống' },
-  { id: 7, name: 'Cơm gà xối mỡ', cal: '600kcal', price: 40000, img: 'https://picsum.photos/200/200?random=107', categoryId: 'lunch', type: 'Bữa trưa' },
-  { id: 8, name: 'Sữa tươi trân châu', cal: '350kcal', price: 25000, img: 'https://picsum.photos/200/200?random=108', categoryId: 'drink', type: 'Đồ uống' },
-  { id: 9, name: 'Pizza Mini', cal: '400kcal', price: 25000, img: 'https://picsum.photos/200/200?random=109', categoryId: 'lunch', type: 'Bữa trưa' },
-  { id: 10, name: 'Chè hạt sen', cal: '150kcal', price: 12000, img: 'https://picsum.photos/200/200?random=110', categoryId: 'dessert', type: 'Tráng miệng' },
-];
+import React from 'react';
+import { MenuHeader } from '@/components/menu/MenuHeader';
+import { MenuFilter } from '@/components/menu/MenuFilter';
+import { MenuGrid } from '@/components/menu/MenuGrid'; // Bạn nhớ sửa MenuGrid để dùng MenuItem mới
+import { useCatalog } from '@/hooks/useCatalog';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 const MenuPage: React.FC = () => {
-  const [activeDay, setActiveDay] = useState('Mon');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+    // Sử dụng Hook useCatalog (Đã viết ở bước trước)
+    const {
+        services,
+        categories,
+        isLoading,
+        pagination,
+        filters,
+        handleSearch,
+        filterByCategory,
+        changePage,
+        refresh
+    } = useCatalog();
 
-  // Logic lọc dữ liệu
-  const filteredItems = useMemo(() => {
-    return MENU_ITEMS.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === 'all' || item.categoryId === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
-  }, [searchTerm, selectedCategory]);
+    // Hàm xử lý "Xóa bộ lọc"
+    const handleClearAll = () => {
+        handleSearch('');       // Reset từ khóa
+        filterByCategory('');   // Reset category
+    };
 
-  const handleClearFilters = () => {
-    setSearchTerm('');
-    setSelectedCategory('all');
-  };
+    // Hàm mapping data từ ServiceResponse sang MenuItem cho component hiển thị
+    // (Nếu Component MenuGrid/Card dùng đúng type ServiceResponse thì không cần map)
+    const mappedItems = services.map(s => ({
+        serviceId: s.serviceId,
+        serviceCode: s.serviceCode,
+        serviceName: s.serviceName,
+        unitPrice: s.unitPrice,
+        categoryName: s.categoryName,
+        imageUrl: s.imageUrl,
+        description: s.description
+    }));
 
-  return (
-    <div className="space-y-6">
-      <MenuHeader />
+    return (
+        <div className="space-y-6 max-w-7xl mx-auto px-4 md:px-6 pb-20">
+            <MenuHeader />
 
-      <MenuFilter 
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        selectedCategory={selectedCategory}
-        onCategoryChange={setSelectedCategory}
-        categories={CATEGORIES}
-      />
+            {/* Filter Section */}
+            <MenuFilter
+                searchTerm={filters.keyword || ''}
+                onSearchChange={handleSearch}
+                selectedCategory={filters.categoryId || ''}
+                onCategoryChange={filterByCategory}
+                categories={categories.map(c => ({
+                    categoryId: c.categoryId,
+                    categoryName: c.categoryName,
+                    categoryCode: c.categoryCode
+                }))} // Map đúng field
+                onClearAll={handleClearAll}
+            />
 
-      <DaySelector 
-        activeDay={activeDay}
-        onDayChange={setActiveDay}
-        days={DAYS}
-      />
+            {/* Grid Content */}
+            <div className="min-h-[400px]">
+                {isLoading ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+                        <Loader2 className="animate-spin mb-2" size={32} />
+                        <p>Đang tải danh sách...</p>
+                    </div>
+                ) : (
+                    <>
+                        <MenuGrid
+                            items={mappedItems}
+                            onClearFilters={handleClearAll}
+                        />
 
-      <MenuGrid 
-        items={filteredItems} 
-        onClearFilters={handleClearFilters} 
-      />
-    </div>
-  );
+                        {/* Pagination Controls */}
+                        {pagination.totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-4 pt-10">
+                                <button
+                                    onClick={() => changePage(pagination.pageNumber - 1)}
+                                    disabled={pagination.pageNumber === 0}
+                                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-slate-800 transition-colors"
+                                >
+                                    <ChevronLeft size={20} />
+                                </button>
+
+                                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                            Trang <span className="font-bold text-slate-900 dark:text-white">{pagination.pageNumber + 1}</span> / {pagination.totalPages}
+                        </span>
+
+                                <button
+                                    onClick={() => changePage(pagination.pageNumber + 1)}
+                                    disabled={pagination.pageNumber >= pagination.totalPages - 1}
+                                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed bg-white dark:bg-slate-800 transition-colors"
+                                >
+                                    <ChevronRight size={20} />
+                                </button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    );
 };
 
 export default MenuPage;

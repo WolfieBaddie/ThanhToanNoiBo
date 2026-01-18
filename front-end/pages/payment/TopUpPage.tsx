@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Landmark, ArrowLeft, CheckCircle2, Wallet, CreditCard, Loader2 } from 'lucide-react';
+import React, {useEffect, useState} from 'react';
+import {useLocation, useNavigate} from 'react-router-dom';
+import { Landmark, ArrowLeft, CheckCircle2, Wallet, CreditCard, Loader2, Coins } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useUserCredit } from '../../hooks/useUserCredit';
 import { usePayment } from '../../hooks/usePayment';
@@ -12,8 +12,7 @@ const TopUpPage: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { creditInfo } = useUserCredit(user?.userId);
-
-    // Sử dụng hook thanh toán
+    const location = useLocation();
     const { initiatePayment, isLoading: isPaying, error: paymentError } = usePayment();
 
     const [amount, setAmount] = useState<string>('');
@@ -32,14 +31,27 @@ const TopUpPage: React.FC = () => {
             alert("Vui lòng nạp tối thiểu 10.000đ");
             return;
         }
-
-        // Gọi API tạo giao dịch & chuyển hướng sang VNPay
         await initiatePayment({
             amount: numAmount,
             orderInfo: `Nap tien vao tai khoan ${user?.username || 'user'}`,
             type: PaymentRequestType.TOP_UP
         });
     };
+
+    useEffect(() => {
+        if (location.state && location.state.suggestedAmount) {
+            const suggested = location.state.suggestedAmount;
+
+            // Logic làm tròn (Tuỳ chọn): Ví dụ thiếu 13.000 -> Gợi ý nạp 20.000
+            // Hoặc để nguyên số tiền thiếu
+            let fillAmount = suggested;
+
+            // Ví dụ: Làm tròn lên hàng chục nghìn gần nhất nếu < 100k
+            if (fillAmount < 10000) fillAmount = 10000;
+
+            setAmount(fillAmount.toString());
+        }
+    }, [location.state]);
 
     const currentBalance = creditInfo?.balance || 0;
     const depositAmount = parseInt(amount) || 0;
@@ -61,7 +73,6 @@ const TopUpPage: React.FC = () => {
                 {/* --- LEFT COLUMN: INPUT FORM --- */}
                 <div className="lg:col-span-2 space-y-6">
                     <div className="bg-white dark:bg-slate-800 rounded-[24px] p-6 sm:p-8 shadow-sm border border-slate-200 dark:border-slate-700">
-                        {/* Header Section */}
                         <div className="flex items-center gap-3 mb-8">
                             <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 flex items-center justify-center">
                                 <Landmark size={24} />
@@ -89,8 +100,27 @@ const TopUpPage: React.FC = () => {
                                 <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">đ</span>
                             </div>
 
-                            {/* Gợi ý mệnh giá */}
-                            <div className="flex flex-wrap gap-3 mt-4">
+                            {/* --- [UPDATED UI] PHẦN HIỂN THỊ QUY ĐỔI XU --- */}
+                            {depositAmount > 0 && (
+                                <div className="mt-4 flex items-center gap-4 bg-indigo-600 text-white px-5 py-4 rounded-2xl shadow-lg shadow-indigo-200 dark:shadow-none transition-all animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 backdrop-blur-sm">
+                                        <Coins size={20} className="text-white" />
+                                    </div>
+                                    <div>
+                                        <p className="text-indigo-100 text-xs font-medium uppercase tracking-wide">Quy đổi tương đương</p>
+                                        <p className="text-lg font-bold flex items-center gap-2">
+                                            {formatCurrency(depositAmount)}
+                                            <span className="text-indigo-200 text-sm font-normal">(Tỷ lệ 1:1000)</span>
+                                        </p>
+                                    </div>
+                                    <div className="ml-auto">
+                                        <CheckCircle2 size={24} className="text-indigo-200" />
+                                    </div>
+                                </div>
+                            )}
+                            {/* ----------------------------------------------- */}
+
+                            <div className="flex flex-wrap gap-3 mt-6">
                                 {quickAmounts.map((val) => (
                                     <button
                                         key={val}
@@ -98,17 +128,16 @@ const TopUpPage: React.FC = () => {
                                         onClick={() => setAmount(val.toString())}
                                         className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all border-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                                             amount === val.toString()
-                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200'
+                                                ? 'bg-white border-indigo-600 text-indigo-600 shadow-sm'
                                                 : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-indigo-200 dark:hover:border-indigo-800'
                                         }`}
                                     >
-                                        {val.toLocaleString('vi-VN')}
+                                        {val.toLocaleString('vi-VN')}đ
                                     </button>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Phương thức thanh toán */}
                         <div>
                             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
                                 Phương thức thanh toán
@@ -147,10 +176,11 @@ const TopUpPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* --- RIGHT COLUMN: SUMMARY & PREVIEW --- */}
+                {/* --- RIGHT COLUMN --- */}
                 <div className="space-y-6">
+                    {/* Giữ nguyên logic: WalletCard chỉ nhận currentBalance */}
                     <WalletCard
-                        balance={predictedBalance}
+                        balance={currentBalance}
                         studentName={user?.fullName || "Học sinh"}
                         studentId={user?.username || "---"}
                         className="shadow-xl shadow-indigo-200 dark:shadow-none"
@@ -178,7 +208,6 @@ const TopUpPage: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Hiển thị lỗi nếu có */}
                         {paymentError && (
                             <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm font-medium border border-red-100">
                                 {paymentError}
