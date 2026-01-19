@@ -28,6 +28,6 @@ public class UserVoucherResponse {
 
     // Cờ kiểm tra nhanh cho Frontend (VD: đổi màu thẻ nếu hết hạn)
     private boolean isExpired;
-
+    private Integer quantity;
     private String qrContent;
 }

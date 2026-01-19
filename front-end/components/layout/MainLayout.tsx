@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { Logo } from '../ui/Logo';
 import {
@@ -12,8 +12,15 @@ import {
     Bell,
     Search,
     X,
-    TicketPercent
+    TicketPercent,
+    CheckCircle2,
+    AlertTriangle,
+    Info,
+    Check
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { useNotifications } from '@/hooks/useNotification';
+import { AppNotification } from '@/types/notification.type';
 
 interface MainLayoutProps {
     children?: React.ReactNode;
@@ -21,12 +28,98 @@ interface MainLayoutProps {
     onLogout: () => void;
 }
 
+// Sub-component NotificationItem (đã fix key)
+const NotificationItem: React.FC<{ item: AppNotification; onClick: () => void }> = ({ item, onClick }) => {
+    let Icon = Info;
+    let iconColorClass = "text-blue-500 bg-blue-50 dark:bg-blue-900";
+
+    if (item.type === 'SUCCESS') {
+        Icon = CheckCircle2;
+        iconColorClass = "text-emerald-500 bg-emerald-50 dark:bg-emerald-900";
+    } else if (item.type === 'WARNING') {
+        Icon = AlertTriangle;
+        iconColorClass = "text-orange-500 bg-orange-50 dark:bg-orange-900";
+    } else if (item.type === 'ERROR') {
+        Icon = X;
+        iconColorClass = "text-red-500 bg-red-50 dark:bg-red-900";
+    }
+
+    return (
+        <div
+            onClick={onClick}
+            className={`p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors group 
+            ${!item.isRead
+                ? 'bg-indigo-50 dark:bg-slate-800'
+                : 'bg-white dark:bg-slate-900'
+            }`}
+        >
+            <div className="flex gap-3">
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${iconColorClass}`}>
+                    <Icon size={18} />
+                </div>
+                <div className="flex-1">
+                    <div className="flex justify-between items-start mb-0.5">
+                        <h4 className={`text-sm ${!item.isRead ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-300'}`}>
+                            {item.title}
+                        </h4>
+                        {!item.isRead && <span className="w-2 h-2 rounded-full bg-indigo-600 mt-1.5 shadow-sm"></span>}
+                    </div>
+                    <p className={`text-xs ${!item.isRead ? 'text-slate-600 dark:text-slate-300 font-medium' : 'text-slate-500 dark:text-slate-500'} line-clamp-2 leading-relaxed`}>
+                        {item.message}
+                    </p>
+                    <span className="text-[10px] text-slate-400 mt-2 block font-medium">
+                        {new Date(item.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
     const location = useLocation();
     const navigate = useNavigate();
 
+    const {
+        notifications,
+        unreadCount,
+        fetchNotifications,
+        markRead,
+        markAllRead
+    } = useNotifications();
+
+    const [showNotiDropdown, setShowNotiDropdown] = useState(false);
+    const notiRef = useRef<HTMLDivElement>(null);
+
+    const toggleNoti = () => {
+        if (!showNotiDropdown) {
+            fetchNotifications();
+        }
+        setShowNotiDropdown(!showNotiDropdown);
+    };
+
+    const handleNotiClick = (item: AppNotification) => {
+        if (!item.isRead) {
+            markRead(item.notificationId);
+        }
+        if (item.targetUrl) {
+            navigate(item.targetUrl);
+            setShowNotiDropdown(false);
+        }
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (notiRef.current && !notiRef.current.contains(event.target as Node)) {
+                setShowNotiDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // Sidebar items...
     const navItems = [
         { id: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
         { id: 'wallet', label: 'Ví & Nạp tiền', icon: <Wallet size={20} />, path: '/wallet' },
@@ -36,20 +129,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
         { id: 'settings', label: 'Cài đặt', icon: <Settings size={20} />, path: '/settings' },
     ];
 
-    // [YÊU CẦU 3] Logic kiểm tra Active Sidebar cải tiến
     const isActive = (path: string) => {
-        // Trang chủ
         if (path === '/dashboard' && location.pathname === '/') return true;
-
-        // Kiểm tra chính xác
         if (location.pathname === path) return true;
-
-        // Kiểm tra trang con (Nested routes)
-        // Ví dụ: path là '/wallet', hiện tại là '/payment/topup' -> vẫn cho active 'Ví'
         if (path === '/wallet' && location.pathname.startsWith('/payment')) return true;
         if (path === '/history' && location.pathname.startsWith('/transactions')) return true;
-
-        // Default: startsWith cho các trường hợp menu đơn giản khác
         return location.pathname.startsWith(path);
     };
 
@@ -81,9 +165,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
                                     : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800'
                             }`}
                         >
-              <span className={`mr-3 ${active ? 'text-slate-900' : 'text-slate-400 group-hover:text-slate-600'}`}>
-                  {item.icon}
-              </span>
+                            <span className={`mr-3 ${active ? 'text-slate-900' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                                {item.icon}
+                            </span>
                             <span>{item.label}</span>
                         </button>
                     );
@@ -104,12 +188,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
 
     return (
         <div className="min-h-screen bg-app-bg dark:bg-slate-950 text-slate-900 dark:text-white font-sans transition-colors duration-300 flex">
-            {/* Desktop Sidebar */}
+            {/* Desktop Sidebar (z-20) */}
             <aside className="hidden lg:block w-[280px] h-screen sticky top-0 z-20">
                 <SidebarContent />
             </aside>
 
-            {/* Mobile Sidebar */}
+            {/* Mobile Sidebar (z-50) */}
             <div className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 ${isMobileMenuOpen ? 'visible' : 'invisible'}`}>
                 <div
                     className={`absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0'}`}
@@ -122,8 +206,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
 
             {/* Main Content Area */}
             <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden relative">
-                {/* Header */}
-                <header className="bg-app-bg/80 dark:bg-slate-900/80 backdrop-blur-xl sticky top-0 z-10 px-6 py-4 flex items-center justify-between transition-colors">
+
+                {/* [FIX]: Tăng z-index header lên z-40 để đè lên content bên dưới (thường là z-0 hoặc z-20) */}
+                <header className="bg-app-bg/80 dark:bg-slate-900/80 backdrop-blur-xl sticky top-0 z-40 px-6 py-4 flex items-center justify-between transition-colors border-b border-transparent dark:border-slate-800/50">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={() => setIsMobileMenuOpen(true)}
@@ -143,18 +228,72 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
                     </div>
 
                     <div className="flex items-center gap-4 sm:gap-6">
-                        <button className="relative p-2.5 bg-white rounded-full text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white transition-colors shadow-sm">
-                            <Bell size={20} />
-                            <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-slate-900"></span>
-                        </button>
-                        <div className="flex items-center gap-3 pl-4">
+                        {/* --- NOTIFICATION BELL --- */}
+                        <div className="relative" ref={notiRef}>
+                            <button
+                                onClick={toggleNoti}
+                                className={`relative p-2.5 rounded-full transition-all shadow-sm ${showNotiDropdown ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400' : 'bg-white text-slate-500 hover:text-slate-900 dark:bg-slate-800 dark:hover:text-white'}`}
+                            >
+                                <Bell size={20} />
+                                {unreadCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-slate-50 dark:border-slate-900 animate-in zoom-in duration-300">
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </span>
+                                )}
+                            </button>
+
+                            {/* Dropdown Menu (z-50) */}
+                            {showNotiDropdown && (
+                                <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+                                    <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-gray-50 dark:bg-slate-800">
+                                        <h3 className="font-bold text-slate-800 dark:text-white">Thông báo</h3>
+                                        {unreadCount > 0 && (
+                                            <button
+                                                onClick={() => { markAllRead(); setShowNotiDropdown(false); }}
+                                                className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline flex items-center gap-1"
+                                            >
+                                                <Check size={14} />
+                                                Đánh dấu đã đọc
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700 bg-white dark:bg-slate-900">
+                                        {notifications.length > 0 ? (
+                                            notifications.map(item => (
+                                                <NotificationItem
+                                                    key={item.notificationId}
+                                                    item={item}
+                                                    onClick={() => handleNotiClick(item)}
+                                                />
+                                            ))
+                                        ) : (
+                                            <div className="p-10 text-center flex flex-col items-center text-slate-400">
+                                                <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mb-3">
+                                                    <Bell size={24} className="opacity-50" />
+                                                </div>
+                                                <p className="text-sm font-medium">Không có thông báo nào</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="p-3 bg-gray-50 dark:bg-slate-800 text-center border-t border-slate-100 dark:border-slate-800">
+                                        <button className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 transition-colors">
+                                            Xem tất cả
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700 h-8">
                             <div className="text-right hidden sm:block">
-                                <p className="text-sm font-bold text-slate-900 dark:text-white">{user?.fullName || "Nguyễn Văn A"}</p>
-                                <p className="text-xs font-semibold text-slate-500">{user?.studentCode || "HS2024"}</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{user?.fullName || "Người dùng"}</p>
+                                <p className="text-xs font-semibold text-slate-500">{user?.studentCode || user?.username || "---"}</p>
                             </div>
-                            <div className="p-0.5 rounded-full border-2 border-white shadow-sm">
+                            <div className="p-0.5 rounded-full border-2 border-white dark:border-slate-700 shadow-sm cursor-pointer hover:border-indigo-200 transition-colors">
                                 <img
-                                    src={user?.avatar || "https://picsum.photos/100/100?random=1"}
+                                    src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.fullName || 'User'}&background=random`}
                                     alt="Avatar"
                                     className="w-9 h-9 rounded-full object-cover"
                                 />
@@ -164,7 +303,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout }) => {
                 </header>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 scroll-smooth">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 scroll-smooth bg-transparent">
                     <div className="max-w-[1600px] mx-auto pb-10">
                         <Outlet />
                     </div>

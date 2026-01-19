@@ -2,6 +2,7 @@ package com.example.thanhtoannoibo.Controller.Voucher;
 
 import com.example.thanhtoannoibo.Common.UserVoucherStatus;
 import com.example.thanhtoannoibo.DTO.Request.Voucher.BuyVoucherRequest;
+import com.example.thanhtoannoibo.DTO.Request.Voucher.ExchangeVoucherRequest;
 import com.example.thanhtoannoibo.DTO.Request.Voucher.VoucherFilterRequest;
 import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.DTO.Response.PageResponse;
@@ -59,5 +60,10 @@ public class VoucherController {
     public BaseResponse<UserVoucherResponse> getVoucherDetail(@PathVariable UUID id) {
         UserVoucherResponse voucher = voucherService.getVoucherDetail(id);
         return BaseResponse.success(voucher);
+    }
+
+    @PostMapping("/exchange")
+    public BaseResponse<BuyVoucherResponse> exchangeVoucher(@RequestBody ExchangeVoucherRequest request) {
+        return BaseResponse.success(voucherService.exchangeVoucher(request));
     }
 }
