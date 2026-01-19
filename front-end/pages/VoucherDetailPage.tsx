@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
@@ -9,15 +9,20 @@ import {
     Tag,
     CheckCircle2,
     XCircle,
-    AlertCircle
+    AlertCircle,
+    QrCode,
+    Layers
 } from 'lucide-react';
 import { useVoucherDetail } from '@/hooks/useVoucherDetails';
 import { formatCurrency } from '@/utils/format';
+import { VoucherQrModal } from '@/components/ui/VoucherQrModal';
 
 const VoucherDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { voucher, isLoading, error } = useVoucherDetail(id);
+
+    const [showQrModal, setShowQrModal] = useState(false);
 
     // --- Loading State ---
     if (isLoading) {
@@ -79,7 +84,7 @@ const VoucherDetailPage: React.FC = () => {
     const statusConfig = getStatusConfig();
 
     return (
-        <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-6">
+        <div className="max-w-2xl mx-auto p-4 md:p-6 space-y-6 pb-20">
             {/* Header Navigation */}
             <button
                 onClick={() => navigate(-1)}
@@ -93,9 +98,27 @@ const VoucherDetailPage: React.FC = () => {
 
             {/* Main Ticket Card */}
             <div className="relative bg-white dark:bg-slate-800 rounded-[32px] border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden">
-                {/* Decorative Pattern Background */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-                <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
+
+                {/* [MỚI] IMAGE BANNER - Chỉ hiện khi có ảnh */}
+                {voucher.imageUrl && (
+                    <div className="relative h-48 sm:h-64 w-full bg-slate-100 dark:bg-slate-900">
+                        <img
+                            src={voucher.imageUrl}
+                            alt={voucher.serviceName}
+                            className="w-full h-full object-cover"
+                        />
+                        {/* Gradient nhẹ để tạo chiều sâu */}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent"></div>
+                    </div>
+                )}
+
+                {/* Decorative Pattern (Chỉ hiện khi KHÔNG có ảnh để đỡ rối) */}
+                {!voucher.imageUrl && (
+                    <>
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 pointer-events-none"></div>
+                    </>
+                )}
 
                 {/* Ticket Header (Service Info) */}
                 <div className="p-8 pb-10 bg-slate-50/50 dark:bg-slate-900/50 border-b border-dashed border-slate-200 dark:border-slate-700 relative">
@@ -117,19 +140,43 @@ const VoucherDetailPage: React.FC = () => {
                         {voucher.serviceName}
                     </h1>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        {/* Category Tag */}
                         <span className="px-3 py-1 bg-white dark:bg-slate-700 border border-slate-100 dark:border-slate-600 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                             <Tag size={12} /> {voucher.categoryName}
                         </span>
+
                         <span className="text-slate-400 text-sm">•</span>
+
+                        {/* Price */}
                         <span className="text-indigo-600 dark:text-indigo-400 font-bold text-lg">
                             {formatCurrency(voucher.priceAtPurchase)}
                         </span>
                     </div>
+
+                    {/* Quantity Badge */}
+                    {voucher.quantity > 1 && (
+                        <div className="absolute right-8 bottom-10 sm:static sm:mt-4 inline-flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-full text-sm font-bold shadow-lg shadow-indigo-200 dark:shadow-none">
+                            <Layers size={14} />
+                            <span>x{voucher.quantity} vé</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Ticket Body (Details) */}
                 <div className="p-8 pt-10 space-y-6">
+
+                    {/* NÚT SỬ DỤNG VÉ */}
+                    {!voucher.expired && voucher.status === 'ACTIVE' && (
+                        <button
+                            onClick={() => setShowQrModal(true)}
+                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-lg shadow-indigo-200 dark:shadow-none font-bold text-lg flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                        >
+                            <QrCode size={24} />
+                            Sử dụng ngay
+                        </button>
+                    )}
+
                     {/* Voucher Code Block */}
                     <div className="bg-slate-50 dark:bg-slate-900/50 p-5 rounded-2xl border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center text-center space-y-2 group cursor-pointer hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-colors">
                         <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Mã sử dụng</span>
@@ -137,7 +184,6 @@ const VoucherDetailPage: React.FC = () => {
                             className="flex items-center gap-3 text-xl md:text-2xl font-mono font-bold text-slate-800 dark:text-white"
                             onClick={() => {
                                 navigator.clipboard.writeText(voucher.voucherCode);
-                                // Optional: Show toast
                             }}
                         >
                             {voucher.voucherCode}
@@ -181,6 +227,17 @@ const VoucherDetailPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* MODAL QR */}
+            {voucher && (
+                <VoucherQrModal
+                    isOpen={showQrModal}
+                    onClose={() => setShowQrModal(false)}
+                    voucherId={voucher.voucherId}
+                    voucherName={voucher.serviceName}
+                    unitPrice={voucher.priceAtPurchase}
+                />
+            )}
         </div>
     );
 };

@@ -1,4 +1,3 @@
-
 // Enum trạng thái (Khớp với Backend)
 export enum UserVoucherStatusEnum {
     ACTIVE = 'ACTIVE',
@@ -7,20 +6,31 @@ export enum UserVoucherStatusEnum {
     LOCKED = 'LOCKED'
 }
 
-// Cấu trúc response trả về của 1 voucher (UserVoucherResponse DTO)
+// Cập nhật DTO Response
 export interface UserVoucherResponse {
     voucherId: string;
     voucherCode: string;
     status: UserVoucherStatusEnum;
+
+    // [CẬP NHẬT] serviceId có thể null do lưu snapshot
+    serviceId: string | null;
+
     serviceName: string;
-    serviceId: string;
-    priceAtPurchase: number;
+
+    // [MỚI] Các trường snapshot từ backend
+    imageUrl?: string | null;
+    categoryName?: string;
+
+    // [QUAN TRỌNG] Số lượng vé gộp
+    quantity: number;
+
+    priceAtPurchase: number; // Đơn giá lúc mua
     createdAt: string;
     expiresAt: string | null;
     usedAt: string | null;
 }
 
-// Cấu trúc phân trang chung (PageResponse DTO)
+// ... Các interface khác giữ nguyên
 export interface PageResponse<T> {
     items: T[];
     page: number;
@@ -29,28 +39,11 @@ export interface PageResponse<T> {
     totalPages: number;
 }
 
-// Bộ lọc gửi lên API
 export interface VoucherFilters {
     status?: UserVoucherStatusEnum | '';
     code?: string;
     page: number;
     size: number;
-}
-
-export interface UserVoucherDetailResponse {
-    voucherId: string;
-    voucherCode: string;
-    status: UserVoucherStatusEnum;
-    serviceId: string;
-    serviceName: string;
-    imageUrl: string | null;
-    categoryName: string;
-    priceAtPurchase: number;
-    createdAt: string;
-    expiresAt: string;
-    usedAt: string | null;
-    // qrContent: string;
-    expired: boolean;
 }
 
 export interface BuyVoucherRequest {
@@ -65,6 +58,11 @@ export interface BuyVoucherResponse {
     quantity: number;
     voucherCodes: string[];
     purchasedAt: string;
+}
+
+export interface ExchangeVoucherRequest {
+    quantity: number;       // Số lượng vé
+    creditValue: number;    // Mệnh giá (VD: 50000)
 }
 
 export const ERROR_CODES = {

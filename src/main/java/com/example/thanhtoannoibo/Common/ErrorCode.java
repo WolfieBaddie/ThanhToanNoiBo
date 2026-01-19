@@ -42,6 +42,7 @@ public enum ErrorCode {
     QR_CODE_EXPIRED("Q0002", "Mã QR đã hết hạn sử dụng", HttpStatus.BAD_REQUEST),
     QR_CODE_INACTIVE("Q0003", "Mã QR chưa được kích hoạt hoặc bị vô hiệu hóa", HttpStatus.BAD_REQUEST),
     QR_CODE_LIMIT_REACHED("Q0004", "Mã QR đã hết lượt sử dụng", HttpStatus.BAD_REQUEST),
+    QR_CODE_ALREADY_EXISTS("Q0005", "Voucher này đang có một mã QR còn hiệu lực. Vui lòng sử dụng mã cũ hoặc hủy nó trước khi tạo mới.", HttpStatus.CONFLICT),
 
     // --- 8. VNPAY INTEGRATION ---
     VNPAY_INVALID_CHECKSUM("VP001", "Sai chữ ký VnPay (Sai Checksum)", HttpStatus.UNAUTHORIZED),

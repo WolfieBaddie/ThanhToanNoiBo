@@ -1,7 +1,7 @@
 import { axiosClient } from '@/lib/axios-client';
 import {
     BuyVoucherRequest,
-    BuyVoucherResponse,
+    BuyVoucherResponse, ExchangeVoucherRequest,
     PageResponse,
     UserVoucherResponse,
     VoucherFilters
@@ -41,6 +41,11 @@ export const voucherService = {
     buyVoucher: async (data: BuyVoucherRequest): Promise<BuyVoucherResponse> => {
         // axiosClient đã gỡ BaseResponse, trả về data bên trong
         const response = await axiosClient.post<BuyVoucherResponse>('/vouchers/buy', data);
+        return response as unknown as BuyVoucherResponse;
+    },
+
+    exchangeVoucher: async (data: ExchangeVoucherRequest): Promise<BuyVoucherResponse> => {
+        const response = await axiosClient.post<BuyVoucherResponse>('/vouchers/exchange', data);
         return response as unknown as BuyVoucherResponse;
     }
 };
