@@ -1,5 +1,5 @@
 package com.example.thanhtoannoibo.Common;
 
 public enum QrCodeType {
-    STATIC, DYNAMIC, MERCHANT
+    STATIC, DYNAMIC, MERCHANT, VOUCHER
 }

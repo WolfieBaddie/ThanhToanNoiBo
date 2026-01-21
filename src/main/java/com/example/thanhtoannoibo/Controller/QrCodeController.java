@@ -1,10 +1,16 @@
 package com.example.thanhtoannoibo.Controller;
+import com.example.thanhtoannoibo.DTO.Request.QrCode.GenerateQrRequest;
+import com.example.thanhtoannoibo.DTO.Request.QrCode.ProcessQrRequest;
 import com.example.thanhtoannoibo.DTO.Request.Transfer.QrCodeRequest;
+import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
+import com.example.thanhtoannoibo.DTO.Response.QrCode.ProcessQrResponse;
+import com.example.thanhtoannoibo.DTO.Response.QrCode.QrResponse;
 import com.example.thanhtoannoibo.DTO.Response.Transfer.QrCodeResponse;
 import com.example.thanhtoannoibo.DTO.Response.Transfer.TransferResponse;
 import com.example.thanhtoannoibo.Entity.QrCode.QRCode;
 import com.example.thanhtoannoibo.DTO.Request.Transfer.TransferRequest;
 import com.example.thanhtoannoibo.Service.QrCode.QrCodeService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,68 +24,23 @@ public class QrCodeController {
     private final QrCodeService qrCodeService;
 
     @PostMapping("/generate")
-    public ResponseEntity<QrCodeResponse> generateQRCode(@Valid @RequestBody QrCodeRequest request) {
+    public ResponseEntity<BaseResponse<QrResponse>> generateQr(
+            @Valid @RequestBody GenerateQrRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        // Set metadata IP/Device nếu cần (BaseRequest)
+        request.setClientIp(httpRequest.getRemoteAddr());
 
-        QRCode qrCode = qrCodeService.generateQRCode(
-                request.getOwnerId(),
-                request.getQrType(),
-                request.getAmount(),
-                request.getExpiresInMinutes(),
-                request.getUsageLimit(),
-                null // voucherId (optional) - service expects this param
-        );
+        QrResponse response = qrCodeService.generateQr(request, httpRequest);
 
-        QrCodeResponse response = QrCodeResponse.builder()
-                .qrId(qrCode.getQrId())
-                .qrCode(qrCode.getCodeString()) // entity field: codeString
-                .qrType(qrCode.getType())       // entity field: type
-                .amount(qrCode.getAmount())
-                .expiresAt(qrCode.getExpiresAt())
-                .usageLimit(qrCode.getUsageLimit())
-                .status(qrCode.getStatus())
-                .build();
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(BaseResponse.success(response, "Tạo mã QR thành công"));
     }
 
-//    @PostMapping("/transfer")
-//    public ResponseEntity<TransferResponse> transferByQRCode(@Valid @RequestBody TransferRequest request) {
-//
-//        var transferRequest = qrCodeService.processQRTransfer(
-//                request.getQrCode(),
-//                request.getSenderWalletId(),
-//                request.getAmount(),
-//                request.getMessage(),
-//                request.getUserId()
-//        );
-//
-//        TransferResponse response = TransferResponse.builder()
-//                .requestId(transferRequest.getRequestId())
-//                .status(transferRequest.getStatus())
-//                .amount(transferRequest.getAmount())
-//                .message("QR transfer initiated successfully")
-//                .build();
-//
-//        return ResponseEntity.ok(response);
-//    }
-//
-//    @GetMapping("/{qrCode}")
-//    public ResponseEntity<QrCodeResponse> getQRCodeInfo(@PathVariable String qrCode) {
-//
-//        return qrCodeService.getQRCode(qrCode)
-//                .map(qr -> {
-//                    QrCodeResponse response = QrCodeResponse.builder()
-//                            .qrId(qr.getQrId())
-//                            .qrCode(qr.getQrCode())
-//                            .qrType(qr.getQrType())
-//                            .amount(qr.getAmount())
-//                            .expiresAt(qr.getExpiresAt())
-//                            .usageLimit(qr.getUsageLimit())
-//                            .usageCount(qr.getUsageCount())
-//                            .status(qr.getStatus())
-//                            .build();
-//                    return ResponseEntity.ok(response);
-//                })
-//                .orElse(ResponseEntity.notFound().build());
-//    }
+    @PostMapping("/redeem")
+    public BaseResponse<ProcessQrResponse> processTransaction(
+            @RequestBody @Valid ProcessQrRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return BaseResponse.success(qrCodeService.processTransaction(request, httpRequest));
+    }
 }

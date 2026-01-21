@@ -27,6 +27,8 @@ public interface QrCodeRepository extends JpaRepository<QRCode, UUID> {
     // FIX 3: Rename findByQrCodeAndStatus -> findByCodeStringAndStatus
     Optional<QRCode> findByCodeStringAndStatus(String codeString, String status);
 
+    boolean existsByPayerVoucher_VoucherIdAndStatus(UUID voucherId, QrCodeStatus status);
+
     // FIX 4: Update JPQL to use q.codeString
     @Query("SELECT q FROM QRCode q WHERE q.codeString = :codeString " +
             "AND q.status = 'ACTIVE' " +
