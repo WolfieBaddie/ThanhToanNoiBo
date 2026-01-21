@@ -36,6 +36,17 @@ public class QrCodeController {
         return ResponseEntity.ok(BaseResponse.success(response, "Tạo mã QR thành công"));
     }
 
+    @GetMapping("/verify")
+    public ResponseEntity<BaseResponse<QrResponse>> verifyQr(
+            @RequestParam String code,
+            HttpServletRequest httpRequest
+    ) {
+        // Hàm này chỉ trả về thông tin Voucher/User để Merchant xác nhận trên UI
+        QrResponse info = qrCodeService.verifyQrContent(code, httpRequest);
+        return ResponseEntity.ok(BaseResponse.success(info, "Mã QR hợp lệ"));
+    }
+
+    // BƯỚC 2: Xác nhận thanh toán (Gửi kèm ảnh xác thực)
     @PostMapping("/redeem")
     public BaseResponse<ProcessQrResponse> processTransaction(
             @RequestBody @Valid ProcessQrRequest request,
