@@ -96,7 +96,7 @@ const VoucherPage: React.FC = () => {
                 </div>
 
                 {/* Controls Area */}
-                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto z-20">
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto z-2">
 
                     <ExchangeVoucherButton className="w-full sm:w-auto justify-center" />
 

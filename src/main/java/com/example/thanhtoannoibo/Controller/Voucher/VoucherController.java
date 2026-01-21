@@ -1,6 +1,7 @@
 package com.example.thanhtoannoibo.Controller.Voucher;
 
 import com.example.thanhtoannoibo.Common.UserVoucherStatus;
+import com.example.thanhtoannoibo.DTO.Request.Voucher.BuyPackageRequest;
 import com.example.thanhtoannoibo.DTO.Request.Voucher.BuyVoucherRequest;
 import com.example.thanhtoannoibo.DTO.Request.Voucher.ExchangeVoucherRequest;
 import com.example.thanhtoannoibo.DTO.Request.Voucher.VoucherFilterRequest;
@@ -9,6 +10,7 @@ import com.example.thanhtoannoibo.DTO.Response.PageResponse;
 import com.example.thanhtoannoibo.DTO.Response.Voucher.BuyVoucherResponse;
 import com.example.thanhtoannoibo.DTO.Response.Voucher.UserVoucherResponse;
 import com.example.thanhtoannoibo.Service.Voucher.UserVoucherService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -65,5 +67,11 @@ public class VoucherController {
     @PostMapping("/exchange")
     public BaseResponse<BuyVoucherResponse> exchangeVoucher(@RequestBody ExchangeVoucherRequest request) {
         return BaseResponse.success(voucherService.exchangeVoucher(request));
+    }
+
+    @PostMapping("/buy-package")
+    public ResponseEntity<BaseResponse<BuyVoucherResponse>> buyPackage(@RequestBody @Valid BuyPackageRequest request) {
+        BuyVoucherResponse response = voucherService.buyPackage(request);
+        return ResponseEntity.ok(BaseResponse.success(response, "Mua gói dịch vụ thành công!"));
     }
 }

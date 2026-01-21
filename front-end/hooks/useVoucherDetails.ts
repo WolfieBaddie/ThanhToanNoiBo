@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { voucherService } from '../services/voucher.service';
-import { UserVoucherDetailResponse } from '@/types/voucher.type';
+import { UserVoucherResponse } from '@/types/voucher.type';
 
 export const useVoucherDetail = (voucherId: string | undefined) => {
-    const [voucher, setVoucher] = useState<UserVoucherDetailResponse | null>(null);
+    // Sửa state type thành UserVoucherResponse
+    const [voucher, setVoucher] = useState<UserVoucherResponse | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -12,8 +13,8 @@ export const useVoucherDetail = (voucherId: string | undefined) => {
 
         const fetchDetail = async () => {
             setIsLoading(true);
+            setError(null); // Reset lỗi trước khi gọi mới
             try {
-                // Service đã được định nghĩa ở bước trước, trả về DTO
                 const data = await voucherService.getVoucherDetail(voucherId);
                 setVoucher(data);
             } catch (err: any) {
