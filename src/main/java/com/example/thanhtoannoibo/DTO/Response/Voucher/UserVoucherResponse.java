@@ -1,10 +1,12 @@
 package com.example.thanhtoannoibo.DTO.Response.Voucher;
 
+import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
 import lombok.Builder;
 import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -16,6 +18,7 @@ public class UserVoucherResponse {
 
     // --- THÔNG TIN DỊCH VỤ (Map từ AppService) ---
     private UUID serviceId;
+    private UUID packageId;
     private String serviceName; // Tên món ăn / dịch vụ
     private String imageUrl;    // Ảnh minh họa
     private String categoryName;// Bữa sáng, Trưa...
@@ -30,4 +33,6 @@ public class UserVoucherResponse {
     private boolean isExpired;
     private Integer quantity;
     private String qrContent;
+
+    private List<ServiceResponse> includedServices;
 }

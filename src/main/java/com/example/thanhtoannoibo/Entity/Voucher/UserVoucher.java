@@ -31,6 +31,9 @@ public class UserVoucher {
     @Column(name = "service_id")
     private UUID serviceId;
 
+    @Column(name = "package_id")
+    private UUID packageId;
+
     // [MỚI]: Lưu cứng tên dịch vụ tại thời điểm mua
     @Column(name = "service_name")
     private String serviceName;
