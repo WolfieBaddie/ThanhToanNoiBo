@@ -52,6 +52,9 @@ public class User implements UserDetails {
     @Column(name = "username", nullable = false, unique = true)
     private String username;
 
+    @Column(name = "image_url")
+    private String imageUrl;
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
