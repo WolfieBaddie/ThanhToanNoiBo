@@ -74,65 +74,75 @@ public class QrCodeService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        // 2. Validate Trạng thái
+        // 2. Validate Trạng thái Voucher
         if (linkedVoucher.getStatus() != UserVoucherStatus.ACTIVE) {
             throw new AppException(ErrorCode.VOUCHER_USED_OR_EXPIRED);
         }
 
-        // Check hạn sử dụng gốc của Voucher (nếu voucher hết hạn thì không cho tạo QR)
+        // Check hạn sử dụng gốc của Voucher
         LocalDateTime now = LocalDateTime.now();
         if (linkedVoucher.getExpiresAt() != null && linkedVoucher.getExpiresAt().isBefore(now)) {
             throw new AppException(ErrorCode.VOUCHER_USED_OR_EXPIRED);
         }
 
-        // 3. XỬ LÝ SỐ LƯỢNG (Hướng giải quyết 1)
-        // Lấy số lượng user muốn dùng từ request, mặc định là 1
+        // 3. XỬ LÝ SỐ LƯỢNG
         int quantityToUse = (request.getQuantity() != null && request.getQuantity() > 0) ? request.getQuantity() : 1;
 
-        // Kiểm tra số dư voucher thực tế
-        // (Lưu ý: linkedVoucher.getQuantity() là tổng số vé user đang sở hữu)
         if (linkedVoucher.getQuantity() < quantityToUse) {
-            throw new AppException(ErrorCode.INVALID_REQUEST); // Không đủ số lượng
+            throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        // 4. Kiểm tra Spam QR (Tùy chọn: Nếu muốn cho phép tạo nhiều QR cùng lúc thì bỏ qua)
-        // Ở đây ta có thể cho phép tạo đè, hoặc chặn.
-        // Tốt nhất là hủy các QR cũ đang ACTIVE của voucher này đi để tránh double spending ở client
-        // (Logic hủy QR cũ - Optional)
-
-        // 5. TÍNH TOÁN GIÁ TRỊ & HẠN DÙNG
-
-
+        // 4. TÍNH TOÁN GIÁ TRỊ & HẠN DÙNG
         BigDecimal totalQrValue = linkedVoucher.getPriceAtPurchase().multiply(BigDecimal.valueOf(quantityToUse));
 
         LocalDateTime proposedQrExpiry = now.plusDays(1);
-
         if (linkedVoucher.getExpiresAt() != null && proposedQrExpiry.isAfter(linkedVoucher.getExpiresAt())) {
-            proposedQrExpiry = linkedVoucher.getExpiresAt(); // Nếu voucher sắp hết hạn thì QR cũng hết theo
+            proposedQrExpiry = linkedVoucher.getExpiresAt();
         }
 
-        // 6. SINH QR CODE
-        String codeString = "QR-V-" + System.currentTimeMillis() + "-" + RandomStringUtils.randomAlphanumeric(8).toUpperCase();
+        // 5. SINH MÃ CODE MỚI (Luôn sinh chuỗi mới để đảm bảo bảo mật, tránh người khác chụp lại mã cũ dùng tiếp)
+        String newCodeString = "QR-V-" + System.currentTimeMillis() + "-" + RandomStringUtils.randomAlphanumeric(8).toUpperCase();
 
-        QRCode qrCode = QRCode.builder()
-                .codeString(codeString)
-                .type(QrCodeType.VOUCHER)
-                .owner(currentUser)
-                .payerVoucher(linkedVoucher)
-                .ownerType("USER")
+        // 6. [LOGIC MỚI] TÌM HOẶC TẠO (REUSE OR CREATE)
+        QRCode qrCode;
 
-                .amount(totalQrValue) // Tổng giá trị tiền tệ của QR này
-                .usageLimit(quantityToUse) // [QUAN TRỌNG]: QR này chỉ có giá trị cho N gói/món
-                .usageCount(0)
+        // Tìm QR cũ đã hết hạn của chính Voucher này
+        Optional<QRCode> recyclableQr = qrCodeRepository.findFirstByPayerVoucherAndExpiresAtBefore(linkedVoucher, now);
 
-                .status(QrCodeStatus.ACTIVE)
-                .expiresAt(proposedQrExpiry) // Hạn 1 ngày
-                .createdAt(now)
-                .build();
+        if (recyclableQr.isPresent()) {
+            // A. TÁI SỬ DỤNG (UPDATE)
+            qrCode = recyclableQr.get();
+            log.info("Recycling expired QR Code ID: {}", qrCode.getQrId());
+
+            qrCode.setCodeString(newCodeString);       // Cập nhật mã hiển thị mới
+            qrCode.setAmount(totalQrValue);            // Cập nhật giá trị (đề phòng giá thay đổi)
+            qrCode.setUsageLimit(quantityToUse);       // Cập nhật số lượng
+            qrCode.setUsageCount(0);                   // Reset số lần dùng
+            qrCode.setStatus(QrCodeStatus.ACTIVE);     // Kích hoạt lại
+            qrCode.setExpiresAt(proposedQrExpiry);     // Gia hạn
+            qrCode.setCreatedAt(now);                  // Làm mới ngày tạo (tuỳ chọn, để sort cho dễ)
+
+            // Lưu ý: owner và payerVoucher giữ nguyên không đổi
+        } else {
+            // B. TẠO MỚI (CREATE)
+            qrCode = QRCode.builder()
+                    .codeString(newCodeString)
+                    .type(QrCodeType.VOUCHER)
+                    .owner(currentUser)
+                    .payerVoucher(linkedVoucher)
+                    .ownerType("USER")
+                    .amount(totalQrValue)
+                    .usageLimit(quantityToUse)
+                    .usageCount(0)
+                    .status(QrCodeStatus.ACTIVE)
+                    .expiresAt(proposedQrExpiry)
+                    .createdAt(now)
+                    .build();
+        }
 
         QRCode savedQr = qrCodeRepository.save(qrCode);
 
-        // Log Audit
+        // Log Audit (Vẫn log bình thường để tra soát lịch sử sinh mã)
         saveGenerateQrLog(currentUser, savedQr, linkedVoucher, totalQrValue);
 
         return mapToQrResponse(savedQr);
@@ -168,6 +178,12 @@ public class QrCodeService {
     /**
      * Xử lý giao dịch khi quét QR (Cập nhật logic Confirm số lượng)
      */
+    /**
+     * Xử lý giao dịch khi quét QR
+     * Cập nhật:
+     * 1. Cập nhật đúng usageCount và usageLimit của QR (hỗ trợ QR dùng nhiều lần).
+     * 2. Log giao dịch tập trung vào "Trừ số lượng" thay vì "Trừ tiền" để tránh User hiểu nhầm.
+     */
     @Transactional(rollbackFor = Exception.class)
     public ProcessQrResponse processTransaction(ProcessQrRequest req, HttpServletRequest httpRequest) {
         User merchant = authService.getCurrentUser(httpRequest);
@@ -176,185 +192,164 @@ public class QrCodeService {
         Counter merchantCounter = counterRepository.findByManagedBy_UserId(merchant.getUserId())
                 .orElseThrow(() -> new AppException(ErrorCode.MERCHANT_NO_COUNTER));
 
-        // 2. Tìm & Lock QR Code
+        // 2. Lock & Validate QR
         QRCode targetQr = qrCodeRepository.findActiveQRCodeForUpdate(req.getQrCode())
                 .orElseThrow(() -> new AppException(ErrorCode.QR_CODE_NOT_FOUND));
 
         if (targetQr.getStatus() != QrCodeStatus.ACTIVE) {
             throw new AppException(ErrorCode.QR_CODE_EXPIRED);
         }
-
-        // Validate hạn sử dụng QR
+        // Check hạn thời gian
         if (targetQr.getExpiresAt() != null && targetQr.getExpiresAt().isBefore(LocalDateTime.now())) {
-            targetQr.setStatus(QrCodeStatus.EXPIRED); // Update luôn nếu đã hết hạn
+            targetQr.setStatus(QrCodeStatus.EXPIRED);
             qrCodeRepository.save(targetQr);
             throw new AppException(ErrorCode.QR_CODE_EXPIRED);
         }
 
+        // Check giới hạn số lần sử dụng còn lại của QR này
+        int currentUsage = targetQr.getUsageCount();
+        int maxLimit = targetQr.getUsageLimit();
+        int remainingUsage = maxLimit - currentUsage;
+
+        if (remainingUsage <= 0) {
+            targetQr.setStatus(QrCodeStatus.EXPIRED);
+            qrCodeRepository.save(targetQr);
+            throw new AppException(ErrorCode.EXCEED_QR_LIMIT);
+        }
+
+        // 3. Xác định số lượng muốn dùng (Requested Quantity)
+        int qtyToProcess = (req.getQuantity() != null && req.getQuantity() > 0) ? req.getQuantity() : 1;
+
+        // Nếu số lượng muốn dùng > số lượng còn lại của QR -> Lỗi
+        if (qtyToProcess > remainingUsage) {
+            throw new AppException(ErrorCode.EXCEED_QR_LIMIT);
+        }
+
         UserVoucher voucher = targetQr.getPayerVoucher();
-
-        // 3. [LOGIC MỚI] XÁC ĐỊNH SỐ LƯỢNG THỰC TẾ (ACTUAL QUANTITY)
-        int limitInQr = targetQr.getUsageLimit(); // Số lượng User cho phép (VD: 2)
-        int actualQtyToProcess = limitInQr;       // Mặc định là trừ hết
-
-        // Nếu Merchant có gửi số lượng thực tế lên
-        if (req.getQuantity() != null) {
-            if (req.getQuantity() > limitInQr) {
-                // Merchant trừ nhiều hơn User cho phép -> Chặn ngay
-                throw new AppException(ErrorCode.EXCEED_QR_LIMIT);
-            }
-            if (req.getQuantity() <= 0) {
-                throw new AppException(ErrorCode.INVALID_REQUEST);
-            }
-            actualQtyToProcess = req.getQuantity(); // Dùng số thực tế (VD: 1)
-        }
-
-        // Các biến xử lý giao dịch
         AppService targetService = null;
-        BigDecimal finalTransactionAmount;
-        BigDecimal refundAmount = BigDecimal.ZERO;
-        String description = req.getDescription();
+        String transactionDesc = req.getDescription(); // Description gửi từ Client (nếu có)
 
-        // =========================================================================
-        // CASE 1: SPECIFIC/PACKAGE VOUCHER (Voucher món ăn/combo)
-        // =========================================================================
-        // Check logic: serviceId != null HOẶC packageId != null (tùy cấu trúc DB bạn chọn trước đó)
-        // Ở đây ta check theo logic "Không phải Generic" (Generic thường serviceId null và priceAtPurchase là mệnh giá tiền)
+        // 4. Validate Scope & Build Description
+        if (voucher.getServiceId() != null) {
+            // ... (Logic check Service/Counter giữ nguyên) ...
+            targetService = appServiceRepository.findById(voucher.getServiceId())
+                    .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
 
-        // Nếu là Voucher Món/Gói cụ thể (Có serviceId hoặc packageId)
-        if (voucher.getServiceId() != null || voucher.getPackageId() != null) {
-
-            // Logic Validate Service (Nếu là Voucher Món Lẻ)
-            if (voucher.getServiceId() != null) {
-                targetService = appServiceRepository.findById(voucher.getServiceId())
-                        .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
-
-                // Check Scope Quầy
-                if (!targetService.getCounter().getCounterId().equals(merchantCounter.getCounterId())) {
-                    throw new AppException(ErrorCode.INVALID_SCOPE);
-                }
+            if (targetService.getCounter() == null ||
+                    !targetService.getCounter().getCounterId().equals(merchantCounter.getCounterId())) {
+                throw new AppException(ErrorCode.INVALID_SCOPE);
             }
-            // Nếu là Voucher Combo (Package) -> Không cần check Service Scope chặt, hoặc check theo logic Package
 
-            // TÍNH TIỀN: Giá gốc lúc mua * Số lượng thực tế dùng
-            finalTransactionAmount = voucher.getPriceAtPurchase().multiply(BigDecimal.valueOf(actualQtyToProcess));
-
-            if (description == null) {
-                description = String.format("Thanh toán qua voucher %d %s", actualQtyToProcess, voucher.getServiceName());
+            // [CHANGE 1]: Tự động tạo Description tập trung vào Số lượng
+            if (transactionDesc == null || transactionDesc.isEmpty()) {
+                transactionDesc = String.format("Đổi %d %s", qtyToProcess, targetService.getServiceName());
             }
-        }
-        // =========================================================================
-        // CASE 2: GENERIC VOUCHER (Voucher Xu/Tiền mặt linh hoạt)
-        // =========================================================================
-        else {
-            // Logic Generic giữ nguyên (thường Generic QR chỉ dùng 1 lần cho 1 bill, quantity luôn là 1)
-            // Nếu Merchant chọn món gán vào
+        } else {
+            // Universal Voucher
             if (req.getServiceId() != null) {
                 targetService = appServiceRepository.findById(req.getServiceId())
                         .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
+                // Validate Counter ...
                 if (!targetService.getCounter().getCounterId().equals(merchantCounter.getCounterId())) {
                     throw new AppException(ErrorCode.INVALID_SCOPE);
                 }
-                if (description == null) description = "Mua " + targetService.getServiceName();
+                if (transactionDesc == null) transactionDesc = "Đổi " + qtyToProcess + " " + targetService.getServiceName();
             } else {
-                if (description == null) description = "Thanh toán Voucher Xu";
+                if (transactionDesc == null) transactionDesc = "Sử dụng tại " + merchantCounter.getCounterName();
             }
-
-            BigDecimal billAmount = req.getBillAmount();
-            BigDecimal qrTotalValue = targetQr.getAmount(); // Tổng giá trị QR (đã nhân quantity lúc gen)
-
-            if (qrTotalValue.compareTo(billAmount) < 0) {
-                throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
-            }
-
-            finalTransactionAmount = billAmount;
-            refundAmount = qrTotalValue.subtract(billAmount); // Tiền thừa
         }
 
-        // =========================================================================
-        // EXECUTE TRANSACTION
-        // =========================================================================
-
-        // 1. Kiểm tra kho vé của User lần cuối (Concurrency check)
-        if (voucher.getQuantity() < actualQtyToProcess) {
+        // 5. TRỪ KHO VOUCHER GỐC (UserVoucher)
+        if (voucher.getQuantity() < qtyToProcess) {
             throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
         }
-
-        // 2. Trừ kho vé User
-        voucher.setQuantity(voucher.getQuantity() - actualQtyToProcess);
+        voucher.setQuantity(voucher.getQuantity() - qtyToProcess);
         if (voucher.getQuantity() == 0) {
-            voucher.setStatus(UserVoucherStatus.EXHAUSTED); // Hoặc EXHAUSTED
+            voucher.setStatus(UserVoucherStatus.EXPIRED);
             voucher.setUsedAt(LocalDateTime.now());
         }
-        // Lưu ý: Nếu voucher.getQuantity() > 0, status vẫn là ACTIVE để dùng lần sau (với QR mới)
         userVoucherRepository.save(voucher);
 
-        // 3. Tạo Order
+        // 6. TÍNH TOÁN GIÁ TRỊ (Để Merchant biết doanh thu, User không bị trừ tiền ví)
+        // Vẫn cần tính tiền để lưu vào Transaction cho Merchant đối soát,
+        // nhưng với User, đây là giao dịch "REDEEM", không phải "PAYMENT" từ ví.
+        BigDecimal transactionValue = voucher.getPriceAtPurchase().multiply(BigDecimal.valueOf(qtyToProcess));
+        UserCredit merchantCredit = userCreditRepository.findWithLockByUser_UserId(merchant.getUserId())
+                .orElseThrow(() -> new AppException(ErrorCode.CREDIT_NOT_FOUND));
+
+        merchantCredit.setBalance(merchantCredit.getBalance().add(transactionValue));
+        userCreditRepository.save(merchantCredit);
+
+        // Tạo Order Log
         Order order = Order.builder()
                 .user(voucher.getOwner())
                 .serviceEntity(targetService)
                 .orderRef("ORD-QR-" + System.currentTimeMillis())
-                .amountPaid(finalTransactionAmount)
+                .amountPaid(transactionValue) // Giá trị quy đổi
                 .paymentMethod(OrderMethod.QR_VOUCHER)
                 .paymentStatus(PaymentStatus.PAID)
                 .completedAt(LocalDateTime.now())
                 .build();
         orderRepository.save(order);
 
-        // 4. Tạo Transaction
+        // Tạo Transaction Log
         Transaction mainTxn = Transaction.builder()
                 .transactionRef("TXN-" + order.getOrderRef())
                 .qrCode(targetQr)
-                .transactionType(TransactionType.PAYMENT)
+                .transactionType(TransactionType.REDEMPTION) // Vẫn là PAYMENT để Merchant +tiền
                 .payee(merchant)
+                .credit(merchantCredit)
                 .qrCode(targetQr)
-                .amount(finalTransactionAmount)
+                .amount(transactionValue)
+                .balanceAfter(merchantCredit.getBalance())
                 .status(TransactionStatus.COMPLETED)
-                .description(description)
+                .description(transactionDesc) // Description: "Đổi 2 Phở" -> User hiểu ngay là đổi quà
                 .createdAt(LocalDateTime.now())
                 .build();
 
+        // Metadata
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("orderId", order.getOrderId().toString());
-        metadata.put("quantity_processed", actualQtyToProcess); // Lưu số lượng thực tế
-        metadata.put("quantity_requested_in_qr", limitInQr);    // Lưu số lượng trong QR gốc
-        if (targetService != null) {
-            metadata.put("serviceName", targetService.getServiceName());
-        }
+        metadata.put("counter_name", merchantCounter.getCounterName());
+        metadata.put("merchant_id", merchant.getUserId().toString());
+        metadata.put("type", "VOUCHER_REDEMPTION"); // Flag để Frontend phân biệt
+        metadata.put("quantity_deducted", qtyToProcess); // Lưu rõ số lượng bị trừ
         mainTxn.setMetadata(metadata);
+
         transactionRepository.save(mainTxn);
 
-        // 5. Lưu Payment Detail
+        // Payment Detail
         PaymentDetail paymentDetail = PaymentDetail.builder()
                 .transaction(mainTxn)
                 .service(targetService)
-                .quantity(BigDecimal.valueOf(actualQtyToProcess))
-                .amount(finalTransactionAmount)
+                .quantity(BigDecimal.valueOf(qtyToProcess))
+                .amount(transactionValue)
                 .build();
         paymentDetailRepository.save(paymentDetail);
 
-        // 6. Xử lý Hoàn tiền (Chỉ cho Generic)
-        if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
-            processRefund(voucher.getOwner(), refundAmount, voucher.getVoucherCode());
+        // 7. [CHANGE 2] CẬP NHẬT TRẠNG THÁI QR (QUAN TRỌNG)
+        // Cộng dồn số lần đã dùng
+        targetQr.setUsageCount(currentUsage + qtyToProcess);
+
+        // Kiểm tra xem đã hết hạn mức chưa
+        if (targetQr.getUsageCount() >= targetQr.getUsageLimit()) {
+            targetQr.setStatus(QrCodeStatus.EXPIRED);
         }
+        // (Nếu chưa hết limit, status vẫn là ACTIVE để dùng tiếp lần sau)
 
-        // 7. [QUAN TRỌNG] Đóng QR Code
-        // Dù User cho phép 2, Merchant chỉ dùng 1 -> QR này vẫn bị hủy để bảo mật.
-        targetQr.setStatus(QrCodeStatus.EXHAUSTED);
-        targetQr.setUsageCount(1);
         qrCodeRepository.save(targetQr);
+        BigDecimal refundAmount = BigDecimal.ZERO;
+        saveAuditLogForTransaction(merchant, mainTxn, voucher, refundAmount, merchantCounter);
 
-        // 8. Log & Return
-        saveQrScanLog(targetQr, merchant, "SUCCESS", "Giao dịch thành công. SL: " + actualQtyToProcess
-                + "Giá trị: " + formatMoney(finalTransactionAmount)
-                , req.getImageUrl());
+        // Log Scan
+        saveQrScanLog(targetQr, merchant, "SUCCESS",
+                "Quầy: " + merchantCounter.getCounterName() + ". Trừ: " + qtyToProcess + " vé.",
+                req.getImageUrl());
 
         return ProcessQrResponse.builder()
                 .transactionId(mainTxn.getTransactionId())
-                .paidAmount(finalTransactionAmount)
-                .refundedAmount(refundAmount)
+                .paidAmount(transactionValue)
                 .status("SUCCESS")
-                .message("Thanh toán thành công. Đã trừ " + actualQtyToProcess + " vé." + " Giá trị: " + formatMoney(finalTransactionAmount))
+                .message("Đã trừ " + qtyToProcess + " lượt sử dụng thành công.")
                 .build();
     }
 
@@ -362,46 +357,6 @@ public class QrCodeService {
         return amount == null ? "0" : amount.toString();
     }
 
-    // =================================================================================
-    // HELPER METHODS (PRIVATE)
-    // =================================================================================
-
-    private Order createOrderLog(User customer, AppService service, BigDecimal amount, Counter counter) {
-        String orderRef = "ORD-QR-" + System.currentTimeMillis() + "-" + RandomStringUtils.randomAlphanumeric(4).toUpperCase();
-        Order order = Order.builder()
-                .user(customer)
-                .serviceEntity(service) // Null nếu là Generic Voucher
-                .orderRef(orderRef)
-                .amountPaid(amount)
-                .paymentMethod(OrderMethod.QR_VOUCHER) // Enum mới
-                .paymentStatus(PaymentStatus.PAID)
-                .orderStatus(OrderStatus.COMPLETED)
-                .createdAt(LocalDateTime.now())
-                .completedAt(LocalDateTime.now())
-                .build();
-        return orderRepository.save(order);
-    }
-
-    private Transaction createTransactionLog(Order order, QRCode qr, User payee, BigDecimal amount, String description) {
-        Transaction txn = Transaction.builder()
-                .transactionRef("TXN-" + order.getOrderRef()) // Link ref với Order
-                .transactionType(TransactionType.PAYMENT)
-                .payee(payee) // Merchant nhận tiền
-                .qrCode(qr)
-                .amount(amount)
-                .balanceAfter(BigDecimal.ZERO) // Voucher payment không track balance user tại đây
-                .status(TransactionStatus.COMPLETED)
-                .description(description)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        // Lưu Metadata liên kết Order ID
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("order_id", order.getOrderId().toString());
-        txn.setMetadata(meta);
-
-        return transactionRepository.save(txn);
-    }
 
     private void processRefund(User owner, BigDecimal refundAmount, String voucherCode) {
         UserCredit userWallet = userCreditRepository.findWithLockByUser_UserId(owner.getUserId())
@@ -458,9 +413,10 @@ public class QrCodeService {
             details.put("voucher_code", voucher.getVoucherCode());
             details.put("refund_amount", refund);
             details.put("counter_code", counter.getCounterCode());
+            details.put("transaction_ref", txn.getTransactionRef()); // Nên thêm ref để dễ tìm
 
             AuditLog audit = AuditLog.builder()
-                    .user(merchant)
+                    .user(merchant) // Người thực hiện hành động (Merchant)
                     .action("PROCESS_QR")
                     .entityType("TRANSACTION")
                     .entityId(txn.getTransactionId())
@@ -470,36 +426,38 @@ public class QrCodeService {
                     .build();
             auditLogRepository.save(audit);
         } catch (Exception e) {
-            log.error("Audit Error", e);
+            log.error("Audit Error", e); // Không throw lỗi để tránh rollback transaction chính
         }
     }
 
     private QrResponse mapToQrResponse(QRCode qr) {
-        // Lấy thông tin Voucher (nếu có)
         String voucherCode = (qr.getPayerVoucher() != null) ? qr.getPayerVoucher().getVoucherCode() : null;
         UUID voucherId = (qr.getPayerVoucher() != null) ? qr.getPayerVoucher().getVoucherId() : null;
-
-        // [MỚI] Lấy thông tin Owner
         User owner = qr.getOwner();
 
         List<ServiceResponse> includedServices = new ArrayList<>();
         UserVoucher voucher = qr.getPayerVoucher();
 
-        if (voucher != null && voucher.getPackageId() != null) {
-            // Gọi repository để lấy services (Lưu ý: cần inject appPackageRepository)
-            appPackageRepository.findByIdWithServices(voucher.getPackageId())
-                    .ifPresent(pkg -> {
-                        pkg.getServices().forEach(s -> includedServices.add(
-                                ServiceResponse.builder()
-                                        .serviceId(s.getServiceId())
-                                        .serviceName(s.getServiceName())
-                                        .imageUrl(s.getImageUrl())
-                                        .unitPrice(s.getUnitPrice())
-                                        .build()
-                        ));
-                    });
+        if (voucher != null) {
+            // Case 1: Voucher là Package
+            if (voucher.getPackageId() != null) {
+                appPackageRepository.findByIdWithServices(voucher.getPackageId())
+                        .ifPresent(pkg -> {
+                            pkg.getServices().forEach(s -> includedServices.add(mapServiceToResponse(s)));
+                        });
+            }
+            // Case 2: [MỚI] Voucher là Service đơn lẻ (Cần hiển thị để Merchant biết)
+            else if (voucher.getServiceId() != null) {
+                appServiceRepository.findById(voucher.getServiceId())
+                        .ifPresent(service -> {
+                            includedServices.add(mapServiceToResponse(service));
+                        });
+            }
         }
 
+        // Backend nên trả về cả usageLimit để Frontend biết
+        // Ở đây giả sử DTO QrResponse có trường usageLimit (như file qr.type.ts bên frontend)
+        // Nếu DTO chưa có, hãy thêm field: private Integer usageLimit; vào QrResponse.java
 
         return QrResponse.builder()
                 .qrId(qr.getQrId())
@@ -507,14 +465,10 @@ public class QrCodeService {
                 .type(qr.getType().name())
                 .status(qr.getStatus().name())
                 .creditAmount(qr.getAmount())
-
                 .voucherId(voucherId)
                 .voucherCode(voucherCode)
-
                 .expiresAt(qr.getExpiresAt())
                 .createdAt(qr.getCreatedAt())
-
-                // [MỚI] Map thông tin User
                 .userId(owner != null ? owner.getUserId() : null)
                 .fullName(owner != null ? owner.getFullName() : "Khách vãng lai")
                 .userType(owner != null ? owner.getUserType().name() : null)
@@ -522,6 +476,16 @@ public class QrCodeService {
                 .phoneNumber(owner != null ? owner.getPhoneNumber() : "")
                 .imageUrl(owner != null ? owner.getImageUrl() : null)
                 .includedServices(includedServices)
+                .usageLimit(qr.getUsageLimit())
+                .build();
+    }
+
+    private ServiceResponse mapServiceToResponse(AppService s) {
+        return ServiceResponse.builder()
+                .serviceId(s.getServiceId())
+                .serviceName(s.getServiceName())
+                .imageUrl(s.getImageUrl())
+                .unitPrice(s.getUnitPrice())
                 .build();
     }
 
