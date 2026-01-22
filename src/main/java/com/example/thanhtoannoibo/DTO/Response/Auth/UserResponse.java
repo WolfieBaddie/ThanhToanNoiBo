@@ -26,5 +26,5 @@ public class UserResponse {
     private LocalDateTime createdAt;
     private Set<String> roles;
     private Set<String> permissions;
-
+    private String imageUrl;
 }
