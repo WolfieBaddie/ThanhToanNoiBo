@@ -22,4 +22,6 @@ public class TransactionResponse {
     private String transactionType;// DEPOSIT, BUY_VOUCHER...
 
     private LocalDateTime createdAt;
+
+    private TransactionPartnerInfo partnerInfo;
 }
