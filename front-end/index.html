@@ -1,17 +1,80 @@
+
 <!DOCTYPE html>
-<html lang="vi">
-  <head>
+<html lang="en">
+<head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Swallet - Ví Căng tin Trường học</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/index.css">
+    <title>SmartSchool — The Cashless Campus Experience</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            primary: '#2563EB', // Electric Blue
+                            secondary: '#6366F1', // Indigo
+                            accent: '#F43F5E', // Coral/Rose
+                            dark: '#0F172A', // Slate 900
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+                        jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    borderRadius: {
+                        '3xl': '24px',
+                        '4xl': '32px',
+                        '5xl': '40px',
+                    },
+                    boxShadow: {
+                        'premium': '0 20px 50px -12px rgba(0, 0, 0, 0.08)',
+                        'glow': '0 0 20px rgba(37, 99, 235, 0.2)',
+                    }
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #FFFFFF;
+            color: #0F172A;
+        }
+        .mesh-gradient {
+            background-color: #ffffff;
+            background-image:
+                    radial-gradient(at 0% 0%, hsla(221,100%,95%,1) 0, transparent 50%),
+                    radial-gradient(at 100% 0%, hsla(262,100%,95%,1) 0, transparent 50%);
+        }
+        .scroll-smooth {
+            scroll-behavior: smooth;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+        .animate-float {
+            animation: float 5s ease-in-out infinite;
+        }
+    </style>
+    <script type="importmap">
+        {
+          "imports": {
+            "react/": "https://esm.sh/react@^19.2.3/",
+            "react": "https://esm.sh/react@^19.2.3",
+            "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+            "react-router-dom": "https://esm.sh/react-router-dom@^7.12.0",
+            "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+            "framer-motion": "https://esm.sh/framer-motion@^11.0.0"
+          }
+        }
+    </script>
+    <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-slate-50 text-slate-900 antialiased transition-colors duration-300 dark:bg-slate-950 dark:text-slate-50">
-    <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
+<body class="text-slate-900 overflow-x-hidden">
+<div id="root"></div>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>

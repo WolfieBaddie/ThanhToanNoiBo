@@ -4,7 +4,7 @@ import {
     LoginResponse,
     RefreshTokenRequest,
     LogoutRequest,
-    UserProfile
+    UserProfile, RegisterRequest, GenerateOtpResponse
 } from '../types/auth.types';
 
 const ENDPOINT = '/auth';
@@ -44,5 +44,15 @@ export const authService = {
 
     validateToken: async (): Promise<void> => {
         await axiosClient.get(`${ENDPOINT}/validate`);
-    }
+    },
+
+    register: async (data: RegisterRequest): Promise<LoginResponse> => {
+        const response = await axiosClient.post<LoginResponse>(`${ENDPOINT}/register`, data);
+        return response as unknown as LoginResponse;
+    },
+
+    sendRegisterOtp: async (email: string): Promise<GenerateOtpResponse> => {
+        const response = await axiosClient.post<GenerateOtpResponse>(`${ENDPOINT}/register/send-otp`, { email });
+        return response as unknown as GenerateOtpResponse;
+    },
 };

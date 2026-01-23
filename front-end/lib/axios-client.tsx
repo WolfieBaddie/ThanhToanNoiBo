@@ -1,7 +1,6 @@
-import axios, {AxiosError} from 'axios';
-import { storage } from '../utils/storage';
+import axios, { AxiosError } from 'axios';
 
-const BASE_URL = process.env.PUBLIC_API_URL || 'http://localhost:8080/api';
+const BASE_URL = 'http://localhost:8080/api';
 
 export const axiosClient = axios.create({
     baseURL: BASE_URL,
@@ -11,34 +10,73 @@ export const axiosClient = axios.create({
     withCredentials: true,
 });
 
+let isRefreshing = false;
+let failedQueue: any[] = [];
+
+const processQueue = (error: any, token: string | null = null) => {
+    failedQueue.forEach((prom) => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+    failedQueue = [];
+};
+
 axiosClient.interceptors.response.use(
     (response) => {
         const apiResponse = response.data;
-
-        // Trường hợp 1: HTTP 200 & Business Code 200 => Thành công
         if (response.status === 200 && apiResponse.code === 200) {
-            // Trả về dữ liệu lõi (T) để Service/Component dùng luôn
             return apiResponse.data;
         }
-
-        // Trường hợp 2: HTTP 200 nhưng Business Code lỗi (VD: code 400, message "Hết hàng")
-        // Cần ném lỗi để nhảy vào catch của Component
         return Promise.reject(new AxiosError(
             apiResponse.message,
             String(apiResponse.code),
             response.config,
             response.request,
-            response // Trả về nguyên response để component đọc được data
+            response
         ));
     },
-    (error) => {
-        // Trường hợp 3: HTTP Lỗi (400, 401, 500...) từ Backend (GlobalExceptionHandler trả về)
-        const originalRequest = error.config;
+    async (error: AxiosError) => {
+        const originalRequest = error.config as any;
 
-        // Xử lý 401 (Hết hạn token) như cũ
-        if (error.response?.status === 401) {
-            if (originalRequest.url.includes('/auth/me') || originalRequest.url.includes('/profile')) {
+        // Xử lý 401
+        if (error.response?.status === 401 && !originalRequest._retry) {
+
+            // [FIX QUAN TRỌNG]: Nếu lỗi 401 xảy ra khi đang check login (/me)
+            // hoặc đang login/refresh -> KHÔNG làm gì cả, trả lỗi về luôn để AuthContext xử lý.
+            // Tránh vòng lặp reload trang vô tận.
+            if (
+                originalRequest.url?.includes('/auth/me') ||
+                originalRequest.url?.includes('/auth/login') ||
+                originalRequest.url?.includes('/auth/refresh')
+            ) {
                 return Promise.reject(error);
+            }
+
+            if (isRefreshing) {
+                return new Promise(function (resolve, reject) {
+                    failedQueue.push({ resolve, reject });
+                })
+                    .then(() => axiosClient(originalRequest))
+                    .catch((err) => Promise.reject(err));
+            }
+
+            originalRequest._retry = true;
+            isRefreshing = true;
+
+            try {
+                await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+                processQueue(null);
+                return axiosClient(originalRequest);
+            } catch (refreshError) {
+                processQueue(refreshError, null);
+                // Nếu refresh thất bại, điều hướng về login (nhưng không reload nếu không cần thiết)
+                window.location.href = '/login';
+                return Promise.reject(refreshError);
+            } finally {
+                isRefreshing = false;
             }
         }
 

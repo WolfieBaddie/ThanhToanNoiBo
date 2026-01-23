@@ -4,6 +4,7 @@ import com.example.thanhtoannoibo.DTO.Request.Auth.GenerateOtpRequest;
 import com.example.thanhtoannoibo.DTO.Request.Auth.LoginRequest;
 import com.example.thanhtoannoibo.DTO.Request.Auth.LogoutRequest;
 import com.example.thanhtoannoibo.DTO.Request.Auth.RefreshTokenRequest;
+import com.example.thanhtoannoibo.DTO.Request.Register.RegisterRequest;
 import com.example.thanhtoannoibo.DTO.Response.Auth.GenerateOtpResponse;
 import com.example.thanhtoannoibo.DTO.Response.Auth.LoginResponse;
 import com.example.thanhtoannoibo.DTO.Response.Auth.RefreshTokenResponse;
@@ -25,6 +26,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.stream.Collectors;
 import jakarta.servlet.http.Cookie;
 @RestController
@@ -184,6 +186,26 @@ public class AuthController {
                         .sentAt(LocalDateTime.now())
                         .build()
         ));
+    }
+
+    // 1. Endpoint Gửi OTP (Public - không cần token)
+    @PostMapping("/register/send-otp")
+    public ResponseEntity<BaseResponse<String>> sendRegisterOtp(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        // Logic gửi OTP cho hành động REGISTER
+        otpService.generateAndSendOtp(email, "REGISTER");
+        return ResponseEntity.ok(BaseResponse.success("OTP đã được gửi tới " + email));
+    }
+
+    // 2. Endpoint Đăng ký (Kèm OTP)
+    @PostMapping("/register")
+    public ResponseEntity<BaseResponse<LoginResponse>> register(@Valid @RequestBody RegisterRequest request) {
+        // Gọi Service xử lý tất cả (Validate OTP -> Tạo User -> Tạo Credit -> Login)
+        LoginResponse result = authService.register(request);
+
+        // Trả về Token (Cookie/Header) như Login
+        // ... code set cookie ...
+        return ResponseEntity.ok(BaseResponse.success(result));
     }
 
     private String maskEmail(String email) {

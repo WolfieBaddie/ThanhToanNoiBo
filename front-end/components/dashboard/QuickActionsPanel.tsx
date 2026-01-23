@@ -10,8 +10,7 @@ export const QuickActionPanel: React.FC<QuickActionPanelProps> = ({ onNavigate }
   const actions = [
       { id: 'wallet', label: 'Nạp tiền', icon: <CreditCard size={18} /> },
       { id: 'services', label: 'Đặt món', icon: <Utensils size={18} /> },
-      { id: 'history', label: 'Lịch sử', icon: <ArrowRight size={18} /> },
-      { id: 'ai', label: 'Tư vấn AI', icon: <Zap size={18} /> },
+      { id: 'history', label: 'Lịch sử', icon: <ArrowRight size={18} /> }
   ];
 
   return (

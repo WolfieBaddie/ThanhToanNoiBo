@@ -1,11 +1,14 @@
-import { UserStatus, UserType } from './common.types';
+import { UserStatus, UserRole } from './common.types';
 
+export enum UserType {
+    USER = 'USER',
+    MERCHANT = 'MERCHANT',
+    ADMIN = 'ADMIN'
+}
 // --- Request DTOs ---
-
 export interface LoginRequest {
     username: string;
     password?: string;
-    // Các trường optional vì Controller có thể lấy từ Header/IP
     deviceId?: string;
     ip?: string;
     userAgent?: string;
@@ -24,26 +27,46 @@ export interface LogoutRequest {
 }
 
 // --- Response DTOs ---
-
 export interface UserProfile {
-    userId: string; // UUID
+    userId: string;
     username: string;
     fullName: string;
     email: string;
     phoneNumber?: string;
     userType: UserType;
     status: UserStatus;
-    lastLoginAt?: string; // ISO Date string
+    lastLoginAt?: string;
     createdAt: string;
-    roles: string[];
+
+    // [CẬP NHẬT] Đổi mảng string sang mảng Enum để type safe
+    roles: UserRole[];
     permissions: string[];
+
+    avatar?: string; // Bổ sung field này nếu MainLayout dùng
+    studentCode?: string; // Bổ sung nếu cần hiển thị
 }
 
 export interface LoginResponse {
     userId: string;
-    accessExpiresAt: string; // ISO Date
-    refreshExpiresAt: string; // ISO Date
-    type: string; // "Bearer"
+    accessExpiresAt: string;
+    refreshExpiresAt: string;
+    type: string;
     expiresIn?: number;
     user: UserProfile;
+}
+
+export interface RegisterRequest {
+    username: string;
+    password: string;
+    fullName: string;
+    email: string;
+    phoneNumber?: string;
+    otp: string; // [QUAN TRỌNG] Trường OTP bắt buộc
+}
+
+export interface GenerateOtpResponse {
+    message: string;
+    maskedEmail: string;
+    expiresInSeconds: number;
+    sentAt: string;
 }

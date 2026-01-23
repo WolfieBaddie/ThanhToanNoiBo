@@ -14,4 +14,7 @@ public class ServiceResponse {
     private BigDecimal unitPrice;
     private String categoryName;
     private String imageUrl;
+
+    @Builder.Default
+    private String type = "SERVICE";
 }

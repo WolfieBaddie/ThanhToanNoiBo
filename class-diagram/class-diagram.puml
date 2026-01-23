@@ -1,0 +1,181 @@
+@startuml
+!theme plain
+hide circle
+skinparam linetype ortho
+left to right direction
+
+' --- 1. IDENTITY & ACCESS MANAGEMENT ---
+package "1. Identity & Access Management" {
+  entity "Users" as users {
+    *user_id : UUID <<PK>>
+    --
+    username : VARCHAR
+    user_type : VARCHAR
+    status : VARCHAR
+    full_name : VARCHAR
+  }
+
+  entity "Roles" as roles {
+    *role_id : UUID <<PK>>
+    --
+    role_code : VARCHAR
+  }
+
+  entity "Permissions" as permissions {
+    *permission_id : UUID <<PK>>
+    --
+    permission_code : VARCHAR
+  }
+
+  entity "User_Roles" as user_roles {
+    *user_id : UUID <<PK>>
+    *role_id : UUID <<PK>>
+  }
+
+  entity "Role_Permissions" as role_permissions {
+    *role_id : UUID <<PK>>
+    *permission_id : UUID <<PK>>
+  }
+}
+
+' --- 2. WALLET & FINANCE CORE ---
+package "2. Wallet & Finance" {
+  entity "User_Credits" as user_credits {
+    *credit_id : UUID <<PK>>
+    --
+    user_id : UUID <<FK>>
+    balance : NUMERIC
+    status : NUMERIC
+  }
+
+  entity "Transactions" as transactions {
+    *transaction_id : UUID <<PK>>
+    --
+    transaction_ref : VARCHAR
+    transaction_type : VARCHAR
+    amount : NUMERIC
+    status : VARCHAR
+    credit_id : UUID <<FK>>
+    qr_id : UUID <<FK>>
+  }
+}
+
+' --- 3. CATALOG (PRODUCT & SERVICES) ---
+package "3. Service Catalog" {
+  entity "Services" as services {
+    *service_id : UUID <<PK>>
+    --
+    service_code : VARCHAR
+    service_name : VARCHAR
+    unit_price : NUMERIC
+    category_id : UUID <<FK>>
+  }
+
+  entity "Packages" as packages {
+    *package_id : UUID <<PK>>
+    --
+    package_code : VARCHAR
+    price : NUMERIC
+    package_type : VARCHAR
+  }
+
+  entity "Package_Services" as package_services {
+    *package_id : UUID <<PK>>
+    *service_id : UUID <<PK>>
+  }
+
+  entity "Service_Categories" as categories {
+    *category_id : UUID <<PK>>
+    --
+    category_name : VARCHAR
+  }
+}
+
+' --- 4. ORDER & FULFILLMENT ---
+package "4. Order & Fulfillment" {
+  entity "Orders" as orders {
+    *order_id : UUID <<PK>>
+    --
+    order_ref : VARCHAR
+    amount_paid : NUMERIC
+    user_id : UUID <<FK>>
+    payment_status : VARCHAR
+  }
+
+  entity "Payment_Details" as payment_details {
+    *payment_id : UUID <<PK>>
+    --
+    transaction_id : UUID <<FK>>
+    amount : NUMERIC
+  }
+
+  entity "User_Vouchers" as user_vouchers {
+    *voucher_id : UUID <<PK>>
+    --
+    voucher_code : VARCHAR
+    status : VARCHAR
+    user_id : UUID <<FK>>
+    order_id : UUID <<FK>>
+    package_id : UUID <<FK>>
+  }
+}
+
+' --- 5. OPERATIONS & POS ---
+package "5. Operations & POS" {
+  entity "Qr_Codes" as qr_codes {
+    *qr_id : UUID <<PK>>
+    --
+    qr_code : VARCHAR
+    qr_type : VARCHAR
+    owner_id : UUID <<FK>>
+    voucher_id : UUID <<FK>>
+    status : VARCHAR
+  }
+
+  entity "Qr_Scan_Logs" as scan_logs {
+    *scan_id : UUID <<PK>>
+    --
+    scan_result : VARCHAR
+    scanned_by : UUID <<FK>>
+  }
+
+  entity "Counters" as counters {
+    *counter_id : UUID <<PK>>
+    --
+    counter_name : VARCHAR
+    managed_by : UUID <<FK>>
+  }
+}
+
+' --- RELATIONSHIPS (Simplified for readability) ---
+
+' Security Links
+users ||..o{ user_roles : "1"
+roles ||..o{ user_roles : "2"
+roles ||..o{ role_permissions : "3"
+permissions ||..o{ role_permissions : "4"
+
+' Wallet Links
+users ||--|| user_credits : "owns"
+user_credits ||--o{ transactions : "records"
+
+' Catalog Links
+categories ||--o{ services : "group"
+packages ||..o{ package_services : "bundle"
+services ||..o{ package_services : "include"
+
+' Order Flow
+users ||--o{ orders : "create"
+orders ||--o{ payment_details : "detail"
+orders ||--o{ user_vouchers : "issue"
+transactions ||..o{ payment_details : "pay"
+
+' Operation Links
+users ||--o{ qr_codes : "generate"
+user_vouchers ||--o{ qr_codes : "redeem"
+qr_codes ||--o{ scan_logs : "log"
+qr_codes ..o{ transactions : "trigger"
+users ||--o{ counters : "manage"
+services }o..|| counters : "sold at"
+
+@enduml

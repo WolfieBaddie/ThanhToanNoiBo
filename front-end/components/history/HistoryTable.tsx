@@ -77,13 +77,14 @@ export const HistoryTable: React.FC<HistoryTableProps> = ({ transactions, onView
                                 </span>
                                 </td>
 
-                                {/* Cột Số tiền: Xử lý màu sắc và đơn vị */}
-                                <td className={`p-4 text-right font-bold whitespace-nowrap 
-                                    ${item.type === 'in'
-                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                    : 'text-red-600 dark:text-red-400' // Màu đỏ cho giao dịch trừ tiền/xu
-                                }`}>
-                                    {formatCurrency(item.amount, item.transactionType)}
+                                <td className="px-6 py-4 text-right">
+    <span className={`font-bold text-sm ${
+        item.type === 'in'
+            ? 'text-emerald-600'
+            : item.isRedemption ? 'text-orange-600' : 'text-slate-900' // Nếu là đổi vé cho màu cam, còn lại màu đen
+    }`}>
+        {item.displayAmount} {/* Dùng trường này thay vì formatCurrency(amount) */}
+    </span>
                                 </td>
                             </tr>
                         );
