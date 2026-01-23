@@ -1,10 +1,10 @@
 
 import React from 'react';
-import { TransactionHeader } from './transaction/TransactionHeader';
-import { TransactionSummary } from './transaction/TransactionSummary';
-import { TransactionInfoList } from './transaction/TransactionInfoList';
-import { TransactionMetaInfo } from './transaction/TransactionMetaInfo';
-import { TransactionActions } from './transaction/TransactionActions';
+import { TransactionHeader } from '@/components/transactions/TransactionHeader';
+import { TransactionSummary } from '@/components/transactions/TransactionSummary';
+import { TransactionInfoList } from '@/components/transactions/TransactionInfoList';
+import { TransactionMetaInfo } from '@/components/transactions/TransactionMetaInfo';
+import { TransactionActions } from '@/components/transactions/TransactionActions';
 
 interface TransactionDetailPageProps {
   onBack: () => void;
