@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -25,4 +26,12 @@ public class ProcessQrRequest {
     private UUID serviceId;
 
     private String imageUrl;
+
+    private List<QrItemRequest> items;
+
+    @Data
+    public static class QrItemRequest {
+        private UUID serviceId;
+        private Integer quantity;
+    }
 }

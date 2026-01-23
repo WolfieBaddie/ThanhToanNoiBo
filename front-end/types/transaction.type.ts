@@ -14,13 +14,13 @@ export interface PageResponse<T> {
     items: T[];
 }
 
-// [CẬP NHẬT 1]: Định nghĩa Enum khớp với Backend (TransactionType.java)
-export type TransactionTypeEnum = 'DEPOSIT' | 'WITHDRAW' | 'PAYMENT' | 'REFUND' | 'BUY_VOUCHER' | 'TRANSFER';
+// Enum khớp với Backend
+export type TransactionTypeEnum = 'DEPOSIT' | 'WITHDRAW' | 'PAYMENT' | 'REFUND' | 'BUY_VOUCHER' | 'TRANSFER' | 'REDEMPTION';
 
-// [CẬP NHẬT 2]: Định nghĩa Status khớp với Backend (TransactionStatus.java)
+// Enum Status khớp với Backend
 export type TransactionStatusEnum = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
 
-// 1. Transaction List Item
+// 1. Transaction List Item (Dùng cho bảng danh sách)
 export interface Transaction {
     transactionId: string;
     transactionRef: string;
@@ -28,13 +28,21 @@ export interface Transaction {
     description: string;
     amount: number;
     direction: 'IN' | 'OUT';
-    status: TransactionStatusEnum; // Dùng Enum thay vì string
-    transactionType: TransactionTypeEnum; // Dùng Enum thay vì string
+    status: TransactionStatusEnum;
+    transactionType: TransactionTypeEnum;
     createdAt: string;
     partnerInfo?: TransactionPartnerInfo;
 }
 
-// 2. Transaction Detail
+// [MỚI] Interface cho từng món chi tiết trong giao dịch (Combo)
+export interface TransactionItemDetail {
+    itemName: string;
+    itemImage?: string;
+    quantity: number;
+    unitPrice: number;
+}
+
+// 2. Transaction Detail (Góc nhìn Admin/Merchant)
 export interface TransactionDetail {
     transactionId: string;
     transactionRef: string;
@@ -43,9 +51,9 @@ export interface TransactionDetail {
     type: TransactionTypeEnum;
     description: string;
     createdAt: string;
-    direction: 'IN' | 'OUT';
+    direction: 'IN' | 'OUT' | 'SYSTEM';
 
-    // Product Info
+    // Product Info (Tổng hợp)
     itemName?: string;
     itemImage?: string;
     categoryName?: string;
@@ -55,35 +63,37 @@ export interface TransactionDetail {
     packageId?: string;
     partnerInfo?: TransactionPartnerInfo;
     evidenceImage?: string;
+
+    // [MỚI] Danh sách chi tiết các món (cho giao dịch Combo/Package)
+    items?: TransactionItemDetail[];
 }
 
 export interface TransactionPartnerInfo {
     partnerId: string;
-    partnerName: string;  // Tên User hoặc Tên Quầy
-    partnerImage?: string; // Avatar/Logo
-    partnerType: 'CUSTOMER' | 'MERCHANT';
-    subTitle?: string;    // SĐT hoặc Tên thu ngân
+    partnerName: string;
+    partnerImage?: string;
+    partnerType: 'CUSTOMER' | 'MERCHANT' | 'USER';
+    subTitle?: string;
 }
 
 // 3. Filter Params
 export interface TransactionFilterParams {
     fromDate?: string;
     toDate?: string;
-    type?: TransactionTypeEnum; // Update type ở đây để khi gọi API gợi ý code tốt hơn
+    type?: TransactionTypeEnum;
     transactionRef?: string;
     page?: number;
     size?: number;
 }
 
-// [CẬP NHẬT] Interface chi tiết giao dịch cho User App
-// Khớp với UserTransactionDetailResponse.java
+// 4. User Transaction Detail (Góc nhìn User App)
 export interface UserTransactionDetail {
     transactionId: string;
     transactionRef: string;
 
     // Logic hiển thị riêng cho User
-    title: string;          // VD: "Đổi 1 Hủ Tiếu"
-    amountDisplay: string;  // VD: "-1 Vé" hoặc "-35.000đ"
+    title: string;
+    amountDisplay: string;
     isTicketRedemption: boolean;
 
     // Thông tin chung
@@ -94,7 +104,7 @@ export interface UserTransactionDetail {
     createdAt: string;
     direction: 'IN' | 'OUT';
 
-    // Sản phẩm / Dịch vụ
+    // Sản phẩm / Dịch vụ (Tổng hợp)
     itemName?: string;
     itemImage?: string;
     categoryName?: string;
@@ -103,11 +113,14 @@ export interface UserTransactionDetail {
     serviceId?: string;
     packageId?: string;
 
-    // Thông tin đối tác & Ảnh bằng chứng (Quan trọng)
+    // [MỚI] Danh sách chi tiết các món (cho giao dịch Combo/Package)
+    items?: TransactionItemDetail[];
+
+    // Thông tin đối tác & Ảnh bằng chứng
     partnerInfo?: TransactionPartnerInfo;
     evidenceImage?: string;
 
-    // Debug info
+    // Debug info / QR logic
     qrId?: string;
     qrUsageLimit?: number;
     qrUsageCount?: number;

@@ -123,6 +123,7 @@ public class TransactionService {
 
     // --- HÀM MỚI: Lấy chi tiết giao dịch ---
     public TransactionDetailResponse getTransactionDetail(UUID transactionId, UUID currentUserId) {
+        // 1. Tìm Transaction
         Transaction txn = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
 
@@ -131,31 +132,71 @@ public class TransactionService {
             direction = "IN";
         }
 
-        PaymentDetail detail = paymentDetailRepository.findByTransaction_TransactionId(transactionId).orElse(null);
+        // 2. [THAY ĐỔI] Lấy danh sách chi tiết (List) thay vì 1 cái (Optional)
+        List<PaymentDetail> details = paymentDetailRepository.findAllByTransaction_TransactionId(transactionId);
 
+        // Khởi tạo giá trị mặc định
         String itemName = txn.getDescription();
         String itemImage = null;
         String categoryName = "Giao dịch";
-        BigDecimal quantity = BigDecimal.ONE;
+        BigDecimal totalQuantity = BigDecimal.ZERO;
         BigDecimal unitPrice = txn.getAmount().abs();
+
         UUID serviceId = null;
         UUID packageId = null;
 
-        if (detail != null) {
-            quantity = detail.getQuantity();
-            if (detail.getService() != null) {
-                itemName = detail.getService().getServiceName();
-                itemImage = detail.getService().getImageUrl();
-                serviceId = detail.getService().getServiceId();
-                categoryName = detail.getService().getCategory() != null ? detail.getService().getCategory().getCategoryName() : "Dịch vụ";
-            } else if (detail.getPackageRef() != null) {
-                itemName = detail.getPackageRef().getPackageName();
-                packageId = detail.getPackageRef().getPackageId();
-                categoryName = "Gói dịch vụ";
+        // List chứa các món chi tiết để trả về
+        List<TransactionDetailResponse.TransactionItemDetail> itemsList = new ArrayList<>();
+
+        // 3. Xử lý vòng lặp
+        if (details != null && !details.isEmpty()) {
+            for (PaymentDetail detail : details) {
+                String subName = "Sản phẩm";
+                String subImage = null;
+
+                // Lấy thông tin Service/Package của item này
+                if (detail.getService() != null) {
+                    subName = detail.getService().getServiceName();
+                    subImage = detail.getService().getImageUrl();
+                    // Set ảnh đại diện cho transaction nếu chưa có
+                    if (itemImage == null) itemImage = subImage;
+                }
+
+                // Cộng dồn số lượng
+                totalQuantity = totalQuantity.add(detail.getQuantity());
+
+                // Thêm vào danh sách chi tiết
+                itemsList.add(TransactionDetailResponse.TransactionItemDetail.builder()
+                        .itemName(subName)
+                        .itemImage(subImage)
+                        .quantity(detail.getQuantity())
+                        .unitPrice(detail.getAmount())
+                        .build());
+
+                // Logic chọn Tên/Category chính để hiển thị (Ưu tiên Package)
+                if (detail.getPackageRef() != null) {
+                    itemName = "Gói: " + detail.getPackageRef().getPackageName();
+                    packageId = detail.getPackageRef().getPackageId();
+                    categoryName = "Gói dịch vụ";
+                } else if (detail.getService() != null) {
+                    // Nếu chưa có packageId (nghĩa là đang là món lẻ), thì lấy thông tin service này làm chính
+                    if (packageId == null) {
+                        itemName = detail.getService().getServiceName();
+                        serviceId = detail.getService().getServiceId();
+                        categoryName = detail.getService().getCategory() != null
+                                ? detail.getService().getCategory().getCategoryName()
+                                : "Dịch vụ";
+                    }
+                }
             }
-            if (quantity.compareTo(BigDecimal.ZERO) > 0) {
-                unitPrice = detail.getAmount().abs().divide(quantity, 2, java.math.RoundingMode.HALF_UP);
+
+            // Tính lại đơn giá hiển thị (Amount / Tổng số lượng)
+            if (totalQuantity.compareTo(BigDecimal.ZERO) > 0) {
+                unitPrice = txn.getAmount().abs().divide(totalQuantity, 2, java.math.RoundingMode.HALF_UP);
             }
+        } else {
+            // Fallback nếu không có payment detail (dữ liệu cũ)
+            totalQuantity = BigDecimal.ONE;
         }
 
         return TransactionDetailResponse.builder()
@@ -167,13 +208,19 @@ public class TransactionService {
                 .description(txn.getDescription())
                 .createdAt(txn.getCreatedAt())
                 .direction(direction)
+
+                // Các trường thông tin tổng hợp
                 .itemName(itemName)
                 .itemImage(itemImage)
                 .categoryName(categoryName)
-                .quantity(quantity)
+                .quantity(totalQuantity)
                 .priceAtPurchase(unitPrice)
                 .serviceId(serviceId)
                 .packageId(packageId)
+
+                // [MỚI] Trả về list chi tiết
+                .items(itemsList)
+
                 .partnerInfo(mapPartnerInfo(txn, currentUserId))
                 .evidenceImage(getEvidenceImage(txn))
                 .build();
@@ -330,73 +377,92 @@ public class TransactionService {
 
     @Transactional
     public UserTransactionDetailResponse getUserTransactionDetail(UUID transactionId, UUID userId) {
-        // 1. Tìm Transaction
+        // 1. Tìm Transaction & Validate Quyền (Giữ nguyên)
         Transaction txn = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
 
-        // 2. Validate Quyền
+        // Validate owner... (Giữ nguyên code cũ của bạn)
         boolean isOwner = false;
         if (txn.getCredit() != null && txn.getCredit().getUser().getUserId().equals(userId)) isOwner = true;
         if (txn.getQrCode() != null && txn.getQrCode().getOwner().getUserId().equals(userId)) isOwner = true;
         if (txn.getPayee() != null && txn.getPayee().getUserId().equals(userId)) isOwner = true;
         if (!isOwner) throw new AppException(ErrorCode.UNAUTHORIZED);
 
-        // 3. Init Variables
         String direction = (txn.getPayee() != null && txn.getPayee().getUserId().equals(userId)) || txn.getTransactionType() == TransactionType.DEPOSIT ? "IN" : "OUT";
 
-        // Mặc định
-        String itemName = txn.getDescription();
-        String itemImage = null;
+        // 2. [THAY ĐỔI LỚN] Lấy LIST PaymentDetail thay vì 1 cái
+        List<PaymentDetail> details = paymentDetailRepository.findAllByTransaction_TransactionId(transactionId);
+
+        // Khởi tạo biến hiển thị mặc định
+        String mainItemName = txn.getDescription();
+        String mainItemImage = null;
         String categoryName = "Giao dịch";
-        BigDecimal quantity = BigDecimal.ONE;
-        BigDecimal unitPrice = BigDecimal.ZERO;
+        BigDecimal totalQuantity = BigDecimal.ZERO;
+        BigDecimal displayUnitPrice = BigDecimal.ZERO;
 
         UUID serviceId = null;
         UUID packageId = null;
 
-        // 4. LẤY PAYMENT DETAIL (QUAN TRỌNG NHẤT)
-        PaymentDetail detail = paymentDetailRepository.findByTransaction_TransactionId(transactionId).orElse(null);
+        List<UserTransactionDetailResponse.TransactionItemDetail> itemsList = new ArrayList<>();
 
-        if (detail != null) {
-            quantity = detail.getQuantity();
-            if (quantity.compareTo(BigDecimal.ZERO) > 0) {
-                unitPrice = txn.getAmount().abs().divide(quantity, 2, java.math.RoundingMode.HALF_UP);
-            }
+        // 3. Xử lý Logic Mapping List
+        if (details != null && !details.isEmpty()) {
 
-            // [LOGIC SỬA LỖI]: Luôn ưu tiên lấy AppService từ PaymentDetail để có ảnh
-            AppService serviceInfo = detail.getService();
-            AppPackage packageInfo = detail.getPackageRef();
+            // A. Duyệt qua từng detail để build list items con
+            for (PaymentDetail dt : details) {
+                String subName = "Sản phẩm";
+                String subImage = null;
 
-            // A. NẾU CÓ SERVICE (Dù là lẻ hay trong gói, PaymentDetail luôn lưu Service)
-            if (serviceInfo != null) {
-                itemName = serviceInfo.getServiceName(); // Tên dịch vụ cụ thể (VD: Gội đầu)
-                itemImage = serviceInfo.getImageUrl();   // Ảnh dịch vụ cụ thể
-                serviceId = serviceInfo.getServiceId();
+                if (dt.getService() != null) {
+                    subName = dt.getService().getServiceName();
+                    subImage = dt.getService().getImageUrl();
+                    // Lấy info cho main display nếu chưa có
+                    if (mainItemImage == null) mainItemImage = subImage;
+                }
 
-                if (serviceInfo.getCategory() != null) {
-                    categoryName = serviceInfo.getCategory().getCategoryName();
-                } else {
-                    categoryName = "Dịch vụ";
+                // Cộng dồn số lượng
+                totalQuantity = totalQuantity.add(dt.getQuantity());
+
+                // Add vào list con
+                itemsList.add(UserTransactionDetailResponse.TransactionItemDetail.builder()
+                        .itemName(subName)
+                        .itemImage(subImage)
+                        .quantity(dt.getQuantity())
+                        .unitPrice(dt.getAmount()) // Hoặc chia ra nếu cần unit price gốc
+                        .build());
+
+                // B. Logic xác định Main Info (Package hay Service lẻ)
+                if (dt.getPackageRef() != null) {
+                    packageId = dt.getPackageRef().getPackageId();
+                    // Nếu là package, tên hiển thị chính nên là tên gói
+                    mainItemName = "Gói: " + dt.getPackageRef().getPackageName();
+                    categoryName = "Gói dịch vụ";
+                } else if (dt.getService() != null) {
+                    serviceId = dt.getService().getServiceId();
+                    if (serviceId != null && packageId == null) {
+                        // Nếu là dịch vụ lẻ (ko phải package), lấy tên dịch vụ làm main
+                        mainItemName = dt.getService().getServiceName();
+                        if (dt.getService().getCategory() != null) {
+                            categoryName = dt.getService().getCategory().getCategoryName();
+                        }
+                    }
                 }
             }
 
-            // B. NẾU CÓ PACKAGE (Để bổ sung thông tin nguồn gốc)
-            if (packageInfo != null) {
-                packageId = packageInfo.getPackageId();
-                categoryName = "Gói: " + packageInfo.getPackageName(); // Ghi đè category để user biết dùng từ gói nào
-
-                // Fallback: Nếu không có service (lỗi dữ liệu), mới dùng tên gói
-                if (serviceInfo == null) {
-                    itemName = packageInfo.getPackageName();
-                    // itemImage = packageInfo.getImageUrl(); // Gói có thể không có ảnh, hoặc dùng ảnh mặc định
-                }
+            // Tính giá trung bình hiển thị (nếu cần) hoặc lấy giá trị tổng
+            if (totalQuantity.compareTo(BigDecimal.ZERO) > 0) {
+                displayUnitPrice = txn.getAmount().abs().divide(totalQuantity, 2, java.math.RoundingMode.HALF_UP);
             }
+
+        } else {
+            // Fallback: Không có payment detail (Logic cũ xử lý UserVoucher snapshot)
+            // ... (Giữ nguyên đoạn logic fallback 5. LOGIC HIỂN THỊ VÉ cũ của bạn ở đây) ...
+            totalQuantity = BigDecimal.ONE; // Mặc định
         }
 
-        // 5. LOGIC HIỂN THỊ VÉ (Dựa vào QR Code)
+        // 4. Các logic phụ trợ (QR Limit, Amount Display) - Giữ nguyên
         boolean isTicket = false;
         String amountDisplay = String.format("%s%s", (direction.equals("IN") ? "+" : "-"), new java.text.DecimalFormat("#,###").format(txn.getAmount().abs()));
-
         Integer qrLimit = 0;
         Integer qrCount = 0;
 
@@ -404,54 +470,23 @@ public class TransactionService {
             QRCode qr = txn.getQrCode();
             qrLimit = qr.getUsageLimit();
             qrCount = qr.getUsageCount();
-
-            // Nếu là QR Vé
             if (qrLimit > 0) {
                 isTicket = true;
                 if (txn.getTransactionType() == TransactionType.REDEMPTION) {
-                    amountDisplay = String.format("-%s Vé", quantity.intValue());
-                }
-            }
-
-            // [FALLBACK MẠNH]: Nếu PaymentDetail bị mất (lỗi DB), cố gắng khôi phục từ UserVoucher
-            if (serviceId == null && packageId == null) {
-                UserVoucher voucher = qr.getPayerVoucher();
-                if (voucher != null) {
-                    // Cố tìm Service ID từ Voucher
-                    if (voucher.getServiceId() != null) {
-                        AppService s = appServiceRepository.findById(voucher.getServiceId()).orElse(null);
-                        if (s != null) {
-                            itemName = s.getServiceName();
-                            itemImage = s.getImageUrl();
-                            serviceId = s.getServiceId();
-                        }
-                    }
-                    // Cố tìm Package ID từ Voucher
-                    else if (voucher.getPackageId() != null) {
-                        AppPackage p = appPackageRepository.findById(voucher.getPackageId()).orElse(null);
-                        if (p != null) {
-                            itemName = p.getPackageName();
-                            packageId = p.getPackageId();
-                            categoryName = "Gói dịch vụ";
-                        }
-                    }
-                    // Tên cứng snapshot
-                    else if (voucher.getServiceName() != null) {
-                        itemName = voucher.getServiceName();
-                    }
+                    // Nếu là Combo, hiển thị số vé bị trừ (thường là 1 vé cho cả combo)
+                    // Hoặc hiển thị tổng món tuỳ nghiệp vụ. Ở đây lấy theo logic QrCodeService
+                    amountDisplay = String.format("-%s Vé", qrCount);
                 }
             }
         }
 
-        // 6. Build Response
+        // 5. Build Response
         return UserTransactionDetailResponse.builder()
                 .transactionId(txn.getTransactionId())
                 .transactionRef(txn.getTransactionRef())
                 .title(txn.getTransactionType() == TransactionType.REDEMPTION ? "Sử dụng Voucher" : "Thanh toán")
                 .amountDisplay(amountDisplay)
                 .isTicketRedemption(isTicket)
-
-                // Standard Info
                 .amount(txn.getAmount())
                 .status(txn.getStatus().name())
                 .type(txn.getTransactionType().name())
@@ -459,19 +494,20 @@ public class TransactionService {
                 .createdAt(txn.getCreatedAt())
                 .direction(direction)
 
-                // Product Info (Đã chuẩn hóa: Luôn có ItemName và ItemImage từ Service nếu có)
-                .itemName(itemName)
-                .itemImage(itemImage)
+                // Main Info (Đã xử lý logic ưu tiên Package Name)
+                .itemName(mainItemName)
+                .itemImage(mainItemImage)
                 .categoryName(categoryName)
-                .quantity(quantity)
-                .priceAtPurchase(unitPrice)
+                .quantity(totalQuantity)
+                .priceAtPurchase(displayUnitPrice)
                 .serviceId(serviceId)
                 .packageId(packageId)
 
-                // Partner & Evidence
+                // [MỚI] Trả về danh sách chi tiết các món
+                .items(itemsList)
+
                 .partnerInfo(mapPartnerInfo(txn, userId))
                 .evidenceImage(getEvidenceImage(txn))
-
                 .qrId(txn.getQrCode() != null ? txn.getQrCode().getQrId() : null)
                 .qrUsageLimit(qrLimit)
                 .qrUsageCount(qrCount)

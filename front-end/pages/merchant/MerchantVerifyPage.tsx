@@ -15,15 +15,17 @@ const MerchantVerifyPage: React.FC = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
+    // 1. STATE DATA
     const [qrData, setQrData] = useState<QrCodeResponse | null>(state?.qrData || null);
     const [isLoadingData, setIsLoadingData] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
 
-    // [MỚI] State điều khiển modal xem ảnh User
+    // Modal xem ảnh User phóng to
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
 
     const qrCodeParam = searchParams.get('code');
 
+    // 2. FETCH DATA (Nếu vào từ URL)
     useEffect(() => {
         if (qrData) return;
         if (!qrCodeParam) {
@@ -45,9 +47,12 @@ const MerchantVerifyPage: React.FC = () => {
         fetchData();
     }, [qrCodeParam, qrData]);
 
+    // 3. GỌI HOOK XỬ LÝ LOGIC (Đã cập nhật Bulk Insert)
     const {
         selectedItems,
-        totalSelectedQty,
+        effectiveQuantity, // Số vé thực tế sẽ trừ (Quan trọng)
+        isPackage,         // Flag để biết là Combo hay Vé lẻ
+        isOverLimit,       // Flag check vượt quá giới hạn
         previewUrl,
         isSubmitting,
         toggleItem,
@@ -56,15 +61,14 @@ const MerchantVerifyPage: React.FC = () => {
         removeImage,
         submitTransaction
     } = useMerchantVerify(qrData, (result) => {
+        // Callback khi thành công -> Chuyển trang
         navigate('/merchant/success', {
-
             state: { result: result },
-
-            replace: true // Xóa lịch sử trang verify để user không back lại được
-
+            replace: true
         });
     });
 
+    // --- LOADING & ERROR STATE ---
     if (isLoadingData) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
@@ -93,32 +97,29 @@ const MerchantVerifyPage: React.FC = () => {
 
     const includedServices = qrData.includedServices || [];
     const limit = qrData.usageLimit || 1;
-    const isOverLimit = totalSelectedQty > limit;
 
+    // --- RENDER UI ---
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-20">
-            {/* --- [MỚI] MODAL XEM ẢNH USER FULLSCREEN --- */}
+            {/* MODAL XEM ẢNH FULLSCREEN */}
             {isUserModalOpen && qrData.imageUrl && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm animate-in fade-in duration-200"
-                    onClick={() => setIsUserModalOpen(false)} // Click ra ngoài để đóng
+                    onClick={() => setIsUserModalOpen(false)}
                 >
-                    {/* Nút đóng */}
                     <button className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-10">
                         <X size={28} />
                     </button>
-
-                    {/* Ảnh phóng to */}
                     <img
                         src={qrData.imageUrl}
                         alt={qrData.fullName}
                         className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300"
-                        onClick={(e) => e.stopPropagation()} // Chặn sự kiện click để không đóng khi nhấn vào ảnh
+                        onClick={(e) => e.stopPropagation()}
                     />
                 </div>
             )}
 
-            {/* Header */}
+            {/* HEADER */}
             <div className="bg-white border-b border-slate-200 px-4 py-4 md:px-8 mb-6">
                 <div className="max-w-5xl mx-auto flex items-center gap-3">
                     <button onClick={() => navigate('/merchant/dashboard')} className="p-2 -ml-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
@@ -138,13 +139,11 @@ const MerchantVerifyPage: React.FC = () => {
                 {/* --- KHỐI 1: THÔNG TIN NGƯỜI DÙNG --- */}
                 <div className="bg-white rounded-[32px] p-6 md:p-8 border border-slate-200 shadow-sm">
                     <div className="flex flex-col md:flex-row gap-8 items-center md:items-start">
-
-                        {/* [CẬP NHẬT] Avatar Lớn hơn & Click để mở Modal */}
+                        {/* Avatar */}
                         <div
                             className={`relative shrink-0 mx-auto md:mx-0 group ${qrData.imageUrl ? 'cursor-pointer' : ''}`}
                             onClick={() => qrData.imageUrl && setIsUserModalOpen(true)}
                         >
-                            {/* Tăng kích thước md:w-40 -> md:w-48 */}
                             <div className="w-32 h-32 md:w-48 md:h-48 rounded-[2.5rem] bg-slate-100 border-[6px] border-slate-50 shadow-xl overflow-hidden relative z-10 transition-transform group-hover:scale-[1.02]">
                                 {qrData.imageUrl ? (
                                     <img src={qrData.imageUrl} alt="User" className="w-full h-full object-cover" />
@@ -154,15 +153,11 @@ const MerchantVerifyPage: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-
-                            {/* Badge Verify */}
                             <div className="absolute -bottom-2 -right-2 bg-white p-1.5 rounded-full shadow-md z-20">
                                 <div className="bg-emerald-500 text-white p-2 rounded-full">
                                     <BadgeCheck size={24} strokeWidth={3} />
                                 </div>
                             </div>
-
-                            {/* [MỚI] Lớp phủ hover gợi ý phóng to */}
                             {qrData.imageUrl && (
                                 <div className="absolute inset-0 rounded-[2.5rem] bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-center justify-center text-white">
                                     <Maximize2 size={40} className="drop-shadow-lg" />
@@ -170,7 +165,7 @@ const MerchantVerifyPage: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Thông tin chi tiết */}
+                        {/* Info Text */}
                         <div className="flex-1 w-full text-center md:text-left">
                             <div className="mb-6">
                                 <h2 className="text-3xl md:text-5xl font-black text-slate-900 leading-tight mb-3">
@@ -183,7 +178,6 @@ const MerchantVerifyPage: React.FC = () => {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-5 rounded-3xl border border-slate-100">
-                                {/* Email */}
                                 <div className="flex items-center gap-4 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
                                     <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 shrink-0">
                                         <Mail size={20} />
@@ -195,8 +189,6 @@ const MerchantVerifyPage: React.FC = () => {
                                         </p>
                                     </div>
                                 </div>
-
-                                {/* Phone */}
                                 <div className="flex items-center gap-4 p-3 bg-white rounded-2xl border border-slate-100 shadow-sm">
                                     <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500 shrink-0">
                                         <Phone size={20} />
@@ -213,7 +205,7 @@ const MerchantVerifyPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* --- KHỐI 2: THÔNG TIN VOUCHER & CHỌN MÓN (Giữ nguyên) --- */}
+                {/* --- KHỐI 2: THÔNG TIN VOUCHER & CHỌN MÓN --- */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Cột trái: Thông tin Voucher */}
                     <div className="lg:col-span-1 space-y-6">
@@ -243,7 +235,7 @@ const MerchantVerifyPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Cột phải: Danh sách món */}
+                    {/* Cột phải: Chọn món */}
                     <div className="lg:col-span-2">
                         <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm h-full">
                             <div className="flex justify-between items-center mb-6">
@@ -251,6 +243,7 @@ const MerchantVerifyPage: React.FC = () => {
                                     <CheckCircle2 className="text-emerald-500" size={24} />
                                     Chọn món khách lấy
                                 </h3>
+                                {/* [MỚI] Hiển thị cảnh báo nếu vượt quá limit */}
                                 {isOverLimit && (
                                     <span className="px-3 py-1 bg-red-50 text-red-600 text-xs font-bold rounded-full animate-pulse border border-red-100 flex items-center gap-1">
                                         <AlertTriangle size={12}/> Vượt quá giới hạn ({limit})
@@ -272,6 +265,7 @@ const MerchantVerifyPage: React.FC = () => {
                                                     <p className={`font-bold text-lg leading-tight ${state.isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>{service.serviceName}</p>
                                                     <p className="text-sm font-medium text-slate-500 mt-1">{formatCurrency(service.unitPrice)}</p>
                                                 </div>
+                                                {/* Bộ điều khiển số lượng */}
                                                 {state.isSelected && (
                                                     <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-indigo-100 shadow-sm" onClick={e => e.stopPropagation()}>
                                                         <button onClick={() => changeQuantity(service.serviceId, -1)} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"><Minus size={16} /></button>
@@ -291,10 +285,15 @@ const MerchantVerifyPage: React.FC = () => {
                                 </div>
                             )}
 
+                            {/* [MỚI] Hiển thị Effective Quantity (Số vé sẽ trừ) thay vì Total */}
                             <div className="mt-6 flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
-                                <span className="text-sm font-bold text-slate-500 uppercase tracking-wide">Tổng số lượng</span>
+                                <span className="text-sm font-bold text-slate-500 uppercase tracking-wide">
+                                    {isPackage ? "Số vé sẽ trừ" : "Tổng số lượng"}
+                                </span>
                                 <div className="flex items-baseline gap-1">
-                                    <span className={`text-4xl font-black ${isOverLimit ? 'text-red-500' : 'text-indigo-600'}`}>{totalSelectedQty}</span>
+                                    <span className={`text-4xl font-black ${isOverLimit ? 'text-red-500' : 'text-indigo-600'}`}>
+                                        {effectiveQuantity}
+                                    </span>
                                     <span className="text-lg font-bold text-slate-400">/ {limit}</span>
                                 </div>
                             </div>
@@ -302,7 +301,7 @@ const MerchantVerifyPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* --- KHỐI 3: HÌNH ẢNH XÁC THỰC (Giữ nguyên) --- */}
+                {/* --- KHỐI 3: HÌNH ẢNH XÁC THỰC --- */}
                 <div className="bg-white p-6 md:p-8 rounded-[32px] border border-slate-200 shadow-sm">
                     <h3 className="font-bold text-slate-900 mb-6 flex items-center gap-2 text-lg">
                         <ImageIcon className="text-pink-500" size={24} />
@@ -338,7 +337,13 @@ const MerchantVerifyPage: React.FC = () => {
                 {/* --- FOOTER ACTIONS --- */}
                 <div className="flex flex-col-reverse md:flex-row justify-end items-center gap-4 pt-6 pb-8 border-t border-slate-100">
                     <button onClick={() => navigate('/merchant/dashboard')} className="w-full md:w-auto px-8 py-4 rounded-2xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-colors text-lg" disabled={isSubmitting}>Hủy bỏ</button>
-                    <button onClick={submitTransaction} disabled={isSubmitting || isOverLimit || (includedServices.length > 0 && totalSelectedQty === 0)} className={`w-full md:w-auto px-12 py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 transition-all text-lg ${(isSubmitting || isOverLimit) ? 'bg-slate-300 cursor-not-allowed shadow-none text-slate-500' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98]'}`}>
+
+                    {/* [MỚI] Nút Submit disable khi Over Limit hoặc chưa chọn vé nào */}
+                    <button
+                        onClick={submitTransaction}
+                        disabled={isSubmitting || isOverLimit || effectiveQuantity === 0}
+                        className={`w-full md:w-auto px-12 py-4 rounded-2xl font-bold text-white flex items-center justify-center gap-3 shadow-lg shadow-indigo-200 transition-all text-lg ${(isSubmitting || isOverLimit || effectiveQuantity === 0) ? 'bg-slate-300 cursor-not-allowed shadow-none text-slate-500' : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98]'}`}
+                    >
                         {isSubmitting ? (<><Loader2 className="w-6 h-6 animate-spin" /> Đang xử lý...</>) : (<><CheckCircle2 size={24} /> Xác nhận Giao dịch</>)}
                     </button>
                 </div>

@@ -104,37 +104,71 @@ public class AdminTransactionService {
         Transaction txn = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
 
-        // Lấy Payment Detail (Sản phẩm/Gói)
-        PaymentDetail detail = paymentDetailRepository.findByTransaction_TransactionId(transactionId)
-                .orElse(null);
+        // [THAY ĐỔI] Lấy danh sách chi tiết thay vì 1 dòng
+        List<PaymentDetail> details = paymentDetailRepository.findAllByTransaction_TransactionId(transactionId);
 
-        // Map thông tin sản phẩm
+        // Khởi tạo mặc định
         String itemName = txn.getDescription();
         String itemImage = null;
         String categoryName = "Giao dịch";
-        BigDecimal quantity = BigDecimal.ONE;
+        BigDecimal totalQuantity = BigDecimal.ZERO;
         BigDecimal unitPrice = txn.getAmount().abs();
+
         UUID serviceId = null;
         UUID packageId = null;
 
-        if (detail != null) {
-            quantity = detail.getQuantity();
-            if (quantity.compareTo(BigDecimal.ZERO) > 0) {
-                unitPrice = detail.getAmount().divide(quantity, 2, java.math.RoundingMode.HALF_UP);
+        // List items để trả về
+        List<TransactionDetailResponse.TransactionItemDetail> itemsList = new ArrayList<>();
+
+        if (details != null && !details.isEmpty()) {
+            for (PaymentDetail detail : details) {
+                String subName = "Sản phẩm";
+                String subImage = null;
+
+                // Map thông tin Service
+                if (detail.getService() != null) {
+                    subName = detail.getService().getServiceName();
+                    subImage = detail.getService().getImageUrl();
+                    if (itemImage == null) itemImage = subImage; // Lấy ảnh đầu tiên làm ảnh đại diện
+                }
+
+                // Cộng dồn số lượng
+                totalQuantity = totalQuantity.add(detail.getQuantity());
+
+                // Add vào list chi tiết
+                itemsList.add(TransactionDetailResponse.TransactionItemDetail.builder()
+                        .itemName(subName)
+                        .itemImage(subImage)
+                        .quantity(detail.getQuantity())
+                        .unitPrice(detail.getAmount())
+                        .build());
+
+                // Logic xác định Tên chính (Ưu tiên Package Name)
+                if (detail.getPackageRef() != null) {
+                    itemName = "Gói: " + detail.getPackageRef().getPackageName();
+                    packageId = detail.getPackageRef().getPackageId();
+                    categoryName = "Gói dịch vụ";
+                } else if (detail.getService() != null) {
+                    // Nếu là món lẻ (chưa có packageId), lấy thông tin service làm chính
+                    if (packageId == null) {
+                        itemName = detail.getService().getServiceName();
+                        serviceId = detail.getService().getServiceId();
+                        if (detail.getService().getCategory() != null) {
+                            categoryName = detail.getService().getCategory().getCategoryName();
+                        } else {
+                            categoryName = "Dịch vụ";
+                        }
+                    }
+                }
             }
 
-            if (detail.getService() != null) {
-                itemName = detail.getService().getServiceName();
-                itemImage = detail.getService().getImageUrl();
-                serviceId = detail.getService().getServiceId();
-                if (detail.getService().getCategory() != null) {
-                    categoryName = detail.getService().getCategory().getCategoryName();
-                }
-            } else if (detail.getPackageRef() != null) {
-                itemName = detail.getPackageRef().getPackageName();
-                packageId = detail.getPackageRef().getPackageId();
-                categoryName = "Gói dịch vụ";
+            // Tính lại đơn giá hiển thị trung bình
+            if (totalQuantity.compareTo(BigDecimal.ZERO) > 0) {
+                unitPrice = txn.getAmount().abs().divide(totalQuantity, 2, java.math.RoundingMode.HALF_UP);
             }
+        } else {
+            // Fallback (Logic cũ hoặc mặc định)
+            totalQuantity = BigDecimal.ONE;
         }
 
         return TransactionDetailResponse.builder()
@@ -145,16 +179,19 @@ public class AdminTransactionService {
                 .type(txn.getTransactionType().name())
                 .description(txn.getDescription())
                 .createdAt(txn.getCreatedAt())
-                .direction("SYSTEM") // Admin xem thì không có IN/OUT, hoặc để SYSTEM
+                .direction("SYSTEM")
 
-                // Product Info
+                // Product Info (Tổng hợp)
                 .itemName(itemName)
                 .itemImage(itemImage)
                 .categoryName(categoryName)
-                .quantity(quantity)
+                .quantity(totalQuantity)
                 .priceAtPurchase(unitPrice)
                 .serviceId(serviceId)
                 .packageId(packageId)
+
+                // [MỚI] Danh sách chi tiết
+                .items(itemsList)
 
                 // Info người thực hiện
                 .partnerInfo(mapAdminPartnerInfo(txn))

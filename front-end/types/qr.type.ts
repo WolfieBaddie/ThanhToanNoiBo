@@ -25,7 +25,6 @@ export interface QrCodeResponse {
     voucherId: string;
     voucherCode: string;
 
-    // [MỚI]
     usageLimit: number;
     usageCount: number;
 
@@ -33,23 +32,37 @@ export interface QrCodeResponse {
     fullName: string;
     userType: string;
     email: string;
-    imageUrl?: string; // Avatar
+    imageUrl?: string;
 
     expiresAt: string;
     createdAt: string;
     phoneNumber: string;
 
-    // [MỚI]
     includedServices?: ServiceResponse[];
+}
+
+// [MỚI] Interface cho từng item chi tiết trong gói
+export interface QrItemRequest {
+    serviceId: string;
+    quantity: number;
 }
 
 export interface ProcessQrRequest {
     qrCode: string;
     billAmount: number;
+
+    // Tổng số lượng Voucher/Combo bị trừ (VD: 1 combo)
     quantity: number;
+
     description?: string;
-    imageUrl?: string; // Link ảnh xác thực
+    imageUrl?: string;
+
+    // Giữ lại để tương thích ngược (nếu backend vẫn check)
     serviceId?: string;
+
+    // [MỚI] Danh sách chi tiết để Backend Bulk Insert
+    // VD: [{serviceId: "com_tam", quantity: 1}, {serviceId: "tra_da", quantity: 1}]
+    items?: QrItemRequest[];
 }
 
 export interface ProcessQrResponse {

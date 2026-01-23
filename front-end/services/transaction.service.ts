@@ -1,3 +1,5 @@
+// src/services/transaction.service.ts
+
 import { axiosClient } from "@/lib/axios-client";
 import {
     PageResponse,
@@ -10,8 +12,6 @@ import {
 export const walletService = {
     /**
      * Lấy danh sách giao dịch
-     * Backend trả về: BaseResponse<PageResponse<TransactionResponse>>
-     * Axios Interceptor đã gỡ BaseResponse -> Service trả về: PageResponse<Transaction>
      */
     getMyTransactions: async (params: TransactionFilterParams): Promise<PageResponse<Transaction>> => {
         const response = await axiosClient.get('/user-credits/transactions', { params });
@@ -19,15 +19,18 @@ export const walletService = {
     },
 
     /**
-     * Lấy chi tiết giao dịch
-     * Backend trả về: BaseResponse<TransactionDetailResponse>
-     * Axios Interceptor đã gỡ BaseResponse -> Service trả về: TransactionDetail
+     * Lấy chi tiết giao dịch (Merchant/Admin)
+     * Response bao gồm: items (list), itemName, itemImage...
      */
     getTransactionDetail: async (id: string): Promise<TransactionDetail> => {
         const response = await axiosClient.get(`/user-credits/transactions/${id}`);
         return response as unknown as TransactionDetail;
     },
 
+    /**
+     * Lấy chi tiết giao dịch (User)
+     * Response bao gồm: items (list), itemName, itemImage...
+     */
     getUserTransactionDetail: async (id: string): Promise<UserTransactionDetail> => {
         const response = await axiosClient.get(`/user-credits/user/transactions/${id}`);
         return response as unknown as UserTransactionDetail;

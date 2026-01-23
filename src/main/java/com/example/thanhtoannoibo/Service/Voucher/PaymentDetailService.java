@@ -34,7 +34,7 @@ public class PaymentDetailService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        return paymentDetailRepository.findByTransaction_TransactionId(transaction.getTransactionId())
+        return paymentDetailRepository.findByTransaction_TransactionIdAndServiceIsNullAndPackageRefIsNull(transaction.getTransactionId())
                 .map(this::toResponse)
                 .orElse(null); // Hoặc ném lỗi nếu bắt buộc phải có Detail
     }
