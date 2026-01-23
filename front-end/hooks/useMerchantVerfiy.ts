@@ -3,10 +3,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNotification } from '@/context/NotificationContext';
 import { qrService } from '@/services/qr.service';
-// Import đúng type đã sửa
-import { QrCodeResponse, ProcessQrResponse } from '@/types/qr.type';
+// Thêm ProcessQrRequest vào import
+import { QrCodeResponse, ProcessQrResponse, ProcessQrRequest } from '@/types/qr.type';
 import { ServiceResponse } from "@/types/catalog.type.ts";
 
+// Interface định nghĩa trạng thái của từng món được chọn
 interface SelectedItemState {
     quantity: number;
     isSelected: boolean;
@@ -15,7 +16,6 @@ interface SelectedItemState {
 
 export const useMerchantVerify = (
     qrData: QrCodeResponse | null,
-    // [QUAN TRỌNG] Định nghĩa rõ type trả về cho callback
     onSuccess?: (data: ProcessQrResponse) => void
 ) => {
     const notify = useNotification();
@@ -27,9 +27,9 @@ export const useMerchantVerify = (
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // --- INIT ---
+    // --- INIT: Khởi tạo danh sách món từ QR Data ---
     useEffect(() => {
-        if (qrData && qrData.includedServices?.length > 0) {
+        if (qrData && qrData.includedServices && qrData.includedServices.length > 0) {
             const initialMap: Record<string, SelectedItemState> = {};
             qrData.includedServices.forEach(service => {
                 initialMap[service.serviceId] = {
@@ -42,28 +42,34 @@ export const useMerchantVerify = (
         }
     }, [qrData]);
 
-    // --- COMPUTED ---
+    // --- COMPUTED: Tính toán số lượng và tổng tiền ---
+
+    // [FIX LỖI ĐỎ TS]: Ép kiểu (item as SelectedItemState) để cộng quantity
     const totalSelectedQty = useMemo(() => {
         if (!qrData) return 0;
-        if (qrData.includedServices?.length > 0) {
+        if (qrData.includedServices && qrData.includedServices.length > 0) {
             return Object.values(selectedItems)
                 .filter(item => item.isSelected)
-                .reduce((sum, item) => sum + item.quantity, 0);
+                .reduce((sum, item) => sum + (item as SelectedItemState).quantity, 0);
         }
         return genericQuantity;
     }, [qrData, selectedItems, genericQuantity]);
 
+    // [FIX LỖI ĐỎ TS]: Ép kiểu để tính tiền (unitPrice * quantity)
     const totalBillAmount = useMemo(() => {
         if (!qrData) return 0;
-        if (qrData.includedServices?.length > 0) {
+        if (qrData.includedServices && qrData.includedServices.length > 0) {
             return Object.values(selectedItems)
                 .filter(item => item.isSelected)
-                .reduce((sum, item) => sum + (item.service.unitPrice * item.quantity), 0);
+                .reduce((sum, item) => {
+                    const typedItem = item as SelectedItemState;
+                    return sum + (typedItem.service.unitPrice * typedItem.quantity);
+                }, 0);
         }
         return qrData.creditAmount * genericQuantity;
     }, [qrData, selectedItems, genericQuantity]);
 
-    // --- HANDLERS (Toggle, Quantity, Image) GIỮ NGUYÊN ---
+    // --- HANDLERS: Xử lý sự kiện (Giữ nguyên) ---
     const toggleItem = (serviceId: string) => {
         setSelectedItems(prev => ({
             ...prev,
@@ -98,15 +104,20 @@ export const useMerchantVerify = (
         setPreviewUrl(null);
     };
 
-    // --- SUBMIT TRANSACTION ---
+    // --- SUBMIT TRANSACTION: Xử lý gửi dữ liệu ---
     const submitTransaction = async () => {
         if (!qrData) return;
 
-        // Validation
+        // Validation cơ bản
         if (!imageFile) {
             notify.error("Vui lòng chụp ảnh xác thực trước khi hoàn tất.");
             return;
         }
+
+        // [QUAN TRỌNG]: Lấy danh sách các món thực tế đã chọn và ép kiểu mảng
+        const selectedItemsList = Object.values(selectedItems)
+            .filter(i => i.isSelected) as SelectedItemState[];
+
         if (totalSelectedQty <= 0) {
             notify.error("Vui lòng chọn ít nhất 1 món hoặc 1 vé.");
             return;
@@ -118,12 +129,11 @@ export const useMerchantVerify = (
 
         setIsSubmitting(true);
         try {
-            // 1. Upload ảnh
+            // 1. Upload ảnh xác thực
             const uploadedImageUrl = await qrService.uploadProof(imageFile);
 
-            // 2. Tạo Description
-            const itemDescriptions = Object.values(selectedItems)
-                .filter(i => i.isSelected)
+            // 2. Tạo mô tả giao dịch (Description)
+            const itemDescriptions = selectedItemsList
                 .map(i => `${i.quantity} ${i.service.serviceName}`)
                 .join(", ");
 
@@ -131,19 +141,24 @@ export const useMerchantVerify = (
                 ? `Đổi: ${itemDescriptions}`
                 : `Sử dụng ${totalSelectedQty} voucher`;
 
-            // 3. Chuẩn bị payload
-            const requestData = {
+            // 3. Chuẩn bị payload gửi xuống Backend
+            const requestData: ProcessQrRequest = {
                 qrCode: qrData.codeString,
                 billAmount: totalBillAmount,
                 quantity: totalSelectedQty,
                 description: description,
                 imageUrl: uploadedImageUrl,
-                // Nếu dùng voucher single service, gửi serviceId lên để backend validate kỹ hơn (optional)
-                serviceId: (qrData.includedServices?.length === 1) ? qrData.includedServices[0].serviceId : undefined
+
+                // [FIX LOGIC SERVICE ID]:
+                // - Ưu tiên 1: Lấy ID món đầu tiên trong danh sách chọn (Dành cho Package/Multi-service)
+                // - Ưu tiên 2: Lấy ID từ qrData (Dành cho Voucher 1 món duy nhất)
+                // - Cuối cùng: undefined (Backend sẽ xử lý mặc định hoặc báo lỗi nếu cần thiết)
+                serviceId: selectedItemsList.length > 0
+                    ? selectedItemsList[0].service.serviceId
+                    : (qrData.includedServices?.length === 1 ? qrData.includedServices[0].serviceId : undefined)
             };
 
             // 4. Gọi API
-            // res bây giờ sẽ đúng chuẩn ProcessQrResponse (có transactionRef)
             const res = await qrService.redeem(requestData);
 
             notify.success(`Giao dịch thành công!`);
