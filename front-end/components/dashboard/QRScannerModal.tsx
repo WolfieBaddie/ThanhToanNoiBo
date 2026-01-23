@@ -7,7 +7,7 @@ interface QRScannerModalProps {
   onClose: () => void;
   onScanComplete?: (data: string) => void;
 }
-
+//7.3.1 [FE-UI] Thiết kế giao diện popup modal quét QR phía merchat.
 export const QRScannerModal: React.FC<QRScannerModalProps> = ({ isOpen, onClose, onScanComplete }) => {
   const [scanning, setScanning] = useState(false);
 
