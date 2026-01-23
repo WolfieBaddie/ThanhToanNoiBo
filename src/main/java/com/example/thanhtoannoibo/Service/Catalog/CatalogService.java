@@ -4,6 +4,7 @@ import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateCategoryRequest;
 import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateServiceRequest;
 import com.example.thanhtoannoibo.DTO.Request.Catalog.ServiceFilterRequest;
+import com.example.thanhtoannoibo.DTO.Response.Catalog.PackageResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
 import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
@@ -17,7 +18,6 @@ import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
@@ -25,6 +25,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -79,6 +80,16 @@ public class CatalogService {
 
     public List<ServiceCategory> getActiveCategories() {
         return categoryRepository.findAllByIsActiveTrue();
+    }
+
+    public List<PackageResponse> getActivePackagesWithDetails() {
+        // Gọi query fetch join ở bước 1
+        List<AppPackage> packages = packageRepository.findAllActiveWithServices();
+
+        // Map từ Entity sang DTO
+        return packages.stream()
+                .map(this::mapToPackageResponse)
+                .collect(Collectors.toList());
     }
 
     public AppService getServiceById(UUID serviceId) {
@@ -144,5 +155,30 @@ public class CatalogService {
                 .imageUrl(entity.getImageUrl())
                 .build();
     }
+
+    private PackageResponse mapToPackageResponse(AppPackage entity) {
+        // Map danh sách services con
+        List<PackageResponse.PackageServiceItem> items = entity.getServices().stream()
+                .map(service -> PackageResponse.PackageServiceItem.builder()
+                        .serviceId(service.getServiceId())
+                        .serviceName(service.getServiceName())
+                        .imageUrl(service.getImageUrl())
+                        .originalPrice(service.getUnitPrice())
+                        .build())
+                .collect(Collectors.toList());
+
+        return PackageResponse.builder()
+                .packageId(entity.getPackageId())
+                .packageCode(entity.getPackageCode())
+                .packageName(entity.getPackageName())
+                .description(entity.getDescription())
+                .price(entity.getPrice())
+                .packageType(entity.getPackageType())
+                .creditValue(entity.getCreditValue())
+                .isActive(entity.getIsActive())
+                .items(items) // Set danh sách items đã map
+                .build();
+    }
+
 
 }

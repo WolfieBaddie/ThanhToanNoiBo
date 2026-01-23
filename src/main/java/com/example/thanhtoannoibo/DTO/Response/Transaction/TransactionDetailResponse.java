@@ -31,4 +31,7 @@ public class TransactionDetailResponse {
     // ID để frontend redirect nếu cần click vào xem sản phẩm gốc
     private UUID serviceId;
     private UUID packageId;
+
+    private TransactionPartnerInfo partnerInfo;
+    private String evidenceImage;
 }

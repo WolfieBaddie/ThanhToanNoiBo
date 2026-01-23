@@ -16,26 +16,26 @@ public class CounterService {
     /**
      * Called by IoT devices to report they are online.
      */
-    @Transactional
-    public void processHeartbeat(String deviceIdentifier, String ipAddress) {
-        counterRepository.findByDeviceIdentifier(deviceIdentifier)
-                .ifPresentOrElse(counter -> {
-                    counter.setLastHeartbeat(LocalDateTime.now());
-                    counter.setDeviceIp(ipAddress);
-
-                    // Auto-recover status if it was offline
-                    if (counter.getStatus() == CounterStatus.OFFLINE) {
-                        counter.setStatus(CounterStatus.ACTIVE);
-                    }
-                    counterRepository.save(counter);
-                }, () -> {
-                    // Optional: Auto-register unknown devices or log warning
-                    // log.warn("Unknown device heartbeat: " + deviceIdentifier);
-                });
-    }
-
-    public Counter getCounterByCode(String code) {
-        return counterRepository.findByCounterCode(code)
-                .orElseThrow(() -> new RuntimeException("Counter not found: " + code));
-    }
+//    @Transactional
+//    public void processHeartbeat(String deviceIdentifier, String ipAddress) {
+//        counterRepository.findByDeviceIdentifier(deviceIdentifier)
+//                .ifPresentOrElse(counter -> {
+//                    counter.setLastHeartbeat(LocalDateTime.now());
+//                    counter.setDeviceIp(ipAddress);
+//
+//                    // Auto-recover status if it was offline
+//                    if (counter.getStatus() == CounterStatus.OFFLINE) {
+//                        counter.setStatus(CounterStatus.ACTIVE);
+//                    }
+//                    counterRepository.save(counter);
+//                }, () -> {
+//                    // Optional: Auto-register unknown devices or log warning
+//                    // log.warn("Unknown device heartbeat: " + deviceIdentifier);
+//                });
+//    }
+//
+//    public Counter getCounterByCode(String code) {
+//        return counterRepository.findByCounterCode(code)
+//                .orElseThrow(() -> new RuntimeException("Counter not found: " + code));
+//    }
 }

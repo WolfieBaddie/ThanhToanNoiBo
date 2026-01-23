@@ -11,8 +11,12 @@ import java.util.UUID;
 public interface CounterRepository extends JpaRepository<Counter, UUID>{
     Optional<Counter> findByCounterCode(String counterCode);
 
-    // Find all active counters of a specific type (e.g., all active Canteen counters)
-    List<Counter> findByCounterTypeAndStatus(CounterType type, CounterStatus status);
+    // Find all active counters of a specific type
+    List<Counter> findByCounterTypeAndStatus(String type, String status); // Lưu ý: type/status trong DB là String
 
     Optional<Counter> findByDeviceIdentifier(String deviceIdentifier);
+
+    // [MỚI] Tìm quầy theo ID của người quản lý (Merchant)
+    // Spring JPA sẽ tự động hiểu: Tìm Counter có field managedBy, và managedBy có userId = tham số truyền vào
+    Optional<Counter> findByManagedBy_UserId(UUID userId);
 }

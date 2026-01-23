@@ -14,45 +14,48 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<UserProfile | null>(null);
-    // isLoading này CHỈ dành cho việc check session lần đầu khi F5
     const [isLoading, setIsLoading] = useState<boolean>(true);
+
+    // Hàm lấy thông tin user đầy đủ (từ /auth/me)
+    const fetchUserProfile = async () => {
+        try {
+            const userData = await authService.getMe();
+            // Đảm bảo roles luôn là mảng để tránh lỗi null khi check quyền
+            if (!userData.roles) userData.roles = [];
+            setUser(userData);
+        } catch (error) {
+            console.log("Phiên đăng nhập không tồn tại hoặc đã hết hạn.");
+            setUser(null);
+        }
+    };
 
     useEffect(() => {
         const initAuth = async () => {
             try {
-                const userData = await authService.getMe();
-                setUser(userData);
-            } catch (error) {
-                // Khi API /me trả về 401, nó sẽ nhảy vào đây.
-                // Chúng ta chỉ cần set User = null để App hiểu là "Chưa đăng nhập"
-                // Tuyệt đối KHÔNG gọi window.location.reload() ở đây
-                console.log("Phiên đăng nhập không tồn tại hoặc đã hết hạn.");
-                setUser(null);
+                await fetchUserProfile();
             } finally {
                 setIsLoading(false);
             }
         };
-
         initAuth();
     }, []);
 
-    // Login function
     const login = async (credentials: LoginRequest) => {
-        // --- SỬA LỖI TẠI ĐÂY ---
-        // KHÔNG set setIsLoading(true) ở đây.
-        // Hãy để AuthPage tự xử lý loading của nút bấm (disabled button).
-
         try {
-            const response = await authService.login(credentials);
-            console.log("Login Response Data:", response);
-            // Cập nhật User -> App sẽ tự động chuyển hướng nhờ logic trong App.tsx
-            setUser(response);
+            // Bước 1: Gọi Login để lấy Token (Cookie)
+            // Response login trả về user thiếu roles -> KHÔNG DÙNG ĐỂ SET STATE
+            await authService.login(credentials);
+
+            // Bước 2: Gọi ngay /auth/me để lấy User đầy đủ (có Roles)
+            // Lúc này cookie đã được set bởi bước 1 nên request này sẽ hợp lệ
+            await fetchUserProfile();
+
         } catch (error) {
-            throw error; // Ném lỗi ra để AuthPage hiển thị alert
+            console.error("Login failed:", error);
+            throw error;
         }
     };
 
-    // Logout function
     const logout = async () => {
         try {
             await authService.logout({});
@@ -64,28 +67,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
-    const value = {
-        user,
-        isLoading,
-        isAuthenticated: !!user,
-        login,
-        logout
-    };
-
-    // Màn hình chờ CHỈ hiện ra khi đang check session lần đầu (F5)
     if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center bg-gray-100">
                 <div className="flex flex-col items-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-                    <div className="text-lg font-semibold text-gray-600">Đang khởi động ứng dụng...</div>
+                    <div className="text-lg font-semibold text-gray-600">Đang tải dữ liệu...</div>
                 </div>
             </div>
         );
     }
 
     return (
-        <AuthContext.Provider value={value}>
+        <AuthContext.Provider value={{ user, isLoading, isAuthenticated: !!user, login, logout }}>
             {children}
         </AuthContext.Provider>
     );

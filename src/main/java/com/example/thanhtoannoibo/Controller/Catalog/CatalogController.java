@@ -4,6 +4,8 @@ import com.example.thanhtoannoibo.DTO.Request.Catalog.ServiceFilterRequest;
 import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateCategoryRequest;
 import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateServiceRequest;
+import com.example.thanhtoannoibo.DTO.Response.Catalog.CatalogDataResponse;
+import com.example.thanhtoannoibo.DTO.Response.Catalog.PackageResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
 import com.example.thanhtoannoibo.DTO.Response.PageResponse;
 import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
@@ -78,8 +80,10 @@ public class CatalogController {
     }
 
     @GetMapping("/packages")
-    public ResponseEntity<BaseResponse<List<AppPackage>>> getAllPackages() {
-        return ResponseEntity.ok(BaseResponse.success(catalogService.getActivePackages()));
+    public ResponseEntity<BaseResponse<List<PackageResponse>>> getAllPackages() {
+        List<PackageResponse> result = catalogService.getActivePackagesWithDetails();
+
+        return ResponseEntity.ok(BaseResponse.success(result));
     }
 
     // --- ADMIN CREATE API ---
@@ -123,4 +127,28 @@ public class CatalogController {
                 .build();
     }
 
+
+    @GetMapping("/everything") // Hoặc /home-data
+    public ResponseEntity<BaseResponse<CatalogDataResponse>> getCatalogData(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size
+    ) {
+        // 1. Gọi lấy Packages (Thường số lượng ít, lấy hết hoặc lấy top active)
+        List<PackageResponse> packages = catalogService.getActivePackagesWithDetails();
+
+        // 2. Gọi lấy Services (Có phân trang & filter keyword)
+        ServiceFilterRequest filter = new ServiceFilterRequest();
+        filter.setKeyword(keyword);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<ServiceResponse> servicesPage = catalogService.getServices(filter, pageable);
+
+        // 3. Gom lại
+        CatalogDataResponse data = CatalogDataResponse.builder()
+                .packages(packages)
+                .services(PageResponse.from(servicesPage))
+                .build();
+
+        return ResponseEntity.ok(BaseResponse.success(data));
+    }
 }

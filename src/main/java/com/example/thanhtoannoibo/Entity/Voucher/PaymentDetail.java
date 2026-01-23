@@ -4,8 +4,10 @@ import com.example.thanhtoannoibo.Entity.Catalog.AppService;
 import com.example.thanhtoannoibo.Entity.Catalog.Counter;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -40,4 +42,8 @@ public class PaymentDetail {
 
     @Column(name = "amount")
     private BigDecimal amount; // Thành tiền của dòng này
+
+    @CreationTimestamp // Tự động lấy giờ hệ thống khi INSERT
+    @Column(name="created_at", updatable = false) // Không cho update cột này
+    private LocalDateTime createdAt;
 }

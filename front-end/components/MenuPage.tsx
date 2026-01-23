@@ -1,41 +1,31 @@
 import React from 'react';
 import { MenuHeader } from '@/components/menu/MenuHeader';
 import { MenuFilter } from '@/components/menu/MenuFilter';
-import { MenuGrid } from '@/components/menu/MenuGrid'; // Bạn nhớ sửa MenuGrid để dùng MenuItem mới
+import { MenuGrid } from '@/components/menu/MenuGrid';
 import { useCatalog } from '@/hooks/useCatalog';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 const MenuPage: React.FC = () => {
-    // Sử dụng Hook useCatalog (Đã viết ở bước trước)
+    // Sử dụng Hook useCatalog mới
     const {
-        services,
+        displayedItems, // Dùng cái này thay vì services
         categories,
         isLoading,
         pagination,
         filters,
+        viewFilter,      // State filter type
+        filterByType,    // Hàm đổi filter type
         handleSearch,
         filterByCategory,
         changePage,
         refresh
     } = useCatalog();
 
-    // Hàm xử lý "Xóa bộ lọc"
     const handleClearAll = () => {
-        handleSearch('');       // Reset từ khóa
-        filterByCategory('');   // Reset category
+        handleSearch('');
+        filterByCategory('');
+        filterByType('ALL'); // Reset về xem tất cả
     };
-
-    // Hàm mapping data từ ServiceResponse sang MenuItem cho component hiển thị
-    // (Nếu Component MenuGrid/Card dùng đúng type ServiceResponse thì không cần map)
-    const mappedItems = services.map(s => ({
-        serviceId: s.serviceId,
-        serviceCode: s.serviceCode,
-        serviceName: s.serviceName,
-        unitPrice: s.unitPrice,
-        categoryName: s.categoryName,
-        imageUrl: s.imageUrl,
-        description: s.description
-    }));
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto px-4 md:px-6 pb-20">
@@ -47,11 +37,12 @@ const MenuPage: React.FC = () => {
                 onSearchChange={handleSearch}
                 selectedCategory={filters.categoryId || ''}
                 onCategoryChange={filterByCategory}
-                categories={categories.map(c => ({
-                    categoryId: c.categoryId,
-                    categoryName: c.categoryName,
-                    categoryCode: c.categoryCode
-                }))} // Map đúng field
+                categories={categories} // Hook đã trả về đúng type ServiceCategory
+
+                // Props mới
+                viewFilter={viewFilter}
+                onViewFilterChange={filterByType}
+
                 onClearAll={handleClearAll}
             />
 
@@ -65,12 +56,12 @@ const MenuPage: React.FC = () => {
                 ) : (
                     <>
                         <MenuGrid
-                            items={mappedItems}
+                            items={displayedItems} // Truyền items hỗn hợp
                             onClearFilters={handleClearAll}
                         />
 
-                        {/* Pagination Controls */}
-                        {pagination.totalPages > 1 && (
+                        {/* Pagination Controls - Chỉ hiện khi không phải mode xem Package (vì Package ko phân trang) */}
+                        {pagination.totalPages > 1 && viewFilter !== 'PACKAGE' && (
                             <div className="flex justify-center items-center gap-4 pt-10">
                                 <button
                                     onClick={() => changePage(pagination.pageNumber - 1)}
@@ -81,8 +72,8 @@ const MenuPage: React.FC = () => {
                                 </button>
 
                                 <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                            Trang <span className="font-bold text-slate-900 dark:text-white">{pagination.pageNumber + 1}</span> / {pagination.totalPages}
-                        </span>
+                                    Trang <span className="font-bold text-slate-900 dark:text-white">{pagination.pageNumber + 1}</span> / {pagination.totalPages}
+                                </span>
 
                                 <button
                                     onClick={() => changePage(pagination.pageNumber + 1)}

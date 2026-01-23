@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { authService } from '../services/auth.service';
 import { storage } from '../utils/storage';
-import { LoginRequest, UserProfile } from '../types/auth.types';
+import {LoginRequest, RegisterRequest, UserProfile} from '../types/auth.types';
 
 export const useAuth = () => {
     // Khởi tạo state từ localStorage (nếu có) để giao diện hiển thị ngay lập tức
@@ -71,5 +71,34 @@ export const useAuth = () => {
         }
     };
 
-    return { user, login, logout, isLoading };
+        const register = async (data: RegisterRequest) => {
+        setIsLoading(true);
+        try {
+            const response = await authService.register(data);
+
+            // Backend Register trả về LoginResponse (có token).
+            // Ta cần lấy thông tin user để lưu storage.
+            // Cách 1: Nếu LoginResponse có sẵn field 'user' -> dùng luôn.
+            // Cách 2: Gọi getMe() ngay sau đó.
+
+            const userProfile = await authService.getMe(); // Gọi getMe cho chắc chắn lấy full info
+
+            storage.setUser(userProfile);
+            setUser(userProfile);
+            return userProfile;
+        } catch (err) {
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    /**
+     * [MỚI] Hàm Gửi OTP (Wrapper)
+     */
+    const sendOtp = async (email: string) => {
+        return await authService.sendRegisterOtp(email);
+    };
+
+    return { user, login, logout, register, sendOtp, isLoading };
 };

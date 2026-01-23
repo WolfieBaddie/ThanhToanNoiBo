@@ -1,5 +1,11 @@
 import { axiosClient } from '@/lib/axios-client';
-import { PageResponse, ServiceResponse, ServiceCategory, CatalogFilterParams } from '@/types/catalog.type';
+import {
+    PageResponse,
+    ServiceResponse,
+    ServiceCategory,
+    CatalogFilterParams,
+    PackageResponse
+} from '@/types/catalog.type';
 
 export const catalogService = {
     /**
@@ -28,6 +34,15 @@ export const catalogService = {
     getCategories: async (): Promise<ServiceCategory[]> => {
         const response = await axiosClient.get<ServiceCategory[]>('/catalog/categories');
         return response as unknown as ServiceCategory[];
+    },
+
+    /**
+     * [MỚI] Lấy danh sách các gói Combo (Packages)
+     * GET /api/catalog/packages
+     */
+    getPackages: async (): Promise<PackageResponse[]> => {
+        const response = await axiosClient.get<PackageResponse[]>('/catalog/packages');
+        return response as unknown as PackageResponse[];
     },
 
     /**

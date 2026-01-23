@@ -1,7 +1,8 @@
-export enum UserType {
+export enum UserRole {
     USER = 'USER',
     ADMIN = 'ADMIN',
     ACCOUNTANT = 'ACCOUNTANT',
+    MERCHANT = 'MERCHANT'
 }
 
 export enum UserStatus {

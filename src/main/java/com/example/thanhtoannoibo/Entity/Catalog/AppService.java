@@ -50,6 +50,10 @@ public class AppService {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "counter_id")
+    private Counter counter;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

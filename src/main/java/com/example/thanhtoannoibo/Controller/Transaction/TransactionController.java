@@ -6,6 +6,7 @@ import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.DTO.Response.PageResponse;
 import com.example.thanhtoannoibo.DTO.Response.Transaction.TransactionDetailResponse;
 import com.example.thanhtoannoibo.DTO.Response.Transaction.TransactionResponse;
+import com.example.thanhtoannoibo.DTO.Response.Transaction.UserTransactionDetailResponse;
 import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Service.Security.AuthService;
 import com.example.thanhtoannoibo.Service.Transaction.TransactionService;
@@ -56,5 +57,14 @@ public class TransactionController {
         // 2. Gọi Service (Lưu ý thứ tự tham số: transactionId trước, userId sau)
         // Check file TransactionService.java để đảm bảo đúng thứ tự
         return BaseResponse.success(transactionService.getTransactionDetail(transactionId, currentUser.getUserId()));
+    }
+
+    @GetMapping("/user/transactions/{id}")
+    public BaseResponse<UserTransactionDetailResponse> getUserTransactionDetail(
+            @PathVariable("id") UUID transactionId,
+            HttpServletRequest request
+    ) {
+        User currentUser = authService.getCurrentUser(request);
+        return BaseResponse.success(transactionService.getUserTransactionDetail(transactionId, currentUser.getUserId()));
     }
 }

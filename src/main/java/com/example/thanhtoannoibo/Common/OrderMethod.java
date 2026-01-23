@@ -4,5 +4,6 @@ public enum OrderMethod {
     VN_PAY,
     VIETQR,
     BANK_TRANSFER,
-    CREDIT
+    CREDIT,
+    QR_VOUCHER
 }

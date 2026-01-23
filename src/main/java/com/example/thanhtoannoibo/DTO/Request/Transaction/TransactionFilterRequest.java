@@ -5,6 +5,8 @@ import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
 @Data
 public class TransactionFilterRequest {
@@ -20,4 +22,6 @@ public class TransactionFilterRequest {
 
     // Tìm theo mã giao dịch
     private String transactionRef;
+
+    private List<UUID> userIds;
 }
