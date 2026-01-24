@@ -125,3 +125,31 @@ export interface UserTransactionDetail {
     qrUsageLimit?: number;
     qrUsageCount?: number;
 }
+
+export interface MerchantStatsData {
+    todayRevenue: number;
+    yesterdayRevenue: number;
+    revenueGrowth: number; // % tăng trưởng
+    orderCount: number;
+    processingCount: number;
+    avgOrderValue: number;
+}
+
+export interface ChartDataPoint {
+    date: string;      // YYYY-MM-DD
+    dayName: string;   // T2, T3, CN...
+    value: number;     // Doanh thu
+}
+
+// [MỚI] Interface cho Top món bán chạy
+export interface TopItemData {
+    itemName: string;
+    sales: number;
+    trend: string;     // 'up' | 'down'
+}
+
+// [MỚI] Response tổng cho Dashboard Chart
+export interface DashboardChartData {
+    revenueChart: ChartDataPoint[];
+    topItems: TopItemData[];
+}

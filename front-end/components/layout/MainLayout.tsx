@@ -1,127 +1,36 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
-import { Logo } from '../ui/Logo';
 import {
-    LayoutDashboard,
-    Wallet,
-    UtensilsCrossed,
-    History,
-    Settings,
-    LogOut,
     Menu,
     Bell,
     Search,
-    X,
-    TicketPercent,
-    CheckCircle2,
-    AlertTriangle,
-    Info,
     Check,
-    ClipboardList, // Icon đơn hàng
-    BarChart3,     // Icon báo cáo
-    Store          // Icon cửa hàng
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/hooks/useNotification';
 import { AppNotification } from '@/types/notification.type';
 import { GlobalNotificationProvider } from "@/context/GlobalNoticationContext";
-import {UserRole} from "@/types/common.types";
+import { UserRole } from "@/types/common.types";
+import { Sidebar } from './Sidebar';
+import { NotificationItem } from '../notification/NotificationItem'; // [MỚI] Import NotificationItem
 
 interface MainLayoutProps {
     children?: React.ReactNode;
-    // user & onLogout lấy từ useAuth() nên không cần truyền props, nhưng giữ lại nếu bạn muốn flexible
 }
 
-// Sub-component NotificationItem (Giữ nguyên)
-const NotificationItem: React.FC<{ item: AppNotification; onClick: () => void }> = ({ item, onClick }) => {
-    let Icon = Info;
-    let iconColorClass = "text-blue-500 bg-blue-50 dark:bg-blue-900";
-
-    if (item.type === 'SUCCESS') {
-        Icon = CheckCircle2;
-        iconColorClass = "text-emerald-500 bg-emerald-50 dark:bg-emerald-900";
-    } else if (item.type === 'WARNING') {
-        Icon = AlertTriangle;
-        iconColorClass = "text-orange-500 bg-orange-50 dark:bg-orange-900";
-    } else if (item.type === 'ERROR') {
-        Icon = X;
-        iconColorClass = "text-red-500 bg-red-50 dark:bg-red-900";
-    }
-
-    return (
-        <div
-            onClick={onClick}
-            className={`p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors group 
-            ${!item.isRead
-                ? 'bg-indigo-50 dark:bg-slate-800'
-                : 'bg-white dark:bg-slate-900'
-            }`}
-        >
-            <div className="flex gap-3">
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${iconColorClass}`}>
-                    <Icon size={18} />
-                </div>
-                <div className="flex-1">
-                    <div className="flex justify-between items-start mb-0.5">
-                        <h4 className={`text-sm ${!item.isRead ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-300'}`}>
-                            {item.title}
-                        </h4>
-                        {!item.isRead && <span className="w-2 h-2 rounded-full bg-indigo-600 mt-1.5 shadow-sm"></span>}
-                    </div>
-                    <p className={`text-xs ${!item.isRead ? 'text-slate-600 dark:text-slate-300 font-medium' : 'text-slate-500 dark:text-slate-500'} line-clamp-2 leading-relaxed`}>
-                        {item.message}
-                    </p>
-                    <span className="text-[10px] text-slate-400 mt-2 block font-medium">
-                        {new Date(item.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
-                    </span>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-export const MainLayout: React.FC = () => {
-    const { user, logout } = useAuth(); // Lấy trực tiếp từ Context
+export const MainLayout: React.FC<MainLayoutProps> = () => {
+    const { user } = useAuth();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const location = useLocation();
     const navigate = useNavigate();
-    const notificationData = useNotifications();
-    const {
-        notifications,
-        unreadCount,
-        fetchNotifications,
-        markRead,
-        markAllRead
-    } = notificationData;
 
+    // Notification Logic
+    const notificationData = useNotifications();
+    const { notifications, unreadCount, fetchNotifications, markRead, markAllRead } = notificationData;
     const [showNotiDropdown, setShowNotiDropdown] = useState(false);
     const notiRef = useRef<HTMLDivElement>(null);
 
-    // --- CẤU HÌNH MENU ---
-    // Menu cho USER (Học sinh/Giáo viên)
-    const userNavItems = [
-        { id: 'dashboard', label: 'Tổng quan', icon: <LayoutDashboard size={20} />, path: '/dashboard' },
-        { id: 'wallet', label: 'Ví & Nạp tiền', icon: <Wallet size={20} />, path: '/wallet' },
-        { id: 'voucher', label: 'Kho Voucher', icon: <TicketPercent size={20} />, path: '/voucher' },
-        { id: 'services', label: 'Dịch vụ & Món', icon: <UtensilsCrossed size={20} />, path: '/menu' },
-        { id: 'history', label: 'Lịch sử GD', icon: <History size={20} />, path: '/history' },
-        { id: 'settings', label: 'Cài đặt', icon: <Settings size={20} />, path: '/settings' },
-    ];
-
-    // Menu cho MERCHANT (Chủ quầy)
-    const merchantNavItems = [
-        { id: 'm-dashboard', label: 'Tổng quan Quầy', icon: <LayoutDashboard size={20} />, path: '/merchant/dashboard' },
-        // { id: 'm-services', label: 'Quản lý Dịch vụ', icon: <Store size={20} />, path: '/merchant/services' },
-        // { id: 'm-orders', label: 'Lịch sử Đơn', icon: <ClipboardList size={20} />, path: '/merchant/orders' },
-        // { id: 'm-reports', label: 'Báo cáo', icon: <BarChart3 size={20} />, path: '/merchant/reports' },
-        // { id: 'm-settings', label: 'Cài đặt', icon: <Settings size={20} />, path: '/merchant/settings' },
-    ];
-
-    // --- LOGIC CHỌN MENU ---
     const isMerchant = user?.roles?.includes(UserRole.MERCHANT);
-    const navItems = isMerchant ? merchantNavItems : userNavItems;
 
-    // Logic toggle notification
     const toggleNoti = () => {
         if (!showNotiDropdown) fetchNotifications();
         setShowNotiDropdown(!showNotiDropdown);
@@ -145,84 +54,25 @@ export const MainLayout: React.FC = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const isActive = (path: string) => {
-        if (path === '/dashboard' && location.pathname === '/') return true;
-        if (location.pathname === path) return true;
-        // Logic active thông minh hơn cho nested routes
-        if (path !== '/' && location.pathname.startsWith(path)) return true;
-        return false;
-    };
-
-    const SidebarContent = () => (
-        <div className="flex flex-col h-full bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 transition-colors">
-            <div className="p-8 pb-8 flex items-center justify-between">
-                <Logo className="text-slate-900 dark:text-white" />
-                {/* Badge Role cho Merchant */}
-                {isMerchant && (
-                    <span className="px-2 py-1 bg-orange-100 text-orange-600 text-[10px] font-bold rounded uppercase border border-orange-200">
-                        Merchant
-                    </span>
-                )}
-                <button
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="lg:hidden p-2 text-slate-400 hover:bg-slate-100 rounded-xl"
-                >
-                    <X size={20} />
-                </button>
-            </div>
-
-            <div className="flex-1 px-6 space-y-2 py-4 overflow-y-auto">
-                {navItems.map((item) => {
-                    const active = isActive(item.path);
-                    return (
-                        <button
-                            key={item.id}
-                            onClick={() => {
-                                navigate(item.path);
-                                setIsMobileMenuOpen(false);
-                            }}
-                            className={`w-full flex items-center justify-start px-5 py-4 rounded-2xl transition-all font-bold text-sm group ${
-                                active
-                                    ? 'bg-primary text-slate-900 shadow-md shadow-lime-200/50'
-                                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800'
-                            }`}
-                        >
-                            <span className={`mr-3 ${active ? 'text-slate-900' : 'text-slate-400 group-hover:text-slate-600'}`}>
-                                {item.icon}
-                            </span>
-                            <span>{item.label}</span>
-                        </button>
-                    );
-                })}
-            </div>
-
-            <div className="p-6 border-t border-slate-100 dark:border-slate-800">
-                <button
-                    onClick={logout}
-                    className="w-full flex items-center gap-3 px-5 py-3 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-colors font-bold text-sm"
-                >
-                    <LogOut size={20} />
-                    <span>Đăng xuất</span>
-                </button>
-            </div>
-        </div>
-    );
-
     return (
         <div className="min-h-screen bg-app-bg dark:bg-slate-950 text-slate-900 dark:text-white font-sans transition-colors duration-300 flex">
+
             {/* Desktop Sidebar (z-20) */}
             <aside className="hidden lg:block w-[280px] h-screen sticky top-0 z-20">
-                <SidebarContent />
+                <Sidebar isOpen={true} onClose={() => {}} />
             </aside>
 
             {/* Mobile Sidebar (z-50) */}
             <div className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 ${isMobileMenuOpen ? 'visible' : 'invisible'}`}>
+                {/* Backdrop */}
                 <div
                     className={`absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0'}`}
                     onClick={() => setIsMobileMenuOpen(false)}
                 />
+
+                {/* Drawer */}
                 <div className={`absolute top-0 left-0 w-[280px] h-full bg-white shadow-2xl transition-transform duration-300 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                    <SidebarContent />
+                    <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
                 </div>
             </div>
 
@@ -307,7 +157,7 @@ export const MainLayout: React.FC = () => {
                             )}
                         </div>
 
-                        {/* User Info */}
+                        {/* User Info Header */}
                         <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700 h-8">
                             <div className="text-right hidden sm:block">
                                 <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{user?.fullName || "Khách"}</p>

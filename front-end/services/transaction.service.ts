@@ -6,7 +6,8 @@ import {
     Transaction,
     TransactionDetail,
     TransactionFilterParams,
-    UserTransactionDetail
+    UserTransactionDetail,
+    MerchantStatsData, DashboardChartData
 } from '@/types/transaction.type';
 
 export const walletService = {
@@ -34,5 +35,17 @@ export const walletService = {
     getUserTransactionDetail: async (id: string): Promise<UserTransactionDetail> => {
         const response = await axiosClient.get(`/user-credits/user/transactions/${id}`);
         return response as unknown as UserTransactionDetail;
+    },
+
+    getMerchantStats: async (): Promise<MerchantStatsData> => {
+        const response = await axiosClient.get('/user-credits/transactions/stats');
+        return response as unknown as MerchantStatsData;
+    },
+
+    getDashboardChart: async (period: string = 'Week'): Promise<DashboardChartData> => {
+        const response = await axiosClient.get('/user-credits/transactions/dashboard-chart', {
+            params: { period }
+        });
+        return response as unknown as DashboardChartData;
     }
 };
