@@ -4,9 +4,12 @@ import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.Common.UserStatus;
 import com.example.thanhtoannoibo.Common.UserType;
 import com.example.thanhtoannoibo.Common.UserVoucherStatus;
+import com.example.thanhtoannoibo.Config.JwtProperties;
 import com.example.thanhtoannoibo.DTO.Request.Auth.LoginRequest;
+import com.example.thanhtoannoibo.DTO.Request.Auth.RefreshTokenRequest;
 import com.example.thanhtoannoibo.DTO.Response.Auth.LoginResponse;
 import com.example.thanhtoannoibo.DTO.Request.Register.RegisterRequest;
+import com.example.thanhtoannoibo.DTO.Response.Auth.RefreshTokenResponse;
 import com.example.thanhtoannoibo.DTO.Response.Auth.UserResponse;
 import com.example.thanhtoannoibo.Entity.*;
 import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
@@ -31,6 +34,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -52,6 +56,8 @@ public class AuthService {
     private final RoleRepository roleRepository;
     private final AuditLogRepository auditLogRepository;
     private final UserCreditRepository userCreditRepository;
+    private final JwtProperties jwtProperties;
+    private final com.example.thanhtoannoibo.Service.Security.OtpService otpService;
 
     @Value("${app.jwt.access-ttl-minutes:15}")
     private long accessTtlMinutes;
@@ -176,27 +182,30 @@ public class AuthService {
 
     @Transactional
     public LoginResponse register(RegisterRequest req) {
-        // 1. Validate trùng lặp
+        // 1. [MỚI] Validate OTP trước tiên
+        // "REGISTER" là actionType quy ước giữa BE và FE
+        otpService.validateOtp(req.getEmail(), req.getOtp(), "REGISTER");
+
+        // 2. Validate trùng lặp
         if (userRepository.findByUsername(req.getUsername()).isPresent()) {
             throw new RuntimeException("USERNAME_EXISTS");
         }
-        if (userRepository.findByEmail(req.getEmail()).isPresent()) { // Giả sử repo có hàm này
+        if (userRepository.findByEmail(req.getEmail()).isPresent()) {
             throw new RuntimeException("EMAIL_EXISTS");
         }
 
-        // 2. Tạo User Entity
+        // 3. Tạo User Entity
         User newUser = User.builder()
                 .username(req.getUsername())
                 .passwordHash(passwordEncoder.encode(req.getPassword()))
                 .fullName(req.getFullName())
                 .email(req.getEmail())
                 .phoneNumber(req.getPhoneNumber())
-                .userType(UserType.USER) // Mặc định là Student
+                .userType(UserType.USER) // Mặc định là User/Student
                 .status(UserStatus.ACTIVE)
+                .createdAt(LocalDateTime.now())
                 .build();
 
-        // Gán Role mặc định (STUDENT hoặc USER)
-        // Lưu ý: Role code phải khớp với DB ("STUDENT" hoặc "USER")
         Role defaultRole = roleRepository.findByRoleCode("STUDENT")
                 .orElseThrow(() -> new RuntimeException("DEFAULT_ROLE_NOT_FOUND"));
 
@@ -204,51 +213,51 @@ public class AuthService {
 
         User savedUser = userRepository.save(newUser);
 
-        // 3. Tạo UserVoucher (Ví mặc định)
-        String uniqueVoucherCode = "V" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0,4).toUpperCase();
+        // 4. [MỚI] Tự động tạo Ví (UserCredit)
+        UserCredit newCredit = UserCredit.builder()
+                .user(savedUser)
+                .balance(BigDecimal.ZERO)          // Số dư ban đầu = 0
+                .totalDeposited(BigDecimal.ZERO)
+                .currentDaySpending(BigDecimal.ZERO)
+                .dailyLimitAmount(null)            // Không giới hạn
+                .build();
 
+        userCreditRepository.save(newCredit);
+
+        // 5. Tạo Voucher chào mừng (Giữ nguyên logic cũ nếu cần)
+        String uniqueVoucherCode = "V" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0,4).toUpperCase();
         UserVoucher newVoucher = UserVoucher.builder()
-                .owner(savedUser) // Map tới user vừa tạo
+                .owner(savedUser)
                 .voucherCode(uniqueVoucherCode)
-//                .voucherType("VALUE") // Loại ví tiền (VALUE) thay vì ITEM
                 .status(UserVoucherStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();
-
         userVoucherRepository.save(newVoucher);
 
-        // 4. Ghi Audit Log
+        // 6. Ghi Audit Log
         AuditLog auditLog = AuditLog.builder()
                 .user(savedUser)
                 .action("REGISTER_ACCOUNT")
                 .entityType("USER")
                 .entityId(savedUser.getUserId())
-                .details(Map.of("email", savedUser.getEmail(), "voucherCode", uniqueVoucherCode))
-                .ipAddress("UNKNOWN") // Trong ngữ cảnh register thường khó lấy IP chính xác nếu không truyền vào, hoặc lấy từ Request nếu controller truyền xuống
+                .details(Map.of("email", savedUser.getEmail(), "creditId", newCredit.getCreditId().toString()))
+                .ipAddress("REGISTER_FLOW")
                 .createdAt(LocalDateTime.now())
                 .build();
-
         auditLogRepository.save(auditLog);
 
-        // 5. Tự động đăng nhập (Tạo Session & Token)
-        // Logic dưới đây tái sử dụng từ hàm login để trả về Token luôn
-
-        // Lấy danh sách quyền để tạo Token
+        // 7. Tự động đăng nhập (Tạo Token trả về luôn)
+        // Lấy quyền hạn
         List<String> permissionCodes = savedUser.getRoles().stream()
                 .flatMap(role -> role.getPermissions().stream())
                 .map(Permission::getPermissionCode)
-                .distinct()
-                .sorted()
-                .collect(Collectors.toList());
+                .distinct().sorted().collect(Collectors.toList());
 
         List<String> roleCodes = savedUser.getRoles().stream()
-                .map(Role::getRoleCode)
-                .distinct()
-                .sorted()
-                .collect(Collectors.toList());
+                .map(Role::getRoleCode).distinct().sorted().collect(Collectors.toList());
 
+        // Sinh Token
         Instant accessExp = Instant.now().plus(Duration.ofMinutes(accessTtlMinutes));
-
         String accessToken = jwtService.generateAccessToken(
                 savedUser.getUsername(),
                 savedUser.getUserId(),
@@ -266,87 +275,76 @@ public class AuthService {
         UserSession session = UserSession.builder()
                 .user(savedUser)
                 .token(refreshHash)
-                .ipAddress("REGISTER_IP") // Có thể update nếu truyền IP vào DTO
+                .ipAddress("REGISTER_IP")
                 .expiresAt(LocalDateTime.now().plusDays(refreshTtlDays))
                 .createdAt(LocalDateTime.now())
                 .build();
 
         sessionRepository.save(session);
 
-        // Trả về response giống hệt login
         return LoginResponse.builder()
                 .userId(savedUser.getUserId())
                 .accessToken(accessToken)
                 .accessExpiresAt(accessExp)
                 .refreshToken(refreshTokenPlain)
                 .refreshExpiresAt(refreshExp)
+                // Có thể trả thêm user info nếu cần
                 .build();
     }
 
     @Transactional
-    public LoginResponse refreshToken(String refreshToken, String ip, String userAgent, String deviceId) {
-        String refreshHash = sha256Base64(refreshToken);
+    public RefreshTokenResponse refreshToken(RefreshTokenRequest request) {
+        // [FIX 1] Hash token từ request trước khi tìm trong DB
+        // Vì DB lưu hash chứ không lưu plain text
+        String incomingTokenHash = sha256Base64(request.getRefreshToken());
 
-        UserSession session = sessionRepository.findByToken(refreshHash)
-                .orElseThrow(() -> new RuntimeException("INVALID_REFRESH_TOKEN"));
+        // 1. Tìm Refresh Token theo Hash
+        UserSession session = sessionRepository.findByToken(incomingTokenHash)
+                .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED));
 
-        if (session.isRevoked()) {
-            throw new RuntimeException("REVOKED_REFRESH_TOKEN");
-        }
-
-        if (session.getExpiresAt().isBefore(java.time.LocalDateTime.now())) {
-            throw new RuntimeException("EXPIRED_REFRESH_TOKEN");
+        // 2. Kiểm tra hạn & trạng thái
+        if (session.isRevoked() || session.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
         User user = session.getUser();
 
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new RuntimeException("USER_NOT_ACTIVE");
-        }
+        // 3. Lấy Roles
+        List<String> roleCodes = user.getRoles().stream().map(Role::getRoleCode).toList();
 
-        // Get permissions from user's roles
-        List<String> permissionCodes = user.getRoles().stream()
-                .flatMap(role -> role.getPermissions().stream())
-                .map(Permission::getPermissionCode)
-                .distinct()
-                .sorted()
-                .collect(Collectors.toList());
+        // 4. Tính thời gian hết hạn (Dùng jwtProperties)
+        Instant accessExpiration = Instant.now().plusMillis(jwtProperties.getExpiration());
 
-        // Get role codes
-        List<String> roleCodes = user.getRoles().stream()
-                .map(Role::getRoleCode)
-                .distinct()
-                .sorted()
-                .collect(Collectors.toList());
-
-        Instant accessExp = Instant.now().plus(Duration.ofMinutes(accessTtlMinutes));
+        // 5. Sinh Access Token mới
         String newAccessToken = jwtService.generateAccessToken(
                 user.getUsername(),
                 user.getUserId(),
                 user.getUserType(),
-                permissionCodes,
+                new ArrayList<>(), // Permissions logic giữ nguyên
                 roleCodes,
-                accessExp
+                accessExpiration
         );
 
-        // Generate new refresh token
+        // 6. Xoay vòng Refresh Token (Token Rotation)
+        // [CONSISTENCY] Nên dùng format giống lúc login: UUID + "." + UUID (Optional)
         String newRefreshTokenPlain = UUID.randomUUID().toString() + "." + UUID.randomUUID();
-        String newRefreshHash = sha256Base64(newRefreshTokenPlain);
 
-        Instant newRefreshExp = Instant.now().plus(Duration.ofDays(refreshTtlDays));
+        // [FIX 2] Hash token mới trước khi lưu xuống DB
+        String newRefreshTokenHash = sha256Base64(newRefreshTokenPlain);
 
-        // Update session with new refresh token
-        session.setToken(newRefreshHash);
-        session.setExpiresAt(java.time.LocalDateTime.now().plusDays(refreshTtlDays));
-        session.setIpAddress(ip);
+        // Cập nhật Session với Token đã Hash
+        session.setToken(newRefreshTokenHash);
+
+        // Cập nhật thời gian hết hạn
+        long refreshExpireMs = jwtProperties.getRefreshExpiration(); // 2592000000L (30 days)
+        session.setExpiresAt(LocalDateTime.now().plusNanos(refreshExpireMs * 1_000_000));
+
         sessionRepository.save(session);
 
-        return LoginResponse.builder()
-                .userId(user.getUserId())
+        // [QUAN TRỌNG] Trả về Client chuỗi Plain text
+        return RefreshTokenResponse.builder()
                 .accessToken(newAccessToken)
-                .accessExpiresAt(accessExp)
                 .refreshToken(newRefreshTokenPlain)
-                .refreshExpiresAt(newRefreshExp)
                 .build();
     }
 

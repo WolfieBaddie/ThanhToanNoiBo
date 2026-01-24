@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -31,4 +32,18 @@ public class TransactionDetailResponse {
     // ID để frontend redirect nếu cần click vào xem sản phẩm gốc
     private UUID serviceId;
     private UUID packageId;
+
+    private TransactionPartnerInfo partnerInfo;
+    private String evidenceImage;
+
+    private List<TransactionItemDetail> items;
+
+    @Data
+    @Builder
+    public static class TransactionItemDetail {
+        private String itemName;
+        private String itemImage;
+        private BigDecimal quantity;
+        private BigDecimal unitPrice;
+    }
 }

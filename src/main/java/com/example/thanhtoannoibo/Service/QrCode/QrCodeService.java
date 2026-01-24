@@ -43,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -319,16 +320,55 @@ public class QrCodeService {
         mainTxn.setMetadata(metadata);
         transactionRepository.save(mainTxn);
 
-        // 9. Payment Detail (CẬP NHẬT: Lưu packageRef)
-        PaymentDetail detail = PaymentDetail.builder()
-                .transaction(mainTxn)
-                .quantity(BigDecimal.valueOf(qtyToProcess))
-                .amount(transactionValue)
-                .service(targetService)
-                .packageRef(targetPackage) // [QUAN TRỌNG] Lưu Package vào PaymentDetail
-                .createdAt(LocalDateTime.now())
-                .build();
-        paymentDetailRepository.save(detail);
+        List<PaymentDetail> paymentDetails = new ArrayList<>();
+
+        // TRƯỜNG HỢP 1: Frontend gửi xuống danh sách chi tiết (Combo nhiều món)
+        if (req.getItems() != null && !req.getItems().isEmpty()) {
+
+            // Lấy danh sách ID để query 1 lần (Tối ưu DB)
+            List<UUID> serviceIds = req.getItems().stream()
+                    .map(ProcessQrRequest.QrItemRequest::getServiceId)
+                    .collect(Collectors.toList());
+
+            List<AppService> services = appServiceRepository.findAllById(serviceIds);
+
+            // Map để lookup nhanh
+            Map<UUID, AppService> serviceMap = services.stream()
+                    .collect(Collectors.toMap(AppService::getServiceId, s -> s));
+
+            for (ProcessQrRequest.QrItemRequest itemReq : req.getItems()) {
+                AppService s = serviceMap.get(itemReq.getServiceId());
+                if (s != null) {
+                    PaymentDetail detail = PaymentDetail.builder()
+                            .transaction(mainTxn) // [QUAN TRỌNG] Gắn vào cùng 1 Transaction cha
+                            .packageRef(targetPackage) // Gắn Package ID
+                            .service(s) // Gắn Service ID cụ thể
+                            .quantity(BigDecimal.valueOf(itemReq.getQuantity()))
+                            // Amount ở detail có thể để 0 hoặc chia tỉ lệ, ở đây để unitPrice * qty để track giá trị hàng hoá
+                            .amount(s.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity())))
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                    paymentDetails.add(detail);
+                }
+            }
+        }
+        // TRƯỜNG HỢP 2: Frontend không gửi items (Vé lẻ hoặc client cũ)
+        else {
+            PaymentDetail detail = PaymentDetail.builder()
+                    .transaction(mainTxn)
+                    .quantity(BigDecimal.valueOf(qtyToProcess))
+                    .amount(transactionValue)
+                    .service(targetService)
+                    .packageRef(targetPackage)
+                    .createdAt(LocalDateTime.now())
+                    .build();
+            paymentDetails.add(detail);
+        }
+
+        // [QUAN TRỌNG] Bulk Insert
+        if (!paymentDetails.isEmpty()) {
+            paymentDetailRepository.saveAll(paymentDetails);
+        }
 
         // Log logs...
         saveAuditLogForTransaction(merchant, mainTxn, voucher, BigDecimal.ZERO, merchantCounter);

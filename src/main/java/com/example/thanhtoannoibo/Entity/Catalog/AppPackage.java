@@ -6,6 +6,8 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -20,8 +22,8 @@ public class AppPackage {
     @Column(name = "package_id")
     private UUID packageId;
 
-    @Column(name = "package_code", unique = true, nullable = false, length = 50)
-    private String packageCode; // Mã gói (VD: "PKG_CREDIT_50K")
+    @Column(name = "package_code", nullable = false, unique = true)
+    private String packageCode;
 
     @Column(name = "package_name", nullable = false)
     private String packageName;
@@ -29,23 +31,32 @@ public class AppPackage {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    // Giá tiền thật (VND) user phải trả qua cổng thanh toán
-    @Column(name = "price", nullable = false, precision = 15, scale = 2)
+    @Column(name = "price", nullable = false)
     private BigDecimal price;
 
-    @Enumerated(EnumType.STRING)
+    // 'CREDIT_VALUE', 'ITEM_QUANTITY', 'MIXED'
     @Column(name = "package_type", nullable = false)
-    private PackageType packageType;
+    private String packageType;
 
-    // Số lượng Xu user nhận được sau khi mua (quan trọng nhất)
-    @Column(name = "credit_value", precision = 15, scale = 2)
+    @Column(name = "credit_value")
     private BigDecimal creditValue;
 
-    @Builder.Default
     @Column(name = "is_active")
-    private Boolean isActive = true;
+    private Boolean isActive;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    // Quan hệ Many-to-Many với AppService thông qua bảng trung gian package_services
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "package_services",
+            schema = "app",
+            joinColumns = @JoinColumn(name = "package_id"),
+            inverseJoinColumns = @JoinColumn(name = "service_id")
+    )
+    @ToString.Exclude // Tránh vòng lặp khi log
+    @EqualsAndHashCode.Exclude
+    private Set<AppService> services = new HashSet<>();
 }

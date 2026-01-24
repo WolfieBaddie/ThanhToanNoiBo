@@ -44,4 +44,7 @@ public class QrScanLog {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "image_url")
+    private String imageUrl;
 }

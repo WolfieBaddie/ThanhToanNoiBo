@@ -60,7 +60,7 @@ export const Notification: React.FC<NotificationProps> = ({
   const current = config[type];
 
   return (
-    <div className={`fixed top-6 right-6 z-50 flex flex-col gap-2 transition-all duration-300 ease-out transform ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0'}`}>
+    <div className={`fixed top-6 right-6 z-[100] flex flex-col gap-2 transition-all duration-300 ease-out transform ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0'}`}>
       <div className="bg-white rounded-2xl shadow-2xl shadow-slate-200/50 border border-slate-100 p-1 flex items-stretch min-w-[320px] max-w-sm overflow-hidden backdrop-blur-xl">
         
         {/* Colorful Icon Bar */}

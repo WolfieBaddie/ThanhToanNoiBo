@@ -9,8 +9,7 @@ import {
     UserTransactionDetail
 } from '@/types/transaction.type';
 
-// [FIX 1] Helper Format ngày đơn giản & chính xác hơn
-// Lấy trực tiếp ngày/tháng/năm local để tạo chuỗi YYYY-MM-DD
+// Format ngày chuẩn ISO YYYY-MM-DD cho bộ lọc
 const formatDateIso = (date: Date): string => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -18,8 +17,10 @@ const formatDateIso = (date: Date): string => {
     return `${year}-${month}-${day}`;
 };
 
+/**
+ * Hook quản lý danh sách giao dịch (Lịch sử)
+ */
 export const useTransactions = (initialParams: TransactionFilterParams = { page: 0, size: 10 }) => {
-    // ... (Giữ nguyên phần State: data, loading, error...)
     const [data, setData] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -54,10 +55,8 @@ export const useTransactions = (initialParams: TransactionFilterParams = { page:
         fetchTransactions();
     }, [fetchTransactions]);
 
-    // --- CÁC HÀM HELPER ---
-    const setPage = (page: number) => {
-        setFilters(prev => ({ ...prev, page }));
-    };
+    // --- Actions ---
+    const setPage = (page: number) => setFilters(prev => ({ ...prev, page }));
 
     const setDateFilter = (from: Date, to: Date) => {
         setFilters(prev => ({
@@ -68,38 +67,29 @@ export const useTransactions = (initialParams: TransactionFilterParams = { page:
         }));
     };
 
-    const setTypeFilter = (type: string | undefined) => {
-        setFilters(prev => ({
-            ...prev,
-            type: type,
-            page: 0
-        }));
+    const setTypeFilter = (type: any) => { // type: TransactionTypeEnum
+        setFilters(prev => ({ ...prev, type: type, page: 0 }));
     };
 
     const setSearchRef = (keyword: string) => {
-        setFilters(prev => ({
-            ...prev,
-            transactionRef: keyword,
-            page: 0
-        }));
+        setFilters(prev => ({ ...prev, transactionRef: keyword, page: 0 }));
     };
 
     const clearFilters = () => {
-        setFilters({
-            page: 0,
-            size: initialParams.size || 10
-        });
+        setFilters({ page: 0, size: initialParams.size || 10 });
     };
 
     return {
         data, loading, error, totalItems, totalPages, filters,
-        setFilters, // Return setFilters để component dùng nếu cần
         setPage, setDateFilter, setTypeFilter, setSearchRef, clearFilters,
         refetch: fetchTransactions
     };
 };
 
-// ... (Giữ nguyên useTransactionDetail và useUserTransactionDetail)
+/**
+ * Hook xem chi tiết giao dịch (Dành cho Merchant/Admin)
+ * Đảm bảo lấy được itemName, itemImage, items[]
+ */
 export const useTransactionDetail = (transactionId: string | null) => {
     const [detail, setDetail] = useState<TransactionDetail | null>(null);
     const [loading, setLoading] = useState(false);
@@ -114,6 +104,7 @@ export const useTransactionDetail = (transactionId: string | null) => {
             setLoading(true);
             try {
                 const res = await walletService.getTransactionDetail(transactionId);
+                // Dữ liệu res trả về đã bao gồm items, itemName, itemImage từ API
                 setDetail(res);
             } catch (err: any) {
                 console.error("Detail Error:", err);
@@ -128,6 +119,10 @@ export const useTransactionDetail = (transactionId: string | null) => {
     return { detail, loading, error };
 };
 
+/**
+ * Hook xem chi tiết giao dịch (Dành cho User App)
+ * Đảm bảo lấy được itemName để hiển thị "Đổi 1 Cơm Tấm"
+ */
 export const useUserTransactionDetail = (transactionId: string | null) => {
     const [detail, setDetail] = useState<UserTransactionDetail | null>(null);
     const [loading, setLoading] = useState(false);
@@ -144,6 +139,7 @@ export const useUserTransactionDetail = (transactionId: string | null) => {
             setError(null);
             try {
                 const res = await walletService.getUserTransactionDetail(transactionId);
+                // Backend trả về UserTransactionDetailResponse có sẵn itemName, items
                 setDetail(res);
             } catch (err: any) {
                 console.error("Fetch User Detail Error:", err);

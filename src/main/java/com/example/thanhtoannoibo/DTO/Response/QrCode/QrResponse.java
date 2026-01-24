@@ -21,7 +21,7 @@ public class QrResponse {
     private String voucherCode; // Tiện hiển thị
     private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
-
+    private Integer usageLimit;
     private UUID userId;
     private String fullName;
     private String phoneNumber;

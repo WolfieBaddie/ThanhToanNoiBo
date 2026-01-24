@@ -27,8 +27,8 @@ public enum ErrorCode {
     PAYMENT_FAILED("O0003", "Thanh toán thất bại", HttpStatus.BAD_REQUEST),
 
     // --- 5. CATALOG (Gói cước & Dịch vụ) ---
-    PACKAGE_NOT_FOUND("P0001", "Gói cước không tồn tại", HttpStatus.NOT_FOUND),
-    PACKAGE_INACTIVE("P0002", "Gói cước này đang tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
+    PACKAGE_NOT_FOUND("P0001", "Gói combo không tồn tại", HttpStatus.NOT_FOUND),
+    PACKAGE_INACTIVE("P0002", "Gói combo này đang tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
     SERVICE_NOT_FOUND("S0001", "Dịch vụ không tồn tại", HttpStatus.NOT_FOUND),
     SERVICE_INACTIVE("S0002", "Dịch vụ này đang tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
 
@@ -36,14 +36,14 @@ public enum ErrorCode {
     VOUCHER_NOT_FOUND("V0001", "Không tìm thấy vé/voucher", HttpStatus.NOT_FOUND),
     VOUCHER_USED_OR_EXPIRED("V0002", "Voucher đã được sử dụng hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
     VOUCHER_LOCKED("V0003", "Voucher đang bị khóa", HttpStatus.BAD_REQUEST),
-
+    INSUFFICIENT_VOUCHER_QUANTITY("V0004", "Số lượng voucher không đủ.", HttpStatus.BAD_REQUEST),
     // --- 7. QR CODE ---
     QR_CODE_NOT_FOUND("Q0001", "Mã QR không tồn tại", HttpStatus.NOT_FOUND),
     QR_CODE_EXPIRED("Q0002", "Mã QR đã hết hạn sử dụng", HttpStatus.BAD_REQUEST),
     QR_CODE_INACTIVE("Q0003", "Mã QR chưa được kích hoạt hoặc bị vô hiệu hóa", HttpStatus.BAD_REQUEST),
     QR_CODE_LIMIT_REACHED("Q0004", "Mã QR đã hết lượt sử dụng", HttpStatus.BAD_REQUEST),
     QR_CODE_ALREADY_EXISTS("Q0005", "Voucher này đang có một mã QR còn hiệu lực. Vui lòng sử dụng mã cũ hoặc hủy nó trước khi tạo mới.", HttpStatus.CONFLICT),
-
+    EXCEED_QR_LIMIT("1033", "Số lượng xác nhận vượt quá hạn mức cho phép của mã QR.", HttpStatus.BAD_REQUEST),
     // --- 8. VNPAY INTEGRATION ---
     VNPAY_INVALID_CHECKSUM("VP001", "Sai chữ ký VnPay (Sai Checksum)", HttpStatus.UNAUTHORIZED),
     VNPAY_PAYMENT_FAILED("VP002", "Giao dịch thanh toán qua VNPay không thành công", HttpStatus.BAD_REQUEST),
@@ -51,7 +51,21 @@ public enum ErrorCode {
     DAILY_LIMIT_EXCEEDED("W0005", "Giao dịch vượt quá hạn mức chi tiêu trong ngày", HttpStatus.BAD_REQUEST),
 
     TRANSACTION_NOT_FOUND("T0001", "Không tìm thấy giao dịch", HttpStatus.NOT_FOUND),
-    PAYMENT_DETAIL_NOT_FOUND("T0002", "Không tìm thấy chi tiết hóa đơn", HttpStatus.NOT_FOUND);
+    PAYMENT_DETAIL_NOT_FOUND("T0002", "Không tìm thấy chi tiết hóa đơn", HttpStatus.NOT_FOUND),
+
+    // [MỚI] Lỗi logic nghiệp vụ QR
+    INVALID_SCOPE("Q0006", "Voucher không áp dụng tại quầy/dịch vụ này", HttpStatus.BAD_REQUEST),
+
+    // --- 9. COUNTER (Quầy hàng) [MỚI] ---
+    COUNTER_NOT_FOUND("C0001", "Không tìm thấy quầy hàng", HttpStatus.NOT_FOUND),
+    COUNTER_INACTIVE("C0002", "Quầy hàng đang đóng cửa hoặc tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
+    MERCHANT_NO_COUNTER("C0003", "Tài khoản này chưa được gán quản lý quầy hàng nào", HttpStatus.FORBIDDEN),
+
+    // --- 10. OTP & AUTHENTICATION ---
+    OTP_INVALID("A0001", "Mã OTP không chính xác.", HttpStatus.BAD_REQUEST),
+    OTP_EXPIRED("A0002", "Mã OTP đã hết hạn hoặc không tồn tại. Vui lòng lấy mã mới.", HttpStatus.BAD_REQUEST),
+    OTP_LIMIT_REACHED("A0003", "Bạn đã yêu cầu OTP quá nhiều lần. Vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS),
+    EMAIL_SEND_FAILED("A0004", "Không thể gửi email OTP. Vui lòng thử lại sau.", HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final String code;
     private final String message;

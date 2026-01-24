@@ -4,8 +4,7 @@ import com.example.thanhtoannoibo.Common.TransactionType;
 import com.example.thanhtoannoibo.DTO.Request.Transaction.TransactionFilterRequest;
 import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.DTO.Response.PageResponse;
-import com.example.thanhtoannoibo.DTO.Response.Transaction.TransactionDetailResponse;
-import com.example.thanhtoannoibo.DTO.Response.Transaction.TransactionResponse;
+import com.example.thanhtoannoibo.DTO.Response.Transaction.*;
 import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Service.Security.AuthService;
 import com.example.thanhtoannoibo.Service.Transaction.TransactionService;
@@ -25,7 +24,7 @@ import java.util.UUID;
 public class TransactionController {
     private final TransactionService transactionService;
     private final AuthService authService;
-
+    private final HttpServletRequest request;
     @GetMapping("/transactions")
     public BaseResponse<PageResponse<TransactionResponse>> getHistory(
             @RequestParam(required = false) LocalDate fromDate,
@@ -45,6 +44,21 @@ public class TransactionController {
         return BaseResponse.success(PageResponse.from(transactionService.getMyTransactions(filter, pageable)));
     }
 
+    @GetMapping("/transactions/dashboard-chart")
+    public BaseResponse<DashboardChartResponse> getDashboardChart(@RequestParam(defaultValue = "Week") String period) {
+        User currentUser = authService.getCurrentUser(request);
+        return BaseResponse.success(transactionService.getDashboardChart(currentUser.getUserId(), period));
+    }
+
+    @GetMapping("/transactions/stats")
+    public BaseResponse<MerchantStatsResponse> getMerchantStats() {
+        // 1. Lấy User hiện tại (Merchant)
+        User currentUser = authService.getCurrentUser(request);
+
+        // 2. Gọi Service lấy thống kê
+        return BaseResponse.success(transactionService.getMerchantStats(currentUser.getUserId()));
+    }
+
     @GetMapping("/transactions/{id}")
     public BaseResponse<TransactionDetailResponse> getTransactionDetail(
             @PathVariable("id") UUID transactionId,
@@ -56,5 +70,14 @@ public class TransactionController {
         // 2. Gọi Service (Lưu ý thứ tự tham số: transactionId trước, userId sau)
         // Check file TransactionService.java để đảm bảo đúng thứ tự
         return BaseResponse.success(transactionService.getTransactionDetail(transactionId, currentUser.getUserId()));
+    }
+
+    @GetMapping("/user/transactions/{id}")
+    public BaseResponse<UserTransactionDetailResponse> getUserTransactionDetail(
+            @PathVariable("id") UUID transactionId,
+            HttpServletRequest request
+    ) {
+        User currentUser = authService.getCurrentUser(request);
+        return BaseResponse.success(transactionService.getUserTransactionDetail(transactionId, currentUser.getUserId()));
     }
 }
