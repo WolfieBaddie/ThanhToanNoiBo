@@ -1,28 +1,34 @@
 import React from 'react';
-import { X, Clock, Receipt, Printer, AlertTriangle, Image as ImageIcon } from 'lucide-react';
+import { X, Clock, Receipt, Printer, AlertTriangle, Image as ImageIcon, Package } from 'lucide-react';
 import { useTransactionDetail, useUserTransactionDetail } from '@/hooks/useTransaction';
 import { TransactionPartnerCard } from "@/components/merchant/TransactionPartnerCard";
-import { formatCurrency } from '@/utils/format'; // [MỚI] Import hàm format Xu
+import { formatCurrency } from '@/utils/format';
 
 interface TransactionDetailModalProps {
     isOpen: boolean;
     onClose: () => void;
     transactionId: string | null;
-    isUserView?: boolean; // Flag xác định view của User hay Merchant
+    isUserView?: boolean; // True = User App, False = Merchant CMS
 }
 
 export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                                                                   isOpen, onClose, transactionId, isUserView = false
                                                                               }) => {
-    // 1. Chọn Hook dựa trên loại View
+    // Hook
     const userHook = useUserTransactionDetail(isUserView ? transactionId : null);
     const merchantHook = useTransactionDetail(!isUserView ? transactionId : null);
-
     const { detail, loading, error } = isUserView ? userHook : merchantHook;
 
-    console.log("Transaction Detail:", detail);
+    const formatVND = (val: number) => val.toLocaleString('vi-VN') + 'đ';
 
     if (!isOpen) return null;
+
+    // --- LOGIC TITLE CHO USER ---
+    const getUserDisplayTitle = (dt: any) => {
+        if (dt.type === 'BUY_VOUCHER') return "Mua Gói dịch vụ";
+        if (dt.type === 'REDEMPTION') return "Sử dụng Voucher";
+        return dt.title || "Chi tiết giao dịch";
+    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -34,14 +40,14 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <Receipt size={20} className="text-indigo-600" />
-                        {isUserView && detail ? (detail as any).title : "Chi tiết giao dịch"}
+                        {isUserView && detail ? getUserDisplayTitle(detail) : "Chi tiết giao dịch"}
                     </h3>
                     <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-400 transition-colors">
                         <X size={20} />
                     </button>
                 </div>
 
-                {/* --- CONTENT --- */}
+                {/* --- BODY --- */}
                 <div className="p-6 overflow-y-auto min-h-[300px]">
                     {loading ? (
                         <div className="flex flex-col items-center justify-center h-40 gap-4">
@@ -57,100 +63,106 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                         <div className="space-y-6">
 
                             {/* 1. THÔNG TIN ĐỐI TÁC */}
-                            {detail.partnerInfo && (
+                            {detail.partnerInfo && detail.type !== 'BUY_VOUCHER' && (
                                 <TransactionPartnerCard info={detail.partnerInfo} />
                             )}
 
-                            {/* 2. CHI TIẾT SẢN PHẨM & GIÁ TRỊ */}
+                            {/* 2. MAIN CARD */}
                             {isUserView ? (
-                                // ==========================================
-                                // A. GIAO DIỆN USER (App View)
-                                // ==========================================
+                                // === GIAO DIỆN USER ===
                                 <div className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm relative overflow-hidden">
 
-                                    {/* [LOGIC MỚI] Nếu có danh sách items chi tiết (Combo) */}
-                                    {detail.items && detail.items.length > 0 ? (
-                                        <div className="space-y-4 relative z-10">
-                                            {/* Header Gói (Nếu có tên gói) */}
-                                            {detail.categoryName?.includes("Gói") && (
-                                                <div className="pb-2 border-b border-slate-100 mb-2">
-                                                    <h4 className="font-bold text-slate-800 text-base">{detail.itemName}</h4>
-                                                    <p className="text-xs text-slate-500">Chi tiết combo:</p>
-                                                </div>
-                                            )}
-
-                                            {/* Danh sách món */}
-                                            <div className="space-y-3">
-                                                {detail.items.map((item, index) => (
-                                                    <div key={index} className="flex gap-3 items-start">
-                                                        {/* Ảnh món */}
-                                                        <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
-                                                            {item.itemImage ? (
-                                                                <img src={item.itemImage} alt={item.itemName} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                <Receipt size={16} className="text-slate-300" />
-                                                            )}
-                                                        </div>
-                                                        {/* Thông tin món */}
-                                                        <div className="flex-1">
-                                                            <div className="flex justify-between items-start">
-                                                                <h5 className="font-bold text-slate-900 text-sm line-clamp-2 pr-2">
-                                                                    {item.itemName}
-                                                                </h5>
-                                                                {/* Đơn giá (Xu) */}
-                                                                <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
-                                                                    {formatCurrency(item.unitPrice)}
-                                                                </span>
-                                                            </div>
-                                                            <p className="text-slate-500 text-xs mt-0.5">
-                                                                Số lượng: <strong className="text-slate-700">x{item.quantity}</strong>
-                                                            </p>
-                                                        </div>
+                                    {/* Nội dung chính */}
+                                    <div className="relative z-10">
+                                        {/* Trường hợp MUA VOUCHER hoặc ĐỔI QUÀ (Có items) */}
+                                        {detail.items && detail.items.length > 0 ? (
+                                            <div className="space-y-4">
+                                                {/* Header Gói/Combo */}
+                                                {(detail.type === 'BUY_VOUCHER' || detail.categoryName?.includes("Gói")) && (
+                                                    <div className="pb-3 border-b border-slate-100 mb-2">
+                                                        <h4 className="font-black text-slate-800 text-lg leading-snug">
+                                                            {detail.itemName}
+                                                        </h4>
+                                                        <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                                                            <Package size={12}/> Chi tiết gói:
+                                                        </p>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        // [LOGIC CŨ] Hiển thị đơn lẻ (Fallback)
-                                        <div className="flex gap-4 relative z-10">
-                                            <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
-                                                {detail.itemImage ? (
-                                                    <img src={detail.itemImage} alt="Item" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <Receipt size={24} className="text-slate-300" />
                                                 )}
-                                            </div>
-                                            <div className="flex-1">
-                                                <h3 className="font-bold text-slate-900 text-lg leading-snug">
-                                                    {detail.itemName || "Giao dịch hệ thống"}
-                                                </h3>
-                                                <p className="text-slate-500 text-sm mt-1">
-                                                    {detail.categoryName} • Số lượng: <strong>x{detail.quantity}</strong>
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
 
-                                    {/* Dòng tổng kết */}
-                                    <div className="mt-4 pt-4 border-t border-dashed border-slate-200 flex justify-between items-center relative z-10">
-                                        <span className="text-slate-500 font-medium">Tổng thanh toán</span>
-                                        <span className={`text-xl font-black ${(detail as any).isTicketRedemption ? 'text-orange-600' : 'text-slate-900'}`}>
-                                            {(detail as any).amountDisplay}
-                                        </span>
+                                                {/* List items */}
+                                                <div className="space-y-3">
+                                                    {detail.items.map((item, index) => (
+                                                        <div key={index} className="flex gap-3 items-start">
+                                                            <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+                                                                {item.itemImage ? (
+                                                                    <img src={item.itemImage} alt={item.itemName} className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <Receipt size={16} className="text-slate-300" />
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <div className="flex justify-between items-start">
+                                                                    <h5 className="font-bold text-slate-900 text-sm line-clamp-2 pr-2">
+                                                                        {item.itemName}
+                                                                    </h5>
+                                                                    <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
+                                                                        {formatCurrency(item.unitPrice)}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-slate-500 text-xs mt-0.5">
+                                                                    Số lượng: <strong className="text-slate-700">x{item.quantity}</strong>
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            // Trường hợp Đơn lẻ (Nạp tiền, Thanh toán thường)
+                                            <div className="flex gap-4">
+                                                <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+                                                    {detail.itemImage ? (
+                                                        <img src={detail.itemImage} alt="Item" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Receipt size={24} className="text-slate-300" />
+                                                    )}
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className="font-bold text-slate-900 text-lg leading-snug">
+                                                        {detail.itemName || detail.description || "Giao dịch hệ thống"}
+                                                    </h3>
+                                                    <p className="text-slate-500 text-sm mt-1">
+                                                        {detail.categoryName}
+                                                        {detail.quantity > 1 && <> • SL: <strong>x{detail.quantity}</strong></>}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* --- [UPDATE] LOGIC TỔNG THANH TOÁN --- */}
+                                        <div className="mt-4 pt-4 border-t border-dashed border-slate-200 flex justify-between items-center">
+                                            <span className="text-slate-500 font-medium">
+                                                {(detail as any).type === 'REDEMPTION' ? 'Số lượng trừ' : 'Tổng thanh toán'}
+                                            </span>
+                                            <span className={`text-2xl font-black ${(detail as any).type === 'REDEMPTION' ? 'text-orange-600' : 'text-slate-900'}`}>
+                                                {/* Nếu là Đổi Quà (REDEMPTION) -> Giữ nguyên (Backend đã trả về "-X Vé") */}
+                                                {/* Nếu là Mua/Nạp (BUY_VOUCHER, DEPOSIT) -> Thêm đuôi "xu" */}
+                                                {(detail as any).type === 'REDEMPTION'
+                                                    ? (detail as any).amountDisplay
+                                                    : `${(detail as any).amountDisplay} xu`
+                                                }
+                                            </span>
+                                        </div>
                                     </div>
 
-                                    {/* Decoration */}
+                                    {/* Decor */}
                                     <div className="absolute -right-6 -bottom-6 text-slate-50 opacity-50 pointer-events-none">
                                         <Receipt size={120} />
                                     </div>
                                 </div>
                             ) : (
-                                // ==========================================
-                                // B. GIAO DIỆN MERCHANT
-                                // ==========================================
+                                // === GIAO DIỆN MERCHANT (Giữ nguyên hiển thị VNĐ) ===
                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-
-                                    {/* Check xem có items chi tiết không */}
                                     {detail.items && detail.items.length > 0 ? (
                                         <div className="space-y-3">
                                             <div className="flex justify-between items-center pb-2 border-b border-slate-200">
@@ -164,9 +176,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                                         </span>
                                                         <span className="text-sm font-medium text-slate-700">{item.itemName}</span>
                                                     </div>
-                                                    <span className="text-xs text-slate-500 font-medium">
-                                                        {formatCurrency(item.unitPrice)}
-                                                    </span>
+                                                    <span className="text-xs text-slate-500 font-medium">{formatVND(item.unitPrice)}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -180,30 +190,25 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                             </span>
                                         </div>
                                     )}
-
                                     <div className="space-y-2 mt-3 pt-3 border-t border-slate-200 text-sm">
                                         <div className="flex justify-between text-base">
                                             <span className="font-bold text-slate-700">Thành tiền</span>
                                             <span className={`font-bold ${detail.direction === 'IN' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                                {formatCurrency(detail.amount)}
+                                                {formatVND(detail.amount)}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
                             )}
 
-                            {/* 3. ẢNH XÁC THỰC */}
+                            {/* 3. ẢNH XÁC THỰC (Chung) */}
                             {detail.evidenceImage && (
                                 <div className="space-y-2">
                                     <p className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1 pl-1">
                                         <ImageIcon size={14} /> Ảnh xác thực
                                     </p>
                                     <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
-                                        <img
-                                            src={detail.evidenceImage}
-                                            alt="Evidence"
-                                            className="w-full h-auto max-h-[250px] object-contain mx-auto"
-                                        />
+                                        <img src={detail.evidenceImage} alt="Evidence" className="w-full h-auto max-h-[250px] object-contain mx-auto" />
                                     </div>
                                 </div>
                             )}
@@ -231,9 +236,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                             {/* 5. TRẠNG THÁI */}
                             <div className="flex justify-center">
                                 <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider border
-                                    ${detail.status === 'COMPLETED'
-                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
-                                    : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+                                    ${detail.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
                                     {detail.status === 'COMPLETED' ? 'Giao dịch thành công' : detail.status}
                                 </span>
                             </div>

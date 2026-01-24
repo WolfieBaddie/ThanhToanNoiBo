@@ -38,6 +38,8 @@ import Home from "@/landing-page/pages/Home.tsx";
 import About from "@/landing-page/pages/About.tsx";
 import Contact from "@/landing-page/pages/Contact.tsx";
 import Policy from "@/landing-page/pages/Policy.tsx";
+import MerchantServicePage from "@/pages/merchant/MerchantServicePage.tsx";
+import MerchantHistoryPage from "@/pages/merchant/MerchantHistoryPage.tsx";
 
 function App() {
     const { user, logout } = useAuth();
@@ -123,8 +125,10 @@ function App() {
                             <Route path="/merchant/verify" element={<MerchantVerifyPage />} />
                             <Route path="/merchant/success" element={<MerchantTransactionSuccess />} />
                             <Route path="/merchant/settings" element={
-                                <Settings onLogout={logout} isDarkMode={darkMode} onToggleTheme={toggleTheme} user={user} />
+                                <SettingsPage onLogout={logout} isDarkMode={darkMode} onToggleTheme={toggleTheme} user={user} />
                             } />
+                            <Route path="/merchant/services" element={<MerchantServicePage/>}></Route>
+                            <Route path="/merchant/orders" element={<MerchantHistoryPage/>}></Route>
                             <Route path="/merchant/*" element={<Navigate to="/merchant/dashboard" replace />} />
                         </Route>
 

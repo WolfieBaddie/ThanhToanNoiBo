@@ -1,8 +1,10 @@
+// src/pages/merchant/MerchantDashboard.tsx
+
 import React, { useState } from 'react';
 import {
     RefreshCw, Search, Calendar, QrCode, Filter,
     ChevronRight, X, LayoutGrid, List, ChevronLeft, User as UserIcon,
-    ArrowDownUp
+    ArrowDownUp, Clock, CheckCircle2, XCircle, AlertCircle
 } from 'lucide-react';
 
 // COMPONENTS
@@ -10,23 +12,24 @@ import { MerchantRevenueChart } from "@/components/merchant/MerchantRevenueChart
 import { MerchantStats } from "@/components/merchant/MerchantStats.tsx";
 import { TransactionDetailModal } from "@/components/merchant/TransactionDetailModal.tsx";
 import { ScanQrModal } from "@/components/merchant/ScanQrModal.tsx";
-import { DateRangeModal } from "@/components/ui/DateRangeModal.tsx"; // Đảm bảo import đúng
+import { DateRangeModal } from "@/components/ui/DateRangeModal.tsx";
 
 // HOOKS
 import { useTransactions } from '@/hooks/useTransaction';
+import { useMerchantStats } from '@/hooks/useMerchantStats'; // [MỚI] Import Hook Stats
 
 const MerchantDashboard: React.FC = () => {
     // --- STATE UI ---
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
     const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
     const [isDateModalOpen, setIsDateModalOpen] = useState(false);
     const [isScanModalOpen, setIsScanModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // --- DATA FETCHING ---
+    // --- DATA FETCHING (LIST GIAO DỊCH) ---
     const {
         data: transactions,
-        loading,
+        loading: txLoading, // Đổi tên biến loading để tránh trùng
         totalPages,
         filters,
         setPage,
@@ -34,15 +37,11 @@ const MerchantDashboard: React.FC = () => {
         setTypeFilter,
         setSearchRef,
         clearFilters: hookClearFilters,
-        refetch
-    } = useTransactions({ page: 0, size: 6 });
+        refetch: refetchTx
+    } = useTransactions({ page: 0, size: 10 });
 
-    // Mock Stats
-    const statsData = {
-        todayRevenue: transactions.reduce((acc, curr) => acc + (curr.direction === 'IN' ? curr.amount : 0), 0),
-        orderCount: transactions.length,
-        avgOrderValue: 0
-    };
+    // --- DATA FETCHING (STATS) [MỚI] ---
+    const { stats, loading: statsLoading, refetch: refetchStats } = useMerchantStats();
 
     // --- HANDLERS ---
     const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -53,7 +52,6 @@ const MerchantDashboard: React.FC = () => {
 
     const handleDateApply = (from: Date, to: Date) => {
         setDateFilter(from, to);
-        // Modal sẽ tự đóng trong component DateRangeModal khi gọi onClose
     };
 
     const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -66,11 +64,27 @@ const MerchantDashboard: React.FC = () => {
         hookClearFilters();
     };
 
-    // Helper display
+    // Hàm refresh tổng hợp
+    const handleRefreshAll = () => {
+        refetchTx();
+        refetchStats();
+    };
+
+    // --- HELPERS (Giữ nguyên) ---
     const formatCurrency = (val: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
+
     const formatDateTime = (iso: string) => {
         const d = new Date(iso);
         return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+    };
+
+    const getStatusConfig = (status: string) => {
+        switch (status) {
+            case 'COMPLETED': return { color: 'text-emerald-600 bg-emerald-50 border-emerald-100', icon: CheckCircle2, text: 'Thành công' };
+            case 'PENDING': return { color: 'text-amber-600 bg-amber-50 border-amber-100', icon: Clock, text: 'Đang xử lý' };
+            case 'FAILED': return { color: 'text-red-600 bg-red-50 border-red-100', icon: XCircle, text: 'Thất bại' };
+            default: return { color: 'text-slate-600 bg-slate-50 border-slate-100', icon: AlertCircle, text: status };
+        }
     };
 
     const hasFilter = !!(filters.fromDate || filters.transactionRef || filters.type);
@@ -78,7 +92,7 @@ const MerchantDashboard: React.FC = () => {
     return (
         <div className="p-4 bg-slate-50 min-h-screen font-sans text-slate-900 pb-20 space-y-8">
 
-            {/* MODALS GLOBAL (Những modal phủ toàn màn hình thì để ở ngoài) */}
+            {/* MODALS */}
             <TransactionDetailModal
                 isOpen={!!selectedTxId}
                 onClose={() => setSelectedTxId(null)}
@@ -112,21 +126,19 @@ const MerchantDashboard: React.FC = () => {
                 </div>
             </div>
 
-            <MerchantStats data={statsData} />
+            {/* --- [CẬP NHẬT] STATS & CHART --- */}
+            <MerchantStats data={stats} loading={statsLoading} />
             <MerchantRevenueChart />
 
-            {/* --- FILTER BAR --- */}
-            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
-
-                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-1 z-20">
-                    {/* z-20 để đảm bảo dropdown đè lên các content bên dưới */}
-
-                    {/* 1. Search */}
+            {/* --- FILTER BAR (Giữ nguyên) --- */}
+            <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center sticky top-4 z-30">
+                <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto flex-1">
+                    {/* Search */}
                     <div className="relative flex-1 max-w-md">
                         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input
                             type="text"
-                            placeholder="Mã giao dịch..."
+                            placeholder="Tìm mã giao dịch..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             onKeyDown={handleSearch}
@@ -134,7 +146,7 @@ const MerchantDashboard: React.FC = () => {
                         />
                     </div>
 
-                    {/* 2. Type Filter */}
+                    {/* Type Filter */}
                     <div className="relative">
                         <select
                             value={filters.type || 'ALL'}
@@ -149,7 +161,7 @@ const MerchantDashboard: React.FC = () => {
                         <ArrowDownUp size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                     </div>
 
-                    {/* 3. Date Filter - [FIX QUAN TRỌNG: GỘP MODAL VÀO ĐÂY] */}
+                    {/* Date Filter */}
                     <div className="relative">
                         <button
                             onClick={() => setIsDateModalOpen(!isDateModalOpen)}
@@ -160,10 +172,9 @@ const MerchantDashboard: React.FC = () => {
                             }`}
                         >
                             <Calendar size={18} />
-                            <span className="hidden sm:inline">{filters.fromDate ? `${filters.fromDate}` : 'Ngày'}</span>
+                            <span className="hidden sm:inline">{filters.fromDate ? `${filters.fromDate}` : 'Thời gian'}</span>
                         </button>
 
-                        {/* Modal nằm ngay trong thẻ cha Relative để định vị Absolute chính xác */}
                         <DateRangeModal
                             isOpen={isDateModalOpen}
                             onClose={() => setIsDateModalOpen(false)}
@@ -173,54 +184,186 @@ const MerchantDashboard: React.FC = () => {
                         />
                     </div>
 
-                    {/* 4. Clear Button */}
                     {hasFilter && (
-                        <button
-                            onClick={handleClearFilters}
-                            className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors border border-red-100 flex-shrink-0"
-                        >
+                        <button onClick={handleClearFilters} className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors border border-red-100 flex-shrink-0">
                             <X size={18} />
                         </button>
                     )}
                 </div>
 
-                {/* Right Side Actions */}
+                {/* View Mode Toggle */}
                 <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                    <button onClick={() => refetch()} className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors" title="Làm mới">
+                    <button onClick={handleRefreshAll} className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors" title="Làm mới">
                         <RefreshCw size={18} />
                     </button>
                     <div className="bg-slate-100 p-1 rounded-xl flex flex-shrink-0">
-                        <button onClick={() => setViewMode('grid')} className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={18} /></button>
-                        <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}><List size={18} /></button>
+                        <button
+                            onClick={() => setViewMode('grid')}
+                            className={`p-2 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            <LayoutGrid size={18} />
+                        </button>
+                        <button
+                            onClick={() => setViewMode('list')}
+                            className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            <List size={18} />
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* --- LIST CONTENT (Giữ nguyên) --- */}
-            {loading ? (
+            {/* --- LIST CONTENT (Giữ nguyên code bảng) --- */}
+            {txLoading ? (
                 <div className="py-20 flex justify-center">
                     <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
                 </div>
             ) : transactions.length > 0 ? (
-                // ... (Phần hiển thị list giữ nguyên như cũ)
                 <>
-                    {/* Code hiển thị Grid/List giữ nguyên */}
-                    {viewMode === 'grid' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                            {transactions.map(tx => (
-                                <div key={tx.transactionId} onClick={() => setSelectedTxId(tx.transactionId)} className="bg-white rounded-[28px] p-5 border border-slate-100 shadow-sm cursor-pointer hover:shadow-lg transition-all">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="font-bold text-slate-800">{tx.title}</div>
-                                        <div className={`font-extrabold ${tx.direction === 'IN' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                            {tx.direction === 'IN' ? '+' : '-'}{formatCurrency(tx.amount)}
-                                        </div>
-                                    </div>
-                                    <div className="text-sm text-slate-500">{formatDateTime(tx.createdAt)}</div>
-                                </div>
-                            ))}
+                    {/* --- VIEW MODE: LIST (BẢNG) --- */}
+                    {viewMode === 'list' && (
+                        <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                    <tr className="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                        <th className="px-6 py-4">Giao dịch</th>
+                                        <th className="px-6 py-4">Khách hàng</th>
+                                        <th className="px-6 py-4 text-right">Số tiền</th>
+                                        <th className="px-6 py-4 text-center">Trạng thái</th>
+                                        <th className="px-6 py-4 text-right">Thời gian</th>
+                                        <th className="px-6 py-4"></th>
+                                    </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                    {transactions.map((tx) => {
+                                        const status = getStatusConfig(tx.status);
+                                        const StatusIcon = status.icon;
+                                        return (
+                                            <tr
+                                                key={tx.transactionId}
+                                                onClick={() => setSelectedTxId(tx.transactionId)}
+                                                className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                                            >
+                                                <td className="px-6 py-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                                                            {tx.direction === 'IN' ? <ArrowDownUp size={18} /> : <RefreshCw size={18} />}
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-bold text-slate-800 text-sm">{tx.title}</p>
+                                                            <p className="text-xs text-slate-400 font-mono mt-0.5">{tx.transactionRef}</p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    {tx.partnerInfo ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                                                                {tx.partnerInfo.partnerImage ? (
+                                                                    <img src={tx.partnerInfo.partnerImage} className="w-full h-full object-cover" alt="" />
+                                                                ) : (
+                                                                    <UserIcon size={12} className="text-slate-400" />
+                                                                )}
+                                                            </div>
+                                                            <span className="text-sm font-medium text-slate-700">{tx.partnerInfo.partnerName}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-sm text-slate-400 italic">Khách vãng lai</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                        <span className={`text-sm font-bold ${tx.direction === 'IN' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                                            {tx.direction === 'IN' ? '+' : '-'}{formatCurrency(tx.amount)}
+                                                        </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-center">
+                                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${status.color}`}>
+                                                            <StatusIcon size={12} />
+                                                            {status.text}
+                                                        </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right text-sm text-slate-500 font-medium">
+                                                    {formatDateTime(tx.createdAt)}
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <ChevronRight size={16} className="text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
-                    {/* ... Pagination giữ nguyên ... */}
+
+                    {/* --- VIEW MODE: GRID (THẺ) --- */}
+                    {viewMode === 'grid' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                            {transactions.map(tx => {
+                                const status = getStatusConfig(tx.status);
+                                return (
+                                    <div
+                                        key={tx.transactionId}
+                                        onClick={() => setSelectedTxId(tx.transactionId)}
+                                        className="bg-white rounded-[28px] p-5 border border-slate-100 shadow-sm cursor-pointer hover:shadow-lg transition-all group"
+                                    >
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                                                {tx.direction === 'IN' ? <ArrowDownUp size={20} /> : <RefreshCw size={20} />}
+                                            </div>
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${status.color}`}>
+                                                {status.text}
+                                            </span>
+                                        </div>
+
+                                        <div className="mb-4">
+                                            <h4 className="font-bold text-slate-800 text-lg mb-1 line-clamp-1">{tx.title}</h4>
+                                            <p className="text-slate-400 text-xs font-mono">{tx.transactionRef}</p>
+                                        </div>
+
+                                        <div className="flex justify-between items-end border-t border-slate-100 pt-4">
+                                            <div className="text-xs font-medium text-slate-500 flex items-center gap-1">
+                                                <Clock size={12} />
+                                                {formatDateTime(tx.createdAt)}
+                                            </div>
+                                            <div className={`font-extrabold text-lg ${tx.direction === 'IN' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                                {tx.direction === 'IN' ? '+' : '-'}{formatCurrency(tx.amount)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {/* --- PAGINATION --- */}
+                    {totalPages > 1 && (
+                        <div className="flex justify-center mt-8">
+                            <div className="bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-1">
+                                <button
+                                    onClick={() => setPage(Math.max(0, filters.page! - 1))}
+                                    disabled={filters.page === 0}
+                                    className="p-2 hover:bg-slate-100 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <ChevronLeft size={18} className="text-slate-600" />
+                                </button>
+
+                                <span className="px-4 text-sm font-bold text-slate-600">
+                                    Trang {filters.page! + 1} / {totalPages}
+                                </span>
+
+                                <button
+                                    onClick={() => setPage(Math.min(totalPages - 1, filters.page! + 1))}
+                                    disabled={filters.page! >= totalPages - 1}
+                                    className="p-2 hover:bg-slate-100 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <ChevronRight size={18} className="text-slate-600" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </>
             ) : (
                 <div className="text-center py-20 bg-white rounded-[32px] border border-slate-200 border-dashed">
@@ -228,6 +371,7 @@ const MerchantDashboard: React.FC = () => {
                         <Filter size={32} />
                     </div>
                     <h3 className="text-lg font-bold text-slate-900">Không tìm thấy giao dịch</h3>
+                    <p className="text-slate-500 text-sm mt-1">Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm</p>
                     {hasFilter && (
                         <button onClick={handleClearFilters} className="mt-4 text-indigo-600 font-bold hover:underline">
                             Xóa bộ lọc

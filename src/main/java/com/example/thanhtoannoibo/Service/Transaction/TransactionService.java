@@ -1,13 +1,10 @@
 package com.example.thanhtoannoibo.Service.Transaction;
 
 import com.example.thanhtoannoibo.Common.ErrorCode;
-import com.example.thanhtoannoibo.Common.TransactionStatus; // Import Enum
+import com.example.thanhtoannoibo.Common.TransactionStatus;
 import com.example.thanhtoannoibo.Common.TransactionType;
 import com.example.thanhtoannoibo.DTO.Request.Transaction.TransactionFilterRequest;
-import com.example.thanhtoannoibo.DTO.Response.Transaction.TransactionDetailResponse;
-import com.example.thanhtoannoibo.DTO.Response.Transaction.TransactionPartnerInfo;
-import com.example.thanhtoannoibo.DTO.Response.Transaction.TransactionResponse;
-import com.example.thanhtoannoibo.DTO.Response.Transaction.UserTransactionDetailResponse;
+import com.example.thanhtoannoibo.DTO.Response.Transaction.*;
 import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
 import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
@@ -35,14 +32,14 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
+
 @Service
 @RequiredArgsConstructor
 public class TransactionService {
@@ -55,50 +52,34 @@ public class TransactionService {
     private final PaymentDetailRepository paymentDetailRepository;
     private final AppServiceRepository appServiceRepository;
     private final AppPackageRepository appPackageRepository;
+
     public Page<TransactionResponse> getMyTransactions(TransactionFilterRequest filter, Pageable pageable) {
         User currentUser = authService.getCurrentUser(httpRequest);
 
-        // Debug: In ra để xem user hiện tại có role gì (Kiểm tra xem tên role trong DB là MERCHANT hay ROLE_MERCHANT)
-        // System.out.println("User Roles: " + currentUser.getRoles());
-
         boolean isMerchant = currentUser.getRoles().stream()
-                .anyMatch(r -> r.getRoleCode().equalsIgnoreCase("MERCHANT")); // Dùng equalsIgnoreCase cho an toàn
+                .anyMatch(r -> r.getRoleCode().equalsIgnoreCase("MERCHANT"));
 
         Specification<Transaction> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             if (isMerchant) {
-                // MERCHANT: Chỉ cần check payee (người nhận tiền)
-                // payee cũng có thể null nếu là giao dịch hệ thống, nên dùng Left Join cho chắc
                 Join<Transaction, User> payeeJoin = root.join("payee", JoinType.LEFT);
                 predicates.add(cb.equal(payeeJoin.get("userId"), currentUser.getUserId()));
             } else {
-                // USER: Check Ví (Credit) HOẶC QR
-                // [FIX LỖI]: Dùng root.join(..., JoinType.LEFT) thay vì root.get(...)
-                // Để nếu qrCode = null (giao dịch nạp tiền), dòng đó KHÔNG bị mất.
-
-                // 1. Join bảng UserCredit (Left Join)
                 Join<Transaction, UserCredit> creditJoin = root.join("credit", JoinType.LEFT);
-                // Từ Credit join sang User
                 Join<UserCredit, User> creditUserJoin = creditJoin.join("user", JoinType.LEFT);
 
-                // 2. Join bảng QRCode (Left Join)
                 Join<Transaction, QRCode> qrJoin = root.join("qrCode", JoinType.LEFT);
-                // Từ QRCode join sang Owner (User)
                 Join<QRCode, User> qrOwnerJoin = qrJoin.join("owner", JoinType.LEFT);
 
-                // 3. Tạo điều kiện
                 Predicate isMyCredit = cb.equal(creditUserJoin.get("userId"), currentUser.getUserId());
                 Predicate isMyQr = cb.equal(qrOwnerJoin.get("userId"), currentUser.getUserId());
 
-                // 4. Combine (OR)
                 predicates.add(cb.or(isMyCredit, isMyQr));
             }
 
-            // Điều kiện chung: Status COMPLETED
             predicates.add(cb.equal(root.get("status"), TransactionStatus.COMPLETED));
 
-            // ... (Phần Filter phía dưới giữ nguyên) ...
             if (filter != null) {
                 if (filter.getFromDate() != null) {
                     predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filter.getFromDate().atStartOfDay()));
@@ -121,9 +102,7 @@ public class TransactionService {
         return pageResult.map(txn -> mapToResponse(txn, currentUser.getUserId()));
     }
 
-    // --- HÀM MỚI: Lấy chi tiết giao dịch ---
     public TransactionDetailResponse getTransactionDetail(UUID transactionId, UUID currentUserId) {
-        // 1. Tìm Transaction
         Transaction txn = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
 
@@ -132,10 +111,8 @@ public class TransactionService {
             direction = "IN";
         }
 
-        // 2. [THAY ĐỔI] Lấy danh sách chi tiết (List) thay vì 1 cái (Optional)
         List<PaymentDetail> details = paymentDetailRepository.findAllByTransaction_TransactionId(transactionId);
 
-        // Khởi tạo giá trị mặc định
         String itemName = txn.getDescription();
         String itemImage = null;
         String categoryName = "Giao dịch";
@@ -145,27 +122,21 @@ public class TransactionService {
         UUID serviceId = null;
         UUID packageId = null;
 
-        // List chứa các món chi tiết để trả về
         List<TransactionDetailResponse.TransactionItemDetail> itemsList = new ArrayList<>();
 
-        // 3. Xử lý vòng lặp
         if (details != null && !details.isEmpty()) {
             for (PaymentDetail detail : details) {
                 String subName = "Sản phẩm";
                 String subImage = null;
 
-                // Lấy thông tin Service/Package của item này
                 if (detail.getService() != null) {
                     subName = detail.getService().getServiceName();
                     subImage = detail.getService().getImageUrl();
-                    // Set ảnh đại diện cho transaction nếu chưa có
                     if (itemImage == null) itemImage = subImage;
                 }
 
-                // Cộng dồn số lượng
                 totalQuantity = totalQuantity.add(detail.getQuantity());
 
-                // Thêm vào danh sách chi tiết
                 itemsList.add(TransactionDetailResponse.TransactionItemDetail.builder()
                         .itemName(subName)
                         .itemImage(subImage)
@@ -173,13 +144,11 @@ public class TransactionService {
                         .unitPrice(detail.getAmount())
                         .build());
 
-                // Logic chọn Tên/Category chính để hiển thị (Ưu tiên Package)
                 if (detail.getPackageRef() != null) {
                     itemName = "Gói: " + detail.getPackageRef().getPackageName();
                     packageId = detail.getPackageRef().getPackageId();
                     categoryName = "Gói dịch vụ";
                 } else if (detail.getService() != null) {
-                    // Nếu chưa có packageId (nghĩa là đang là món lẻ), thì lấy thông tin service này làm chính
                     if (packageId == null) {
                         itemName = detail.getService().getServiceName();
                         serviceId = detail.getService().getServiceId();
@@ -190,12 +159,10 @@ public class TransactionService {
                 }
             }
 
-            // Tính lại đơn giá hiển thị (Amount / Tổng số lượng)
             if (totalQuantity.compareTo(BigDecimal.ZERO) > 0) {
                 unitPrice = txn.getAmount().abs().divide(totalQuantity, 2, java.math.RoundingMode.HALF_UP);
             }
         } else {
-            // Fallback nếu không có payment detail (dữ liệu cũ)
             totalQuantity = BigDecimal.ONE;
         }
 
@@ -208,8 +175,6 @@ public class TransactionService {
                 .description(txn.getDescription())
                 .createdAt(txn.getCreatedAt())
                 .direction(direction)
-
-                // Các trường thông tin tổng hợp
                 .itemName(itemName)
                 .itemImage(itemImage)
                 .categoryName(categoryName)
@@ -217,21 +182,98 @@ public class TransactionService {
                 .priceAtPurchase(unitPrice)
                 .serviceId(serviceId)
                 .packageId(packageId)
-
-                // [MỚI] Trả về list chi tiết
                 .items(itemsList)
-
                 .partnerInfo(mapPartnerInfo(txn, currentUserId))
                 .evidenceImage(getEvidenceImage(txn))
                 .build();
     }
 
+    // ... (Các hàm thống kê giữ nguyên) ...
+    public MerchantStatsResponse getMerchantStats(UUID merchantId) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime startOfToday = now.toLocalDate().atStartOfDay();
+        LocalDateTime endOfToday = now.toLocalDate().atTime(23, 59, 59);
+        LocalDateTime startOfYesterday = startOfToday.minusDays(1);
+        LocalDateTime endOfYesterday = endOfToday.minusDays(1);
 
-    /**
-     * Hàm tìm ảnh bằng chứng từ bảng Log quét QR
-     * Logic: Tìm log quét của QR này, do đúng Merchant (Payee) quét,
-     * và thời gian quét lệch không quá 60s so với thời gian tạo giao dịch.
-     */
+        BigDecimal todayRev = transactionRepository.sumRevenueByDateRange(merchantId, startOfToday, endOfToday);
+        BigDecimal yesterdayRev = transactionRepository.sumRevenueByDateRange(merchantId, startOfYesterday, endOfYesterday);
+
+        double growth = 0.0;
+        if (yesterdayRev.compareTo(BigDecimal.ZERO) > 0) {
+            growth = todayRev.subtract(yesterdayRev)
+                    .divide(yesterdayRev, 4, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100))
+                    .doubleValue();
+        } else if (todayRev.compareTo(BigDecimal.ZERO) > 0) {
+            growth = 100.0;
+        }
+
+        long todayOrders = transactionRepository.countOrdersByDateRange(merchantId, startOfToday, endOfToday);
+        BigDecimal avgOrder = BigDecimal.ZERO;
+        if (todayOrders > 0) {
+            avgOrder = todayRev.divide(BigDecimal.valueOf(todayOrders), 0, RoundingMode.HALF_UP);
+        }
+
+        return MerchantStatsResponse.builder()
+                .todayRevenue(todayRev)
+                .yesterdayRevenue(yesterdayRev)
+                .revenueGrowth(growth)
+                .orderCount(todayOrders)
+                .avgOrderValue(avgOrder)
+                .build();
+    }
+
+    public DashboardChartResponse getDashboardChart(UUID merchantId, String period) {
+        LocalDateTime endDate = LocalDateTime.now();
+        LocalDateTime startDate;
+
+        if ("Month".equalsIgnoreCase(period)) {
+            startDate = endDate.minusDays(30);
+        } else {
+            startDate = endDate.minusDays(6);
+        }
+
+        List<Object[]> rawRevenue = transactionRepository.getDailyRevenueStats(merchantId, startDate, endDate);
+        List<Object[]> rawTopItems = paymentDetailRepository.getTopSellingItems(merchantId, startDate, endDate);
+
+        List<DashboardChartResponse.ChartDataPoint> chartData = new ArrayList<>();
+        Map<String, BigDecimal> revenueMap = new HashMap<>();
+
+        for (Object[] row : rawRevenue) {
+            String dateStr = row[0].toString();
+            BigDecimal amount = (BigDecimal) row[1];
+            revenueMap.put(dateStr, amount);
+        }
+
+        LocalDateTime current = startDate;
+        while (!current.isAfter(endDate)) {
+            String dateKey = current.toLocalDate().toString();
+            BigDecimal amount = revenueMap.getOrDefault(dateKey, BigDecimal.ZERO);
+            String dayName = getDayName(current);
+            chartData.add(new DashboardChartResponse.ChartDataPoint(dateKey, dayName, amount));
+            current = current.plusDays(1);
+        }
+
+        List<DashboardChartResponse.TopItemData> topItems = new ArrayList<>();
+        for (Object[] row : rawTopItems) {
+            String name = (String) row[0];
+            BigDecimal count = (BigDecimal) row[1];
+            topItems.add(new DashboardChartResponse.TopItemData(name, count.longValue(), "up"));
+        }
+
+        return DashboardChartResponse.builder()
+                .revenueChart(chartData)
+                .topItems(topItems)
+                .build();
+    }
+
+    private String getDayName(LocalDateTime date) {
+        int dayOfWeek = date.getDayOfWeek().getValue();
+        if (dayOfWeek == 7) return "CN";
+        return "T" + (dayOfWeek + 1);
+    }
+
     private String getEvidenceImage(Transaction txn) {
         if (txn.getQrCode() == null) return null;
         List<QrScanLog> logs = qrScanLogRepository.findByQrCode_QrIdOrderByCreatedAtDesc(txn.getQrCode().getQrId());
@@ -247,7 +289,6 @@ public class TransactionService {
                 .orElse(null);
     }
 
-    // Giữ nguyên, không cần sửa gì thêm so với lần trước
     public Transaction initiateTransaction(UserCredit credit, String txnRef, BigDecimal amount, String description, Map<String, Object> metadata) {
         Transaction txn = Transaction.builder()
                 .transactionRef(txnRef)
@@ -263,23 +304,17 @@ public class TransactionService {
         return transactionRepository.save(txn);
     }
 
-    // 2. Hoàn tất Transaction (Gọi khi VNPay callback thành công/thất bại)
     @Transactional
     public void completeTransaction(UUID transactionId, TransactionStatus status, BigDecimal newBalance) {
         Transaction txn = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
-
         txn.setStatus(status);
-
-        // Chỉ cập nhật số dư cuối cùng nếu thành công
         if (status == TransactionStatus.COMPLETED) {
             txn.setBalanceAfter(newBalance);
         }
-
         transactionRepository.save(txn);
     }
 
-    // 3. Tìm theo Ref
     public Transaction findByRef(String txnRef) {
         return transactionRepository.findByTransactionRef(txnRef)
                 .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
@@ -301,7 +336,6 @@ public class TransactionService {
             default -> "Giao dịch hệ thống";
         };
 
-        // [QUAN TRỌNG] Lấy thông tin đối tác để Frontend hiển thị tên & ảnh
         TransactionPartnerInfo partnerInfo = mapPartnerInfo(entity, currentUserId);
 
         return TransactionResponse.builder()
@@ -314,74 +348,17 @@ public class TransactionService {
                 .status(entity.getStatus().name())
                 .transactionType(entity.getTransactionType().name())
                 .createdAt(entity.getCreatedAt())
-                .partnerInfo(partnerInfo) // [FIX]: Bổ sung trường này
-                .build();
-    }
-
-    private TransactionDetailResponse mapToDetailResponse(Transaction txn, PaymentDetail detail, UUID currentUserId) {
-        // Logic xác định chiều dòng tiền tương tự mapToResponse
-        String direction;
-        if (txn.getPayee() != null && txn.getPayee().getUserId().equals(currentUserId)) {
-            direction = "IN";
-        } else if (txn.getTransactionType() == TransactionType.DEPOSIT) {
-            direction = "IN";
-        } else {
-            direction = "OUT";
-        }
-
-        String itemName = txn.getDescription();
-        String itemImage = null;
-        String categoryName = null;
-        BigDecimal quantity = BigDecimal.ONE;
-        BigDecimal unitPrice = txn.getAmount().abs();
-        UUID serviceId = null;
-        UUID packageId = null;
-
-        if (detail != null) {
-            quantity = detail.getQuantity();
-            if (detail.getService() != null) {
-                itemName = detail.getService().getServiceName();
-                itemImage = detail.getService().getImageUrl();
-                serviceId = detail.getService().getServiceId();
-                if (detail.getService().getCategory() != null) {
-                    categoryName = detail.getService().getCategory().getCategoryName();
-                }
-            } else if (detail.getPackageRef() != null) {
-                itemName = detail.getPackageRef().getPackageName();
-                packageId = detail.getPackageRef().getPackageId();
-                categoryName = "Gói dịch vụ";
-            }
-            if (quantity.compareTo(BigDecimal.ZERO) > 0) {
-                unitPrice = detail.getAmount().abs().divide(quantity, 2, java.math.RoundingMode.HALF_UP);
-            }
-        }
-
-        return TransactionDetailResponse.builder()
-                .transactionId(txn.getTransactionId())
-                .transactionRef(txn.getTransactionRef())
-                .amount(txn.getAmount().abs())
-                .status(txn.getStatus().name())
-                .type(txn.getTransactionType().name())
-                .description(txn.getDescription())
-                .createdAt(txn.getCreatedAt())
-                .direction(direction)
-                .itemName(itemName)
-                .itemImage(itemImage)
-                .categoryName(categoryName)
-                .quantity(quantity)
-                .priceAtPurchase(unitPrice)
-                .serviceId(serviceId)
-                .packageId(packageId)
+                .partnerInfo(partnerInfo)
                 .build();
     }
 
     @Transactional
     public UserTransactionDetailResponse getUserTransactionDetail(UUID transactionId, UUID userId) {
-        // 1. Tìm Transaction & Validate Quyền (Giữ nguyên)
+        // 1. Tìm Transaction
         Transaction txn = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new AppException(ErrorCode.TRANSACTION_NOT_FOUND));
 
-        // Validate owner... (Giữ nguyên code cũ của bạn)
+        // Validate owner
         boolean isOwner = false;
         if (txn.getCredit() != null && txn.getCredit().getUser().getUserId().equals(userId)) isOwner = true;
         if (txn.getQrCode() != null && txn.getQrCode().getOwner().getUserId().equals(userId)) isOwner = true;
@@ -390,10 +367,8 @@ public class TransactionService {
 
         String direction = (txn.getPayee() != null && txn.getPayee().getUserId().equals(userId)) || txn.getTransactionType() == TransactionType.DEPOSIT ? "IN" : "OUT";
 
-        // 2. [THAY ĐỔI LỚN] Lấy LIST PaymentDetail thay vì 1 cái
         List<PaymentDetail> details = paymentDetailRepository.findAllByTransaction_TransactionId(transactionId);
 
-        // Khởi tạo biến hiển thị mặc định
         String mainItemName = txn.getDescription();
         String mainItemImage = null;
         String categoryName = "Giao dịch";
@@ -405,10 +380,7 @@ public class TransactionService {
 
         List<UserTransactionDetailResponse.TransactionItemDetail> itemsList = new ArrayList<>();
 
-        // 3. Xử lý Logic Mapping List
         if (details != null && !details.isEmpty()) {
-
-            // A. Duyệt qua từng detail để build list items con
             for (PaymentDetail dt : details) {
                 String subName = "Sản phẩm";
                 String subImage = null;
@@ -416,51 +388,50 @@ public class TransactionService {
                 if (dt.getService() != null) {
                     subName = dt.getService().getServiceName();
                     subImage = dt.getService().getImageUrl();
-                    // Lấy info cho main display nếu chưa có
                     if (mainItemImage == null) mainItemImage = subImage;
                 }
 
-                // Cộng dồn số lượng
                 totalQuantity = totalQuantity.add(dt.getQuantity());
 
-                // Add vào list con
                 itemsList.add(UserTransactionDetailResponse.TransactionItemDetail.builder()
                         .itemName(subName)
                         .itemImage(subImage)
                         .quantity(dt.getQuantity())
-                        .unitPrice(dt.getAmount()) // Hoặc chia ra nếu cần unit price gốc
+                        .unitPrice(dt.getAmount())
                         .build());
 
-                // B. Logic xác định Main Info (Package hay Service lẻ)
-                if (dt.getPackageRef() != null) {
-                    packageId = dt.getPackageRef().getPackageId();
-                    // Nếu là package, tên hiển thị chính nên là tên gói
-                    mainItemName = "Gói: " + dt.getPackageRef().getPackageName();
-                    categoryName = "Gói dịch vụ";
-                } else if (dt.getService() != null) {
-                    serviceId = dt.getService().getServiceId();
-                    if (serviceId != null && packageId == null) {
-                        // Nếu là dịch vụ lẻ (ko phải package), lấy tên dịch vụ làm main
-                        mainItemName = dt.getService().getServiceName();
-                        if (dt.getService().getCategory() != null) {
-                            categoryName = dt.getService().getCategory().getCategoryName();
+                // [LOGIC ĐÃ SỬA]: Chỉ ghi đè mainItemName nếu KHÔNG phải là BUY_VOUCHER
+                // Để giữ lại Description (ví dụ: "Mua 3 combo...") của BUY_VOUCHER
+                if (txn.getTransactionType() != TransactionType.BUY_VOUCHER) {
+                    if (dt.getPackageRef() != null) {
+                        packageId = dt.getPackageRef().getPackageId();
+                        mainItemName = "Gói: " + dt.getPackageRef().getPackageName();
+                        categoryName = "Gói dịch vụ";
+                    } else if (dt.getService() != null) {
+                        serviceId = dt.getService().getServiceId();
+                        if (serviceId != null && packageId == null) {
+                            mainItemName = dt.getService().getServiceName();
+                            if (dt.getService().getCategory() != null) {
+                                categoryName = dt.getService().getCategory().getCategoryName();
+                            }
                         }
+                    }
+                } else {
+                    // Nếu là BUY_VOUCHER, vẫn lấy package info nhưng giữ mainItemName từ description
+                    if (dt.getPackageRef() != null) {
+                        packageId = dt.getPackageRef().getPackageId();
+                        categoryName = "Gói dịch vụ";
                     }
                 }
             }
 
-            // Tính giá trung bình hiển thị (nếu cần) hoặc lấy giá trị tổng
             if (totalQuantity.compareTo(BigDecimal.ZERO) > 0) {
                 displayUnitPrice = txn.getAmount().abs().divide(totalQuantity, 2, java.math.RoundingMode.HALF_UP);
             }
-
         } else {
-            // Fallback: Không có payment detail (Logic cũ xử lý UserVoucher snapshot)
-            // ... (Giữ nguyên đoạn logic fallback 5. LOGIC HIỂN THỊ VÉ cũ của bạn ở đây) ...
-            totalQuantity = BigDecimal.ONE; // Mặc định
+            totalQuantity = BigDecimal.ONE;
         }
 
-        // 4. Các logic phụ trợ (QR Limit, Amount Display) - Giữ nguyên
         boolean isTicket = false;
         String amountDisplay = String.format("%s%s", (direction.equals("IN") ? "+" : "-"), new java.text.DecimalFormat("#,###").format(txn.getAmount().abs()));
         Integer qrLimit = 0;
@@ -473,14 +444,12 @@ public class TransactionService {
             if (qrLimit > 0) {
                 isTicket = true;
                 if (txn.getTransactionType() == TransactionType.REDEMPTION) {
-                    // Nếu là Combo, hiển thị số vé bị trừ (thường là 1 vé cho cả combo)
-                    // Hoặc hiển thị tổng món tuỳ nghiệp vụ. Ở đây lấy theo logic QrCodeService
-                    amountDisplay = String.format("-%s Vé", qrCount);
+                    // [FIX LỖI -0 VÉ]: Dùng totalQuantity của giao dịch thay vì qrCount (tổng sử dụng)
+                    amountDisplay = String.format("-%s Vé", totalQuantity.intValue());
                 }
             }
         }
 
-        // 5. Build Response
         return UserTransactionDetailResponse.builder()
                 .transactionId(txn.getTransactionId())
                 .transactionRef(txn.getTransactionRef())
@@ -493,8 +462,6 @@ public class TransactionService {
                 .description(txn.getDescription())
                 .createdAt(txn.getCreatedAt())
                 .direction(direction)
-
-                // Main Info (Đã xử lý logic ưu tiên Package Name)
                 .itemName(mainItemName)
                 .itemImage(mainItemImage)
                 .categoryName(categoryName)
@@ -502,10 +469,7 @@ public class TransactionService {
                 .priceAtPurchase(displayUnitPrice)
                 .serviceId(serviceId)
                 .packageId(packageId)
-
-                // [MỚI] Trả về danh sách chi tiết các món
                 .items(itemsList)
-
                 .partnerInfo(mapPartnerInfo(txn, userId))
                 .evidenceImage(getEvidenceImage(txn))
                 .qrId(txn.getQrCode() != null ? txn.getQrCode().getQrId() : null)
@@ -514,9 +478,7 @@ public class TransactionService {
                 .build();
     }
 
-
     private TransactionPartnerInfo mapPartnerInfo(Transaction txn, UUID currentUserId) {
-        // [FIX] Thêm check null an toàn cho qrCode
         if (txn.getQrCode() == null || txn.getQrCode().getOwner() == null) {
             return null;
         }
@@ -524,7 +486,6 @@ public class TransactionService {
         User payer = txn.getQrCode().getOwner();
         User payee = txn.getPayee();
 
-        // CASE 1: Người xem là MERCHANT -> Hiển thị Khách
         if (payee != null && payee.getUserId().equals(currentUserId)) {
             return TransactionPartnerInfo.builder()
                     .partnerId(payer.getUserId())
@@ -533,9 +494,7 @@ public class TransactionService {
                     .partnerType("CUSTOMER")
                     .subTitle(payer.getPhoneNumber())
                     .build();
-        }
-        // CASE 2: Người xem là USER -> Hiển thị Quán
-        else {
+        } else {
             String counterName = "Cửa hàng";
             if (txn.getMetadata() != null && txn.getMetadata().containsKey("counter_name")) {
                 counterName = txn.getMetadata().get("counter_name").toString();

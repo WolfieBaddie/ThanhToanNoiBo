@@ -294,8 +294,12 @@ public class AuthService {
 
     @Transactional
     public RefreshTokenResponse refreshToken(RefreshTokenRequest request) {
-        // 1. Tìm Refresh Token
-        UserSession session = sessionRepository.findByToken(request.getRefreshToken())
+        // [FIX 1] Hash token từ request trước khi tìm trong DB
+        // Vì DB lưu hash chứ không lưu plain text
+        String incomingTokenHash = sha256Base64(request.getRefreshToken());
+
+        // 1. Tìm Refresh Token theo Hash
+        UserSession session = sessionRepository.findByToken(incomingTokenHash)
                 .orElseThrow(() -> new AppException(ErrorCode.UNAUTHORIZED));
 
         // 2. Kiểm tra hạn & trạng thái
@@ -309,7 +313,6 @@ public class AuthService {
         List<String> roleCodes = user.getRoles().stream().map(Role::getRoleCode).toList();
 
         // 4. Tính thời gian hết hạn (Dùng jwtProperties)
-        // jwt.expiration trong properties thường là miliseconds (VD: 86400000)
         Instant accessExpiration = Instant.now().plusMillis(jwtProperties.getExpiration());
 
         // 5. Sinh Access Token mới
@@ -317,26 +320,31 @@ public class AuthService {
                 user.getUsername(),
                 user.getUserId(),
                 user.getUserType(),
-                new ArrayList<>(), // Permissions
+                new ArrayList<>(), // Permissions logic giữ nguyên
                 roleCodes,
                 accessExpiration
         );
 
         // 6. Xoay vòng Refresh Token (Token Rotation)
-        String newRefreshToken = UUID.randomUUID().toString();
+        // [CONSISTENCY] Nên dùng format giống lúc login: UUID + "." + UUID (Optional)
+        String newRefreshTokenPlain = UUID.randomUUID().toString() + "." + UUID.randomUUID();
 
-        // Cập nhật Session
-        session.setToken(newRefreshToken);
-        // Lấy refreshExpiration từ properties (nếu có), hoặc fix cứng VD 7 ngày
-        long refreshExpireMs = jwtProperties.getRefreshExpiration();
+        // [FIX 2] Hash token mới trước khi lưu xuống DB
+        String newRefreshTokenHash = sha256Base64(newRefreshTokenPlain);
+
+        // Cập nhật Session với Token đã Hash
+        session.setToken(newRefreshTokenHash);
+
+        // Cập nhật thời gian hết hạn
+        long refreshExpireMs = jwtProperties.getRefreshExpiration(); // 2592000000L (30 days)
         session.setExpiresAt(LocalDateTime.now().plusNanos(refreshExpireMs * 1_000_000));
-        // Hoặc đơn giản: LocalDateTime.now().plusDays(7)
 
         sessionRepository.save(session);
 
+        // [QUAN TRỌNG] Trả về Client chuỗi Plain text
         return RefreshTokenResponse.builder()
                 .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
+                .refreshToken(newRefreshTokenPlain)
                 .build();
     }
 

@@ -4,9 +4,7 @@ import com.example.thanhtoannoibo.Common.TransactionType;
 import com.example.thanhtoannoibo.DTO.Request.Transaction.TransactionFilterRequest;
 import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.DTO.Response.PageResponse;
-import com.example.thanhtoannoibo.DTO.Response.Transaction.TransactionDetailResponse;
-import com.example.thanhtoannoibo.DTO.Response.Transaction.TransactionResponse;
-import com.example.thanhtoannoibo.DTO.Response.Transaction.UserTransactionDetailResponse;
+import com.example.thanhtoannoibo.DTO.Response.Transaction.*;
 import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Service.Security.AuthService;
 import com.example.thanhtoannoibo.Service.Transaction.TransactionService;
@@ -26,7 +24,7 @@ import java.util.UUID;
 public class TransactionController {
     private final TransactionService transactionService;
     private final AuthService authService;
-
+    private final HttpServletRequest request;
     @GetMapping("/transactions")
     public BaseResponse<PageResponse<TransactionResponse>> getHistory(
             @RequestParam(required = false) LocalDate fromDate,
@@ -44,6 +42,21 @@ public class TransactionController {
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         return BaseResponse.success(PageResponse.from(transactionService.getMyTransactions(filter, pageable)));
+    }
+
+    @GetMapping("/transactions/dashboard-chart")
+    public BaseResponse<DashboardChartResponse> getDashboardChart(@RequestParam(defaultValue = "Week") String period) {
+        User currentUser = authService.getCurrentUser(request);
+        return BaseResponse.success(transactionService.getDashboardChart(currentUser.getUserId(), period));
+    }
+
+    @GetMapping("/transactions/stats")
+    public BaseResponse<MerchantStatsResponse> getMerchantStats() {
+        // 1. Lấy User hiện tại (Merchant)
+        User currentUser = authService.getCurrentUser(request);
+
+        // 2. Gọi Service lấy thống kê
+        return BaseResponse.success(transactionService.getMerchantStats(currentUser.getUserId()));
     }
 
     @GetMapping("/transactions/{id}")
