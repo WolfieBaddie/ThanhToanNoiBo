@@ -58,6 +58,7 @@ public class AuthService {
     private final UserCreditRepository userCreditRepository;
     private final JwtProperties jwtProperties;
     private final com.example.thanhtoannoibo.Service.Security.OtpService otpService;
+    private final HttpServletRequest httpRequest;
 
     @Value("${app.jwt.access-ttl-minutes:15}")
     private long accessTtlMinutes;
@@ -182,8 +183,7 @@ public class AuthService {
 
     @Transactional
     public LoginResponse register(RegisterRequest req) {
-        // 1. [MỚI] Validate OTP trước tiên
-        // "REGISTER" là actionType quy ước giữa BE và FE
+        // 1. Validate OTP
         otpService.validateOtp(req.getEmail(), req.getOtp(), "REGISTER");
 
         // 2. Validate trùng lặp
@@ -201,30 +201,29 @@ public class AuthService {
                 .fullName(req.getFullName())
                 .email(req.getEmail())
                 .phoneNumber(req.getPhoneNumber())
-                .userType(UserType.USER) // Mặc định là User/Student
+                .userType(UserType.USER)
                 .status(UserStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        Role defaultRole = roleRepository.findByRoleCode("STUDENT")
+        Role defaultRole = roleRepository.findByRoleCode("USER")
                 .orElseThrow(() -> new RuntimeException("DEFAULT_ROLE_NOT_FOUND"));
 
         newUser.setRoles(new HashSet<>(Collections.singletonList(defaultRole)));
 
         User savedUser = userRepository.save(newUser);
 
-        // 4. [MỚI] Tự động tạo Ví (UserCredit)
+        // 4. Tạo Ví (UserCredit)
         UserCredit newCredit = UserCredit.builder()
                 .user(savedUser)
-                .balance(BigDecimal.ZERO)          // Số dư ban đầu = 0
+                .balance(BigDecimal.ZERO)
                 .totalDeposited(BigDecimal.ZERO)
                 .currentDaySpending(BigDecimal.ZERO)
-                .dailyLimitAmount(null)            // Không giới hạn
+                .dailyLimitAmount(null)
                 .build();
-
         userCreditRepository.save(newCredit);
 
-        // 5. Tạo Voucher chào mừng (Giữ nguyên logic cũ nếu cần)
+        // 5. Tạo Voucher chào mừng
         String uniqueVoucherCode = "V" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0,4).toUpperCase();
         UserVoucher newVoucher = UserVoucher.builder()
                 .owner(savedUser)
@@ -235,60 +234,23 @@ public class AuthService {
         userVoucherRepository.save(newVoucher);
 
         // 6. Ghi Audit Log
+        String ipAddress = (httpRequest != null) ? httpRequest.getRemoteAddr() : "UNKNOWN";
         AuditLog auditLog = AuditLog.builder()
                 .user(savedUser)
                 .action("REGISTER_ACCOUNT")
                 .entityType("USER")
                 .entityId(savedUser.getUserId())
                 .details(Map.of("email", savedUser.getEmail(), "creditId", newCredit.getCreditId().toString()))
-                .ipAddress("REGISTER_FLOW")
+                .ipAddress(ipAddress)
                 .createdAt(LocalDateTime.now())
                 .build();
         auditLogRepository.save(auditLog);
 
-        // 7. Tự động đăng nhập (Tạo Token trả về luôn)
-        // Lấy quyền hạn
-        List<String> permissionCodes = savedUser.getRoles().stream()
-                .flatMap(role -> role.getPermissions().stream())
-                .map(Permission::getPermissionCode)
-                .distinct().sorted().collect(Collectors.toList());
-
-        List<String> roleCodes = savedUser.getRoles().stream()
-                .map(Role::getRoleCode).distinct().sorted().collect(Collectors.toList());
-
-        // Sinh Token
-        Instant accessExp = Instant.now().plus(Duration.ofMinutes(accessTtlMinutes));
-        String accessToken = jwtService.generateAccessToken(
-                savedUser.getUsername(),
-                savedUser.getUserId(),
-                savedUser.getUserType(),
-                permissionCodes,
-                roleCodes,
-                accessExp
-        );
-
-        String refreshTokenPlain = UUID.randomUUID().toString() + "." + UUID.randomUUID();
-        String refreshHash = sha256Base64(refreshTokenPlain);
-        Instant refreshExp = Instant.now().plus(Duration.ofDays(refreshTtlDays));
-
-        // Lưu Session
-        UserSession session = UserSession.builder()
-                .user(savedUser)
-                .token(refreshHash)
-                .ipAddress("REGISTER_IP")
-                .expiresAt(LocalDateTime.now().plusDays(refreshTtlDays))
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        sessionRepository.save(session);
-
         return LoginResponse.builder()
                 .userId(savedUser.getUserId())
-                .accessToken(accessToken)
-                .accessExpiresAt(accessExp)
-                .refreshToken(refreshTokenPlain)
-                .refreshExpiresAt(refreshExp)
-                // Có thể trả thêm user info nếu cần
+                .accessToken(null)  // Không trả về token
+                .refreshToken(null) // Không trả về token
+                // Các trường khác null
                 .build();
     }
 

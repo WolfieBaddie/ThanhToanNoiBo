@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { User, X, ArrowRight, RefreshCw } from 'lucide-react'; // Thêm icon
+import { User, X, ArrowRight, RefreshCw } from 'lucide-react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import { useAuth } from '@/hooks/useAuth'; // Import hook
+import { useAuth } from '@/hooks/useAuth'; // Import hook đã cập nhật
 
 interface RegisterFormProps {
     onRegisterSuccess: () => void;
@@ -15,7 +15,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
                                                               onLogin,
                                                               showNotification
                                                           }) => {
-    // Hooks
+    // Hooks từ useAuth (đã có sendOtp và register)
     const { register, sendOtp } = useAuth();
 
     // Form Data
@@ -24,18 +24,18 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
         password: '',
         fullName: '',
         phoneNumber: '',
-        studentId: '', // Có thể dùng làm username hoặc mapping tuỳ logic
+        studentId: '', // Có thể mapping vào username nếu muốn
         confirmPassword: ''
     });
 
     // States
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const [isLoading, setIsLoading] = useState(false); // Loading chung
+    const [isLoading, setIsLoading] = useState(false); // Loading cho các nút submit
 
-    // OTP States
-    const [showOtpModal, setShowOtpModal] = useState(false);
-    const [otpCode, setOtpCode] = useState('');
-    const [isResending, setIsResending] = useState(false);
+    // --- OTP STATE & MODAL ---
+    const [showOtpModal, setShowOtpModal] = useState(false); // Bật/tắt modal
+    const [otpCode, setOtpCode] = useState('');              // Lưu mã OTP người dùng nhập
+    const [isResending, setIsResending] = useState(false);   // Loading khi gửi lại mã
 
     // --- VALIDATION ---
     const validate = () => {
@@ -43,7 +43,6 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
         if (!formData.fullName) newErrors.fullName = 'Vui lòng nhập họ tên';
-        // if (!formData.studentId) newErrors.studentId = 'Vui lòng nhập MSSV'; // Tuỳ chọn bắt buộc
 
         if (!formData.phoneNumber) {
             newErrors.phoneNumber = 'Vui lòng nhập SĐT';
@@ -74,10 +73,11 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setFormData({ ...formData, [name]: value });
+        // Clear lỗi khi user bắt đầu nhập lại
         if (errors[name]) setErrors({ ...errors, [name]: '' });
     };
 
-    // --- STEP 1: GỬI OTP ---
+    // --- STEP 1: GỬI OTP (Pre-check) ---
     const handleInitialSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validate()) {
@@ -87,21 +87,21 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
         setIsLoading(true);
         try {
-            // Gọi API gửi OTP
+            // Gọi API gửi OTP (Backend sẽ gửi mail)
             await sendOtp(formData.email);
 
             showNotification('success', 'Mã OTP đã được gửi đến email của bạn!');
-            setShowOtpModal(true); // Mở Modal OTP
+            setShowOtpModal(true); // Mở Modal nhập OTP
         } catch (err: any) {
             console.error(err);
-            const msg = err.response?.data?.message || 'Lỗi gửi mã OTP. Vui lòng thử lại.';
+            const msg = err.response?.data?.message || 'Lỗi gửi mã OTP. Email có thể đã tồn tại.';
             showNotification('error', msg);
         } finally {
             setIsLoading(false);
         }
     };
 
-    // --- STEP 2: XÁC NHẬN ĐĂNG KÝ ---
+    // --- STEP 2: XÁC NHẬN ĐĂNG KÝ (Final) ---
     const handleVerifyAndRegister = async () => {
         if (!otpCode || otpCode.length < 6) {
             showNotification('error', 'Vui lòng nhập mã OTP 6 số');
@@ -110,22 +110,23 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
 
         setIsLoading(true);
         try {
-            // Gọi API Register (kèm OTP)
+            // Gọi API Register với thông tin + OTP
+            // Lưu ý: Backend dùng "username" để login, ở đây ta map email vào username
             await register({
-                username: formData.email, // Dùng email làm username (hoặc formData.studentId tuỳ logic backend)
+                username: formData.email,
                 email: formData.email,
                 password: formData.password,
                 fullName: formData.fullName,
                 phoneNumber: formData.phoneNumber,
-                otp: otpCode // [QUAN TRỌNG] Gửi kèm OTP
+                otp: otpCode // [QUAN TRỌNG] OTP lấy từ input modal
             });
 
-            showNotification('success', 'Đăng ký thành công! Đang chuyển hướng...');
+            showNotification('success', 'Đăng ký thành công! Đang đăng nhập...');
             setShowOtpModal(false);
-            onRegisterSuccess(); // Callback chuyển trang / dashboard
+            onRegisterSuccess(); // Callback về cha để chuyển hướng (vd: về Dashboard)
         } catch (err: any) {
             console.error(err);
-            const msg = err.response?.data?.message || 'Đăng ký thất bại. Mã OTP có thể không đúng.';
+            const msg = err.response?.data?.message || 'Mã OTP không đúng hoặc hết hạn.';
             showNotification('error', msg);
         } finally {
             setIsLoading(false);
@@ -138,6 +139,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
         try {
             await sendOtp(formData.email);
             showNotification('success', 'Đã gửi lại mã OTP mới!');
+            setOtpCode(''); // Clear input cũ
         } catch (err) {
             showNotification('error', 'Không thể gửi lại mã. Vui lòng thử sau.');
         } finally {
@@ -148,7 +150,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
     return (
         <div className="max-w-md mx-auto w-full animate-in fade-in slide-in-from-right-4 duration-300 relative">
 
-            {/* --- FORM ĐĂNG KÝ --- */}
+            {/* --- FORM NHẬP THÔNG TIN (Bước 1) --- */}
             <div className="mb-8 flex items-center justify-between">
                 <div>
                     <h2 className="text-3xl font-bold text-slate-900 mb-2">Tạo tài khoản</h2>
@@ -162,7 +164,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             <form onSubmit={handleInitialSubmit} className="flex flex-col gap-3">
                 <Input className="!mb-0" label="Họ tên" name="fullName" placeholder="Nguyễn Văn A" value={formData.fullName} onChange={handleChange} error={errors.fullName} />
                 <div className="grid grid-cols-2 gap-3">
-                    <Input className="!mb-0" label="MSSV" name="studentId" placeholder="HS2024..." value={formData.studentId} onChange={handleChange} error={errors.studentId} />
+                    <Input className="!mb-0" label="MSSV (Tuỳ chọn)" name="studentId" placeholder="HS2024..." value={formData.studentId} onChange={handleChange} error={errors.studentId} />
                     <Input className="!mb-0" label="SĐT" name="phoneNumber" placeholder="0912..." value={formData.phoneNumber} onChange={handleChange} error={errors.phoneNumber} />
                 </div>
 
@@ -214,10 +216,11 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
                 </button>
             </div>
 
-            {/* --- POPUP XÁC THỰC OTP --- */}
+            {/* --- MODAL XÁC THỰC OTP (Bước 2) --- */}
             {showOtpModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95 duration-200">
+                        {/* Close Button */}
                         <button
                             onClick={() => setShowOtpModal(false)}
                             className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
