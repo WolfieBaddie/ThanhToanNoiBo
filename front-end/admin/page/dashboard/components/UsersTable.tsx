@@ -1,8 +1,11 @@
 import type { FC } from 'react';
 import { useState } from 'react';
 import { useAdminUsers } from '@/hooks/admin/useAdminUsers';
-import { UserStatus, UserType } from '@/types/user.type'; // Import Enum từ file type đã tạo
-import { Search, Filter, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
+import { UserStatus, UserType } from '@/types/user.type';
+import { Search, Filter, ChevronLeft, ChevronRight, Loader2, RefreshCw, Calendar } from 'lucide-react';
+
+// [MỚI] Import Modal Admin
+import {AdminDateRangeModal} from "@/admin/page/dashboard/components/AdminDateRangeModal";
 
 const UsersTable: FC = () => {
     // 1. GỌI HOOK LOGIC
@@ -16,13 +19,15 @@ const UsersTable: FC = () => {
         setSearch,
         setStatusFilter,
         setRoleFilter,
+        setDateFilter, // [MỚI] Lấy hàm setDateFilter
         refresh
-    } = useAdminUsers(10); // Page size = 10
+    } = useAdminUsers(10);
 
-    // State local cho UI filter dropdown (nếu cần mở rộng sau này)
     const [showFilters, setShowFilters] = useState(false);
 
-    // Helper function để map màu status (Giữ nguyên style của bạn)
+    // [MỚI] State cho Date Modal
+    const [showDateModal, setShowDateModal] = useState(false);
+
     const getStatusStyle = (status: UserStatus | string) => {
         switch (status) {
             case UserStatus.ACTIVE:
@@ -35,15 +40,18 @@ const UsersTable: FC = () => {
         }
     };
 
-    // Helper format tiền tệ (nếu UserResponse chưa có field balance thì tạm để 0 hoặc map từ field khác)
     const formatCurrency = (amount: number = 0) => {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
     };
 
-    // Helper format date
     const formatDate = (dateString: string | null) => {
         if (!dateString) return 'Never';
-        return new Date(dateString).toLocaleDateString('vi-VN'); // Hoặc logic '2 hours ago' tùy ý
+        return new Date(dateString).toLocaleDateString('vi-VN');
+    };
+
+    // [MỚI] Handler apply date
+    const handleDateApply = (from: Date, to: Date) => {
+        setDateFilter(from, to);
     };
 
     return (
@@ -69,12 +77,39 @@ const UsersTable: FC = () => {
                         />
                     </div>
 
-                    {/* FILTER BUTTON & DROPDOWN */}
+                    {/* [MỚI] DATE FILTER BUTTON */}
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowDateModal(!showDateModal)}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all cursor-pointer
+                            ${filters.fromDate
+                                ? 'bg-purple-500/20 border-purple-500/50 text-purple-200'
+                                : 'bg-white/5 border-white/10 text-white hover:border-purple-500/50'}`}
+                        >
+                            <Calendar size={16} />
+                            {/* Hiển thị range nếu đã chọn */}
+                            <span>
+                                {filters.fromDate
+                                    ? `${filters.fromDate} - ${filters.toDate?.slice(5)}` // Rút gọn hiển thị
+                                    : 'Date'}
+                            </span>
+                        </button>
+
+                        <AdminDateRangeModal
+                            isOpen={showDateModal}
+                            onClose={() => setShowDateModal(false)}
+                            onApply={handleDateApply}
+                            initialFrom={filters.fromDate}
+                            initialTo={filters.toDate}
+                        />
+                    </div>
+
+                    {/* STATUS/ROLE FILTER DROPDOWN */}
                     <div className="relative">
                         <button
                             onClick={() => setShowFilters(!showFilters)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all cursor-pointer
-                ${filters.status || filters.role
+                            ${filters.status || filters.role
                                 ? 'bg-purple-500/20 border-purple-500/50 text-purple-200'
                                 : 'bg-white/5 border-white/10 text-white hover:border-purple-500/50'}`}
                         >
@@ -82,7 +117,6 @@ const UsersTable: FC = () => {
                             <span>Filter</span>
                         </button>
 
-                        {/* Quick Filter Popup */}
                         {showFilters && (
                             <div className="absolute top-full right-0 mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-xl p-2 z-50">
                                 <div className="text-xs text-white/40 mb-1 px-2">Status</div>
@@ -130,6 +164,7 @@ const UsersTable: FC = () => {
                 )}
 
                 <table className="w-full">
+                    {/* ... (Phần Table Header và Body giữ nguyên) ... */}
                     <thead className="bg-white/5">
                     <tr>
                         <th className="text-left p-4 text-white/60 font-medium text-sm">User Info</th>
@@ -137,7 +172,7 @@ const UsersTable: FC = () => {
                         <th className="text-left p-4 text-white/60 font-medium text-sm">Contact</th>
                         <th className="text-left p-4 text-white/60 font-medium text-sm">Balance (Demo)</th>
                         <th className="text-left p-4 text-white/60 font-medium text-sm">Status</th>
-                        <th className="text-left p-4 text-white/60 font-medium text-sm">Last Login</th>
+                        <th className="text-left p-4 text-white/60 font-medium text-sm">Created At</th> {/* Updated Header */}
                         <th className="text-left p-4 text-white/60 font-medium text-sm">Actions</th>
                     </tr>
                     </thead>
@@ -168,34 +203,30 @@ const UsersTable: FC = () => {
                                     </div>
                                 </td>
 
-                                {/* Role */}
                                 <td className="text-white/80 p-4 text-sm">
                                     {Array.from(user.roles || []).map((r: string) => r.replace('ROLE_', '')).join(', ')}
                                 </td>
-                                {/* Email/Contact */}
+
                                 <td className="text-white/70 p-4 text-sm">
                                     <div>{user.email}</div>
                                     <div className="text-xs text-white/30">{user.phoneNumber}</div>
                                 </td>
 
-                                {/* Balance (Giả định, vì API UserResponse chưa có balance) */}
                                 <td className="text-white p-4 font-bold text-sm">
                                     {formatCurrency(0)}
                                 </td>
 
-                                {/* Status */}
                                 <td className="p-4">
-                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusStyle(user.status)}`}>
-                      {user.status}
-                    </span>
+                                    <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${getStatusStyle(user.status)}`}>
+                                      {user.status}
+                                    </span>
                                 </td>
 
-                                {/* Last Login */}
+                                {/* Created At (Thay Last Login để test filter) */}
                                 <td className="p-4 text-white/60 text-sm">
-                                    {formatDate(user.lastLoginAt)}
+                                    {formatDate(user.createdAt)}
                                 </td>
 
-                                {/* Actions */}
                                 <td className="p-4">
                                     <div className="flex space-x-2">
                                         <button className="p-2 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 transition-colors text-blue-400" title="Edit">
@@ -213,7 +244,7 @@ const UsersTable: FC = () => {
                 </table>
             </div>
 
-            {/* PAGINATION FOOTER */}
+            {/* PAGINATION FOOTER (Giữ nguyên) */}
             {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
                     <p className="text-sm text-white/50">
@@ -229,7 +260,6 @@ const UsersTable: FC = () => {
                             <ChevronLeft size={18} />
                         </button>
 
-                        {/* Simple Pagination Numbers */}
                         <div className="flex gap-1">
                             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                                 let pageNum = i;

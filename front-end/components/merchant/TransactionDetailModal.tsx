@@ -30,6 +30,25 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
         return dt.title || "Chi tiết giao dịch";
     };
 
+    // --- LOGIC HIỂN THỊ TỔNG THANH TOÁN (QUAN TRỌNG) ---
+    const renderUserTotalAmount = (dt: any) => {
+        // 1. Nếu là ĐỔI QUÀ -> Lấy chuỗi "-X Vé" từ backend trả về
+        if (dt.type === 'REDEMPTION') {
+            return dt.amountDisplay;
+        }
+
+        // 2. Format số tiền sang Xu (Chia 1000)
+        // formatCurrency sẽ tự thêm dấu "-" cho các loại chi tiêu (BUY_VOUCHER, PAYMENT...)
+        const xuString = formatCurrency(dt.amount, dt.type);
+
+        // 3. Nếu là NẠP TIỀN (DEPOSIT) -> Thủ công thêm dấu "+"
+        if (dt.type === 'DEPOSIT') {
+            return `+${xuString}`;
+        }
+
+        return xuString;
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
@@ -106,6 +125,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                                                         {item.itemName}
                                                                     </h5>
                                                                     <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
+                                                                        {/* Format Xu cho item */}
                                                                         {formatCurrency(item.unitPrice)}
                                                                     </span>
                                                                 </div>
@@ -139,18 +159,14 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                             </div>
                                         )}
 
-                                        {/* --- [UPDATE] LOGIC TỔNG THANH TOÁN --- */}
+                                        {/* Tổng tiền / Vé */}
                                         <div className="mt-4 pt-4 border-t border-dashed border-slate-200 flex justify-between items-center">
                                             <span className="text-slate-500 font-medium">
                                                 {(detail as any).type === 'REDEMPTION' ? 'Số lượng trừ' : 'Tổng thanh toán'}
                                             </span>
+                                            {/* [UPDATED] Gọi hàm render logic mới */}
                                             <span className={`text-2xl font-black ${(detail as any).type === 'REDEMPTION' ? 'text-orange-600' : 'text-slate-900'}`}>
-                                                {/* Nếu là Đổi Quà (REDEMPTION) -> Giữ nguyên (Backend đã trả về "-X Vé") */}
-                                                {/* Nếu là Mua/Nạp (BUY_VOUCHER, DEPOSIT) -> Thêm đuôi "xu" */}
-                                                {(detail as any).type === 'REDEMPTION'
-                                                    ? (detail as any).amountDisplay
-                                                    : `${(detail as any).amountDisplay} xu`
-                                                }
+                                                {renderUserTotalAmount(detail)}
                                             </span>
                                         </div>
                                     </div>

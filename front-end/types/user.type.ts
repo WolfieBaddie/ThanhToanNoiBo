@@ -35,6 +35,8 @@ export interface UserFilterParams {
     keyword?: string;
     status?: UserStatus | null;
     role?: string | null;
+    fromDate?: string;
+    toDate?: string;
 }
 
 // 4. Page Response (Wrap chung cho List)
