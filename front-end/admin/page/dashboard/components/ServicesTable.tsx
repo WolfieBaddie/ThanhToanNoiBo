@@ -25,7 +25,8 @@ const ServicesTable: FC = () => {
 
     // State UI
     const [showFilters, setShowFilters] = useState(false);
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid'); // State chuyển đổi view
+    // [EDIT] Đổi default state từ 'grid' sang 'list'
+    const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
     // Helper Format
     const formatCurrency = (amount: number = 0) => {

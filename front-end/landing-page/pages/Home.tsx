@@ -20,7 +20,7 @@ const Home: React.FC = () => {
 
   return (
     <div className="overflow-hidden">
-      
+      {/*quan scrum master dep trai dit chiu duoc*/}
       {/* Hero Section */}
       <section className="relative pt-32 pb-24 lg:pt-48 lg:pb-52 mesh-gradient">
         <div className="max-w-7xl mx-auto px-8 lg:px-12 grid lg:grid-cols-2 gap-20 items-center">

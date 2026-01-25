@@ -21,6 +21,8 @@ export interface ServiceResponse {
     categoryName: string;
     imageUrl: string | null;
     description?: string;
+
+    active: boolean;
 }
 
 // 4. Định nghĩa PackageResponse mới

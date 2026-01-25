@@ -5,7 +5,9 @@ import {
     ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useAdminTransactions } from '@/hooks/admin/useAdminTransaction';
-import { useAdminUsers } from '@/hooks/admin/useAdminUsers'; // 1. Import Hook User
+import { useAdminUsers } from '@/hooks/admin/useAdminUsers';
+// [MỚI] Import Component Date Modal
+import {AdminDateRangeModal} from "@/admin/page/dashboard/components/AdminDateRangeModal";
 
 interface OrdersTableProps {
     limit?: number;
@@ -21,7 +23,7 @@ const OrdersTable: FC<OrdersTableProps> = ({ limit }) => {
         totalPages,
         setPage,
         setDateFilter,
-        setUserFilter, // Hàm filter của hook transaction
+        setUserFilter,
         refresh
     } = useAdminTransactions({
         page: 0,
@@ -29,48 +31,39 @@ const OrdersTable: FC<OrdersTableProps> = ({ limit }) => {
     });
 
     // --- 2. DỮ LIỆU USER (CHO DROPDOWN FILTER) ---
-    // Lấy danh sách user để hiển thị trong dropdown (size nhỏ thôi, vd: 20)
     const {
         data: userList,
-        setSearch: setUserSearch, // Hàm search user của hook user
+        setSearch: setUserSearch,
         loading: loadingUsers
     } = useAdminUsers(20);
 
     // --- STATE UI LOCAL ---
     const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
-    const [isDateOpen, setIsDateOpen] = useState(false);
 
-    // State lưu các User ID đang được chọn tạm thời (trong dropdown)
-    // Khởi tạo bằng filters.userIds nếu có, hoặc mảng rỗng
+    // [CẬP NHẬT] Thay state manual dropdown bằng state cho Modal
+    const [isDateModalOpen, setIsDateModalOpen] = useState(false);
+
     const [tempSelectedUserIds, setTempSelectedUserIds] = useState<string[]>(filters.userIds || []);
-
-    const [tempDateRange, setTempDateRange] = useState<{ from: string, to: string }>({ from: '', to: '' });
-
     const userDropdownRef = useRef<HTMLDivElement>(null);
-    const dateDropdownRef = useRef<HTMLDivElement>(null);
 
-    // Sync state khi filters thay đổi từ bên ngoài (ví dụ bấm Clear All)
+    // Sync state khi filters thay đổi
     useEffect(() => {
         setTempSelectedUserIds(filters.userIds || []);
     }, [filters.userIds]);
 
-    // Click outside handler
+    // Click outside handler (Chỉ còn dùng cho User Dropdown)
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
                 setIsUserDropdownOpen(false);
-                // Reset temp selection về trạng thái đã apply gần nhất nếu đóng mà chưa bấm Apply (Optional)
             }
-            if (dateDropdownRef.current && !dateDropdownRef.current.contains(event.target as Node)) {
-                setIsDateOpen(false);
-            }
+            // Date Modal đã tự xử lý click outside bên trong component của nó
         };
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
     // --- HANDLERS: USER FILTER ---
-
     const toggleUserSelection = (userId: string) => {
         setTempSelectedUserIds(prev =>
             prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
@@ -78,28 +71,24 @@ const OrdersTable: FC<OrdersTableProps> = ({ limit }) => {
     };
 
     const applyUserFilter = () => {
-        setUserFilter(tempSelectedUserIds); // Gọi hook transaction để lọc thật
+        setUserFilter(tempSelectedUserIds);
         setIsUserDropdownOpen(false);
     };
 
     const clearUserFilterLocal = () => {
         setTempSelectedUserIds([]);
-        setUserFilter([]); // Clear filter thật
+        setUserFilter([]);
     };
 
-    // --- HANDLERS: DATE FILTER ---
-
-    const handleApplyDate = () => {
-        if (tempDateRange.from && tempDateRange.to) {
-            setDateFilter(new Date(tempDateRange.from), new Date(tempDateRange.to));
-            setIsDateOpen(false);
-        }
+    // --- HANDLERS: DATE FILTER [CẬP NHẬT] ---
+    const handleDateApply = (from: Date, to: Date) => {
+        setDateFilter(from, to);
+        setIsDateModalOpen(false);
     };
 
     const clearDateFilter = (e: React.MouseEvent) => {
         e.stopPropagation();
         setDateFilter(null, null);
-        setTempDateRange({ from: '', to: '' });
     };
 
     // --- HELPERS ---
@@ -145,7 +134,7 @@ const OrdersTable: FC<OrdersTableProps> = ({ limit }) => {
                 {!limit && (
                     <div className="flex flex-wrap items-center gap-3">
 
-                        {/* 1. USER FILTER (Đã tích hợp API) */}
+                        {/* 1. USER FILTER */}
                         <div className="relative" ref={userDropdownRef}>
                             <button
                                 onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
@@ -165,7 +154,6 @@ const OrdersTable: FC<OrdersTableProps> = ({ limit }) => {
 
                             {isUserDropdownOpen && (
                                 <div className="absolute top-full right-0 mt-2 w-72 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl p-2 z-50">
-                                    {/* Search User Input */}
                                     <div className="mb-2 px-1 relative">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" size={14} />
                                         <input
@@ -175,8 +163,6 @@ const OrdersTable: FC<OrdersTableProps> = ({ limit }) => {
                                             onChange={(e) => setUserSearch(e.target.value)}
                                         />
                                     </div>
-
-                                    {/* User List */}
                                     <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-white/10 pr-1">
                                         {loadingUsers ? (
                                             <div className="py-4 text-center text-white/30 text-xs"><Loader2 className="w-4 h-4 animate-spin mx-auto"/></div>
@@ -199,31 +185,22 @@ const OrdersTable: FC<OrdersTableProps> = ({ limit }) => {
                                             })
                                         )}
                                     </div>
-
-                                    {/* Footer Actions */}
                                     <div className="mt-2 pt-2 border-t border-white/10 flex gap-2">
-                                        <button
-                                            onClick={clearUserFilterLocal}
-                                            className="flex-1 py-1.5 text-xs text-white/60 hover:bg-white/5 rounded transition-colors"
-                                        >
-                                            Xóa
-                                        </button>
-                                        <button
-                                            onClick={applyUserFilter}
-                                            className="flex-1 py-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded font-medium transition-colors"
-                                        >
-                                            Áp dụng
-                                        </button>
+                                        <button onClick={clearUserFilterLocal} className="flex-1 py-1.5 text-xs text-white/60 hover:bg-white/5 rounded transition-colors">Xóa</button>
+                                        <button onClick={applyUserFilter} className="flex-1 py-1.5 text-xs bg-purple-600 hover:bg-purple-500 text-white rounded font-medium transition-colors">Áp dụng</button>
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* 2. DATE FILTER */}
-                        <div className="relative" ref={dateDropdownRef}>
+                        {/* 2. DATE FILTER [CẬP NHẬT] */}
+                        <div className="relative">
                             <button
-                                onClick={() => setIsDateOpen(!isDateOpen)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all text-sm font-medium ${filters.fromDate && filters.toDate ? 'bg-blue-500/20 border-blue-500/50 text-blue-200' : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'}`}
+                                onClick={() => setIsDateModalOpen(!isDateModalOpen)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl border transition-all text-sm font-medium 
+                                ${filters.fromDate && filters.toDate
+                                    ? 'bg-blue-500/20 border-blue-500/50 text-blue-200'
+                                    : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'}`}
                             >
                                 <Calendar size={16} />
                                 <span>{filters.fromDate && filters.toDate ? `${filters.fromDate} - ${filters.toDate}` : 'Chọn ngày'}</span>
@@ -231,21 +208,15 @@ const OrdersTable: FC<OrdersTableProps> = ({ limit }) => {
                                     <div onClick={clearDateFilter} className="ml-1 p-0.5 rounded-full hover:bg-white/20 cursor-pointer"><X size={12} /></div>
                                 )}
                             </button>
-                            {isDateOpen && (
-                                <div className="absolute top-full right-0 mt-2 w-72 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl p-4 z-50">
-                                    <div className="space-y-3">
-                                        <div>
-                                            <label className="text-xs text-white/60 block mb-1">Từ ngày</label>
-                                            <input type="date" className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white text-sm focus:border-blue-500 outline-none" value={tempDateRange.from} onChange={(e) => setTempDateRange({...tempDateRange, from: e.target.value})} />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-white/60 block mb-1">Đến ngày</label>
-                                            <input type="date" className="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-white text-sm focus:border-blue-500 outline-none" value={tempDateRange.to} onChange={(e) => setTempDateRange({...tempDateRange, to: e.target.value})} />
-                                        </div>
-                                        <button onClick={handleApplyDate} disabled={!tempDateRange.from || !tempDateRange.to} className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">Áp dụng</button>
-                                    </div>
-                                </div>
-                            )}
+
+                            {/* Tích hợp component AdminDateRangeModal */}
+                            <AdminDateRangeModal
+                                isOpen={isDateModalOpen}
+                                onClose={() => setIsDateModalOpen(false)}
+                                onApply={handleDateApply}
+                                initialFrom={filters.fromDate}
+                                initialTo={filters.toDate}
+                            />
                         </div>
 
                         {/* REFRESH BUTTON */}
