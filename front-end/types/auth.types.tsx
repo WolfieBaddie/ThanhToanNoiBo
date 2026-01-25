@@ -61,7 +61,7 @@ export interface RegisterRequest {
     fullName: string;
     email: string;
     phoneNumber?: string;
-    otp: string; // [QUAN TRỌNG] Trường OTP bắt buộc
+    otp: string;
 }
 
 export interface GenerateOtpResponse {

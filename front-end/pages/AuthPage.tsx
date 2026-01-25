@@ -15,7 +15,16 @@ const AuthPage: React.FC = () => {
     });
 
     const showError = (msg: string) => setNotification({ isOpen: true, type: 'error', message: msg });
-    const showSuccess = (msg: string) => setNotification({ isOpen: true, type: 'success', message: msg });
+
+    // [FIX] Tạo hàm wrapper để khớp với interface của RegisterForm
+    // RegisterForm yêu cầu: (type: 'success'|'error'|'info', message: ReactNode)
+    const handleShowNotification = (type: 'success' | 'error' | 'info', message: React.ReactNode) => {
+        setNotification({
+            isOpen: true,
+            type: type === 'info' ? 'success' : type, // Map 'info' về 'success' nếu UI chỉ hỗ trợ 2 loại
+            message: message as string
+        });
+    };
 
     const renderForm = () => {
         switch (mode) {
@@ -23,9 +32,6 @@ const AuthPage: React.FC = () => {
                 return (
                     <LoginForm
                         onSuccess={() => {
-                            // KHÔNG làm gì ở đây cả (hoặc chỉ console.log).
-                            // Lý do: App.tsx sẽ phát hiện user thay đổi và tự chuyển hướng sang Dashboard ngay lập tức.
-                            // Nếu hiện notification ở đây, nó sẽ bị mất ngay khi chuyển trang.
                             console.log("Login success, redirecting...");
                         }}
                         onForgotPassword={() => setMode(AuthMode.FORGOT_PASSWORD)}
@@ -34,14 +40,14 @@ const AuthPage: React.FC = () => {
                 );
             case AuthMode.REGISTER:
                 return (
+                    // [FIX] Truyền đúng props cho RegisterForm mới
                     <RegisterForm
-                        onSwitchMode={() => setMode(AuthMode.LOGIN)}
-                        // Đăng ký xong thì cần hiện thông báo để user biết mà đăng nhập
-                        onError={showError}
-                        onSuccess={() => {
-                            showSuccess('Đăng ký thành công! Vui lòng đăng nhập.');
+                        onRegisterSuccess={() => {
+                            handleShowNotification('success', 'Đăng ký thành công! Vui lòng đăng nhập.');
                             setMode(AuthMode.LOGIN);
                         }}
+                        onLogin={() => setMode(AuthMode.LOGIN)}
+                        showNotification={handleShowNotification}
                     />
                 );
             case AuthMode.FORGOT_PASSWORD:
@@ -73,14 +79,16 @@ const AuthPage: React.FC = () => {
                 {renderForm()}
 
                 {/* Footer Link switching */}
-                {mode !== AuthMode.FORGOT_PASSWORD && (
+                {/* [FIX] Chỉ hiện footer của AuthPage khi ở màn Login.
+                    Màn Register đã có footer riêng bên trong RegisterForm rồi. */}
+                {mode === AuthMode.LOGIN && (
                     <div className="mt-8 text-center text-sm font-medium text-slate-500">
-                        {mode === AuthMode.LOGIN ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}
+                        Chưa có tài khoản?
                         <button
-                            onClick={() => setMode(mode === AuthMode.LOGIN ? AuthMode.REGISTER : AuthMode.LOGIN)}
+                            onClick={() => setMode(AuthMode.REGISTER)}
                             className="text-indigo-600 font-bold ml-1.5 hover:underline transition-all"
                         >
-                            {mode === AuthMode.LOGIN ? 'Đăng ký ngay' : 'Đăng nhập'}
+                            Đăng ký ngay
                         </button>
                     </div>
                 )}

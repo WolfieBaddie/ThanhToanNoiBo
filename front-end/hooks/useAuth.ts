@@ -71,33 +71,20 @@ export const useAuth = () => {
         }
     };
 
-        const register = async (data: RegisterRequest) => {
+    const sendOtp = async (email: string) => {
+        // Không set isLoading toàn cục để tránh block UI nếu user đang nhập liệu
+        return await authService.sendRegisterOtp(email);
+    };
+
+    const register = async (data: RegisterRequest) => {
         setIsLoading(true);
         try {
-            const response = await authService.register(data);
-
-            // Backend Register trả về LoginResponse (có token).
-            // Ta cần lấy thông tin user để lưu storage.
-            // Cách 1: Nếu LoginResponse có sẵn field 'user' -> dùng luôn.
-            // Cách 2: Gọi getMe() ngay sau đó.
-
-            const userProfile = await authService.getMe(); // Gọi getMe cho chắc chắn lấy full info
-
-            storage.setUser(userProfile);
-            setUser(userProfile);
-            return userProfile;
+            await authService.register(data);
         } catch (err) {
             throw err;
         } finally {
             setIsLoading(false);
         }
-    };
-
-    /**
-     * [MỚI] Hàm Gửi OTP (Wrapper)
-     */
-    const sendOtp = async (email: string) => {
-        return await authService.sendRegisterOtp(email);
     };
 
     return { user, login, logout, register, sendOtp, isLoading };
