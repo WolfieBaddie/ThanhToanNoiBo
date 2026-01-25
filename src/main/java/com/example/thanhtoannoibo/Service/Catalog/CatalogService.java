@@ -40,9 +40,6 @@ public class CatalogService {
         Specification<AppService> spec = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // Mặc định chỉ lấy Service đang Active
-            predicates.add(criteriaBuilder.isTrue(root.get("isActive")));
-
             if (filter != null) {
                 // Lọc theo từ khóa (Tên service hoặc Mã service)
                 if (StringUtils.hasText(filter.getKeyword())) {
@@ -62,6 +59,13 @@ public class CatalogService {
                             filter.getCategoryId()
                     ));
                 }
+
+                // [GỢI Ý] Nếu DTO filter có trường isActive, hãy thêm logic này vào:
+                /*
+                if (filter.getIsActive() != null) {
+                    predicates.add(criteriaBuilder.equal(root.get("isActive"), filter.getIsActive()));
+                }
+                */
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
@@ -153,6 +157,7 @@ public class CatalogService {
                 .unitPrice(entity.getUnitPrice())
                 .categoryName(catName)
                 .imageUrl(entity.getImageUrl())
+                .isActive(entity.getIsActive())
                 .build();
     }
 
@@ -179,6 +184,4 @@ public class CatalogService {
                 .items(items) // Set danh sách items đã map
                 .build();
     }
-
-
 }

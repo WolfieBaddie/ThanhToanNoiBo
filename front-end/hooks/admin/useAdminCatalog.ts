@@ -1,3 +1,5 @@
+// src/hooks/useAdminCatalog.ts
+
 import { useState, useEffect, useCallback } from 'react';
 import { adminCatalogService, AdminCatalogFilterParams } from '@/services/admin/admin.catalog.service';
 import {
@@ -5,27 +7,24 @@ import {
     PackageResponse,
     ServiceCategory
 } from '@/types/catalog.type';
-import { catalogService } from '@/services/catalog.service'; // Reuse để lấy categories
+import { catalogService } from '@/services/catalog.service';
 import { useDebounce } from '@/hooks/useDebounce';
 
 const DEFAULT_PAGE_SIZE = 10;
 
 export const useAdminCatalog = () => {
     // --- STATE DATA ---
+    // Khai báo rõ kiểu mảng để TS không la ó
     const [data, setData] = useState<(ServiceResponse | PackageResponse)[]>([]);
     const [categories, setCategories] = useState<ServiceCategory[]>([]);
 
-    // --- STATE PAGINATION ---
     const [totalItems, setTotalItems] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
-
-    // --- STATE UI ---
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // --- STATE FILTER ---
     const [filters, setFilters] = useState<AdminCatalogFilterParams>({
-        type: 'SERVICE', // Mặc định hiển thị tab Service
+        type: 'SERVICE',
         page: 0,
         size: DEFAULT_PAGE_SIZE,
         keyword: '',
@@ -35,10 +34,9 @@ export const useAdminCatalog = () => {
         sortDir: 'desc'
     });
 
-    // Debounce keyword để tránh spam API
     const debouncedKeyword = useDebounce(filters.keyword, 500);
 
-    // 1. Load Categories (Chạy 1 lần để phục vụ dropdown filter)
+    // 1. Load Categories
     useEffect(() => {
         const fetchCategories = async () => {
             try {
@@ -56,15 +54,24 @@ export const useAdminCatalog = () => {
         setLoading(true);
         setError(null);
         try {
-            // Gọi service
             const res = await adminCatalogService.getCatalogItems({
                 ...filters,
                 keyword: debouncedKeyword
             });
 
-            // Kiểm tra dữ liệu trả về chuẩn PageResponse
             if (res && Array.isArray(res.items)) {
-                setData(res.items);
+                // [FIX MAP DATA]: Map dữ liệu để đảm bảo trường 'active' luôn đúng
+                // Backend có thể trả về 'isActive' (từ entity) hoặc 'active' (từ DTO)
+                // Chúng ta ưu tiên map về 'active' cho thống nhất với interface ServiceResponse
+                const mappedItems = res.items.map((item: any) => ({
+                    ...item,
+                    // Logic fallback: nếu có active thì lấy, không thì lấy isActive, mặc định false
+                    active: item.active ?? item.isActive ?? false,
+                    // Tương tự với isActive của Package nếu cần dùng
+                    isActive: item.isActive ?? item.active ?? false
+                }));
+
+                setData(mappedItems);
                 setTotalItems(res.totalItems || 0);
                 setTotalPages(res.totalPages || 0);
             } else {
@@ -85,23 +92,20 @@ export const useAdminCatalog = () => {
         filters.size,
         filters.categoryId,
         filters.isActive,
-        debouncedKeyword // Dùng keyword đã debounce
+        debouncedKeyword
     ]);
 
-    // Auto-fetch khi filters thay đổi
     useEffect(() => {
         fetchCatalog();
     }, [fetchCatalog]);
 
-    // --- HELPER ACTIONS (Giống useAdminTransactions) ---
-
-    // Chuyển Tab (Service <-> Package)
+    // --- HELPER ACTIONS ---
     const setTabType = (type: 'SERVICE' | 'PACKAGE') => {
         setFilters(prev => ({
             ...prev,
             type,
             page: 0,
-            categoryId: '', // Reset category
+            categoryId: '',
             keyword: ''
         }));
     };
@@ -125,17 +129,12 @@ export const useAdminCatalog = () => {
     const refresh = () => fetchCatalog();
 
     return {
-        // Data
         data,
         categories,
         totalItems,
         totalPages,
-
-        // UI
         loading,
         error,
-
-        // Filters & Actions
         filters,
         setTabType,
         setPage,

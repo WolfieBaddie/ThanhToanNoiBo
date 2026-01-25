@@ -19,7 +19,9 @@ export const useAdminUsers = (initialSize = 10) => {
         size: initialSize,
         keyword: '',
         status: null,
-        role: null
+        role: null,
+        fromDate: undefined, // [MỚI]
+        toDate: undefined    // [MỚI]
     });
 
     const debouncedKeyword = useDebounce(filters.keyword, 500);
@@ -34,7 +36,6 @@ export const useAdminUsers = (initialSize = 10) => {
                 keyword: debouncedKeyword
             });
 
-            // [QUAN TRỌNG] Kiểm tra kỹ structure trả về
             if (res && Array.isArray(res.items)) {
                 setData(res.items);
                 setTotalItems(res.totalItems || 0);
@@ -52,18 +53,44 @@ export const useAdminUsers = (initialSize = 10) => {
         } finally {
             setLoading(false);
         }
-    }, [filters.page, filters.size, filters.status, filters.role, debouncedKeyword]);
+    }, [
+        filters.page,
+        filters.size,
+        filters.status,
+        filters.role,
+        filters.fromDate, // [MỚI] Thêm vào dependency
+        filters.toDate,   // [MỚI] Thêm vào dependency
+        debouncedKeyword
+    ]);
 
     useEffect(() => {
         fetchUsers();
     }, [fetchUsers]);
 
-    // Actions
+    // --- ACTIONS ---
     const setPage = (page: number) => setFilters(prev => ({ ...prev, page }));
     const setSearch = (keyword: string) => setFilters(prev => ({ ...prev, keyword, page: 0 }));
     const setStatusFilter = (status: UserStatus | null) => setFilters(prev => ({ ...prev, status, page: 0 }));
     const setRoleFilter = (role: string | null) => setFilters(prev => ({ ...prev, role, page: 0 }));
     const refresh = () => fetchUsers();
+
+    // [MỚI] Action set Date Filter
+    // Hàm này nhận Date object và convert sang string YYYY-MM-DD
+    const setDateFilter = (from: Date | null, to: Date | null) => {
+        const formatDate = (date: Date) => {
+            // Lấy YYYY-MM-DD theo local time để tránh lệch múi giờ
+            const offset = date.getTimezoneOffset();
+            const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+            return localDate.toISOString().split('T')[0];
+        };
+
+        setFilters(prev => ({
+            ...prev,
+            fromDate: from ? formatDate(from) : undefined,
+            toDate: to ? formatDate(to) : undefined,
+            page: 0 // Reset về trang 1 khi lọc
+        }));
+    };
 
     return {
         data,
@@ -76,6 +103,7 @@ export const useAdminUsers = (initialSize = 10) => {
         setSearch,
         setStatusFilter,
         setRoleFilter,
+        setDateFilter, // [MỚI] Export function
         refresh
     };
 };

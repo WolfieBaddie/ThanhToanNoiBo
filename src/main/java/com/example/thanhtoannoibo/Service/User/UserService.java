@@ -18,6 +18,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate; // Import
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +33,7 @@ public class UserService {
     private final UserRepository userRepository;
 
     /**
-     * Lấy danh sách Users (Có phân trang & search)
+     * Lấy danh sách Users (Có phân trang & search & filter date)
      */
     public PageResponse<UserResponse> getUsers(UserFilterRequest filter, Pageable pageable) {
         Specification<User> spec = (root, query, cb) -> {
@@ -54,17 +55,24 @@ public class UserService {
                 predicates.add(cb.equal(root.get("status"), filter.getStatus()));
             }
 
-            // 3. Lọc theo Role (Join bảng Roles)
+            // 3. Lọc theo Role
             if (StringUtils.hasText(filter.getRole())) {
-                // Join từ User -> Roles
                 Join<User, Role> roleJoin = root.join("roles");
-                // So sánh tên role (Lưu ý: DB thường lưu role là ROLE_USER, ROLE_ADMIN...)
-                // Nếu filter gửi lên "USER" thì có thể cần thêm "ROLE_" vào trước
                 String roleName = filter.getRole().toUpperCase();
                 if (!roleName.startsWith("ROLE_")) {
                     roleName = "ROLE_" + roleName;
                 }
                 predicates.add(cb.equal(roleJoin.get("roleName"), roleName));
+            }
+
+            // 4. [MỚI] Lọc theo thời gian tạo (Created Range)
+            if (filter.getFromDate() != null) {
+                // >= Từ ngày 00:00:00
+                predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), filter.getFromDate().atStartOfDay()));
+            }
+            if (filter.getToDate() != null) {
+                // <= Đến ngày 23:59:59
+                predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), filter.getToDate().atTime(23, 59, 59)));
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -98,7 +106,6 @@ public class UserService {
      * Logic map User Entity -> UserResponse
      */
     private UserResponse mapToUserResponse(User user) {
-        // [FIX] Map Roles sang Set<String> thay vì String
         Set<String> roles = Collections.emptySet();
         if (user.getRoles() != null && !user.getRoles().isEmpty()) {
             roles = user.getRoles().stream()
@@ -112,14 +119,12 @@ public class UserService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .phoneNumber(user.getPhoneNumber())
-                .userType(user.getUserType()) // Enum khớp nhau
+                .userType(user.getUserType())
                 .status(user.getStatus() != null ? user.getStatus() : UserStatus.LOCKED)
                 .imageUrl(user.getImageUrl())
-                .roles(roles) // Truyền đúng Set<String>
+                .roles(roles)
                 .lastLoginAt(user.getLastLoginAt())
                 .createdAt(user.getCreatedAt())
-                // .balance(balance) -> Đã bỏ vì UserResponse chưa có trường này
-                // .updatedAt(...) -> Đã bỏ vì UserResponse chưa có trường này
                 .build();
     }
 }
