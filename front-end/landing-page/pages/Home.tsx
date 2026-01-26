@@ -19,8 +19,8 @@ const Home: React.FC = () => {
   const { t, language } = useLanguage();
 
   return (
-    <div className="overflow-hidden">
-      {/*quan scrum master dep trai dit chiu duoc*/}
+    <div className="overflow-hidden font-sans">
+      
       {/* Hero Section */}
       <section className="relative pt-32 pb-24 lg:pt-48 lg:pb-52 mesh-gradient">
         <div className="max-w-7xl mx-auto px-8 lg:px-12 grid lg:grid-cols-2 gap-20 items-center">
@@ -39,12 +39,12 @@ const Home: React.FC = () => {
               <span>{t.hero.badge}</span>
             </div>
             
-            <h1 className="text-6xl lg:text-8xl font-black tracking-tight leading-[1.05] text-brand-dark">
+            <h1 className="text-4xl lg:text-5xl font-black tracking-tight leading-[1.05] text-brand-dark">
               {t.hero.title1}<br />
               <span className="bg-gradient-to-r from-brand-primary to-brand-secondary bg-clip-text text-transparent italic">{t.hero.title2}</span>
             </h1>
             
-            <p className="text-xl text-slate-500 font-medium leading-relaxed max-w-xl">
+            <p className="text-l text-slate-500 font-medium leading-relaxed max-w-xl">
               {t.hero.desc}
             </p>
             
@@ -77,7 +77,7 @@ const Home: React.FC = () => {
             transition={{ duration: 1, delay: 0.2 }}
             className="relative lg:flex justify-center hidden"
           >
-            <div className="relative w-[340px] h-[700px] bg-brand-dark rounded-[60px] border-[12px] border-slate-800 shadow-premium overflow-hidden animate-float">
+            <div className="relative w-[340px] h-[700px] bg-brand-dark rounded-[60px] border-[12px] border-slate-800 shadow-premium overflow-hidden">
               <img 
                 src="https://placehold.co/400x800/2563EB/FFF?text=Smart+Wallet\nSecure+QR" 
                 className="w-full h-full object-cover"
@@ -104,8 +104,8 @@ const Home: React.FC = () => {
       <section id="features" className="py-32 bg-white">
         <div className="max-w-7xl mx-auto px-8 lg:px-12">
           <div className="text-center mb-24 space-y-4">
-            <h2 className="text-brand-primary font-black uppercase tracking-[0.2em] text-sm italic underline decoration-2 underline-offset-8">Fintech for Schools</h2>
-            <h3 className="text-4xl lg:text-6xl font-extrabold text-brand-dark tracking-tight">Tất cả những gì bạn cần.</h3>
+            <h2 className="text-brand-primary font-black uppercase tracking-[0.2em] text-sm italic underline decoration-2 underline-offset-8">{t.home.features.badge}</h2>
+            <h3 className="text-4xl lg:text-6xl font-extrabold text-brand-dark tracking-tight">{t.home.features.title}</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -119,9 +119,9 @@ const Home: React.FC = () => {
                 <div className="bg-brand-primary w-16 h-16 rounded-2xl flex items-center justify-center mb-8 shadow-glow">
                   <CreditCard className="w-8 h-8 text-white" />
                 </div>
-                <h4 className="text-3xl font-extrabold text-brand-dark mb-6 tracking-tight">Nạp tiền tức thì qua mọi Ngân hàng.</h4>
+                <h4 className="text-3xl font-extrabold text-brand-dark mb-6 tracking-tight">{t.home.features.card1.title}</h4>
                 <p className="text-slate-500 font-medium text-lg leading-relaxed">
-                  Hỗ trợ Chuyển khoản, MoMo và VietQR. Học sinh không bao giờ hết số dư với hệ thống cảnh báo tự động cho phụ huynh.
+                  {t.home.features.card1.desc}
                 </p>
               </div>
             </motion.div>
@@ -137,10 +137,12 @@ const Home: React.FC = () => {
                 <QrCode className="w-8 h-8 text-white" />
               </div>
               <div>
-                <h4 className="text-2xl font-extrabold mb-4">Quét mã & Thưởng thức.</h4>
-                <p className="text-white/70 font-medium">Học sinh chỉ cần quét mã QR tại quầy. An toàn, nhanh chóng và hoàn toàn không dùng tiền mặt.</p>
+                <h4 className="text-2xl font-extrabold mb-4">{t.home.features.card2.title}</h4>
+                <p className="text-white/70 font-medium">{t.home.features.card2.desc}</p>
               </div>
             </motion.div>
+
+            {/* Bổ sung các card khác nếu muốn hiển thị đủ danh sách trong translation */}
           </div>
         </div>
       </section>
@@ -151,9 +153,9 @@ const Home: React.FC = () => {
           <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-400/20 to-transparent"></div>
           
           <div className="relative z-10 space-y-12">
-            <h2 className="text-5xl md:text-7xl font-black text-white font-heading tracking-tight italic">Sẵn sàng để số hóa?</h2>
+            <h2 className="text-5xl md:text-7xl font-black text-white font-heading tracking-tight italic">{t.home.features.ctaTitle}</h2>
             <p className="text-blue-100 text-xl font-medium max-w-2xl mx-auto leading-relaxed">
-              Hãy gia nhập tương lai của học đường ngay hôm nay. Truy cập nền tảng từ mọi thiết bị và trải nghiệm cách quản lý dịch vụ thông minh nhất.
+              {t.home.features.ctaDesc}
             </p>
             <div className="flex justify-center">
               <motion.button 
@@ -165,8 +167,7 @@ const Home: React.FC = () => {
                 <ArrowRight className="w-8 h-8 group-hover:translate-x-2 transition-transform" />
               </motion.button>
             </div>
-            {/* The language variable used here is now correctly destructured from useLanguage() above */}
-            <p className="text-blue-200 text-sm font-bold uppercase tracking-[0.2em]">Mã hóa & Bảo mật • {language === 'vi' ? 'Không cần tải ứng dụng' : 'No Download Required'}</p>
+            <p className="text-blue-200 text-sm font-bold uppercase tracking-[0.2em]">Mã hóa & Bảo mật • {t.home.features.ctaNote}</p>
           </div>
         </div>
       </section>

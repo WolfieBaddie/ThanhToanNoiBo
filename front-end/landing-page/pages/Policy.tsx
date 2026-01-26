@@ -33,7 +33,7 @@ const Policy: React.FC = () => {
     compliance: {
       title: t.policy.sections.compliance.title,
       content: (
-        <div className="space-y-8 lg:space-y-12">
+        <div className="space-y-8 lg:space-y-12 font-sans">
           <div className="bg-blue-50/50 p-6 md:p-8 rounded-3xl border border-blue-100">
             <h4 className="text-lg md:text-xl font-bold text-brand-dark mb-4 flex items-center">
               <Shield className="w-6 h-6 text-brand-primary mr-3 shrink-0" />
@@ -68,12 +68,12 @@ const Policy: React.FC = () => {
     limits: {
       title: t.policy.sections.limits.title,
       content: (
-        <div className="space-y-8 md:space-y-10">
+        <div className="space-y-8 md:space-y-10 font-sans">
           <p className="text-slate-500 font-medium text-base md:text-lg leading-relaxed">
             {t.policy.sections.limits.desc}
           </p>
           
-          <div className="space-y-4 md:space-y-6">
+          <div className="space-y-4 md:space-y-6 font-sans">
             <div className="flex flex-col xs:flex-row items-start xs:items-center space-y-4 xs:space-y-0 xs:space-x-6 p-5 md:p-6 rounded-3xl bg-slate-50 border border-slate-100">
               <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm shrink-0">
                 <Zap className="w-6 h-6 text-brand-primary" />
@@ -110,7 +110,7 @@ const Policy: React.FC = () => {
     scope: {
       title: t.policy.sections.scope.title,
       content: (
-        <div className="space-y-8 md:space-y-12">
+        <div className="space-y-8 md:space-y-12 font-sans">
           <div className="grid gap-4 md:gap-6">
             <div className="p-6 md:p-8 rounded-[32px] bg-white border border-slate-100 shadow-sm">
               <div className="flex items-center space-x-4 mb-6">
@@ -152,7 +152,7 @@ const Policy: React.FC = () => {
     roadmap: {
       title: t.policy.sections.roadmap.title,
       content: (
-        <div className="space-y-8 md:space-y-12">
+        <div className="space-y-8 md:space-y-12 font-sans">
           <div className="grid sm:grid-cols-2 gap-6 md:gap-8">
             <div className="p-8 md:p-10 rounded-[32px] md:rounded-[40px] bg-brand-dark text-white shadow-2xl">
               <h4 className="text-xl md:text-2xl font-bold mb-6 flex items-center">
@@ -195,7 +195,7 @@ const Policy: React.FC = () => {
   };
 
   return (
-    <div className="pt-20 min-h-screen bg-white">
+    <div className="pt-20 min-h-screen bg-white font-sans">
       {/* Page Header */}
       <section className="bg-slate-50 py-16 md:py-24 border-b border-slate-100 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[300px] md:w-[400px] h-[300px] md:h-[400px] bg-brand-primary/5 blur-[80px] md:blur-[100px] -z-0"></div>
