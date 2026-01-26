@@ -1,4 +1,4 @@
-package com.example.thanhtoannoibo.Service.Security;
+package com.example.thanhtoannoibo.Repository.Security;
 
 import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.Exception.AppException;

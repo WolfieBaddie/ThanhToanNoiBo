@@ -17,10 +17,7 @@ import com.example.thanhtoannoibo.Entity.Security.AuditLog;
 import com.example.thanhtoannoibo.Entity.Security.UserSession;
 import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository;
-import com.example.thanhtoannoibo.Repository.Security.AuditLogRepository;
-import com.example.thanhtoannoibo.Repository.Security.RoleRepository;
-import com.example.thanhtoannoibo.Repository.Security.SessionRepository;
-import com.example.thanhtoannoibo.Repository.Security.UserRepository;
+import com.example.thanhtoannoibo.Repository.Security.*;
 import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherRepository;
 import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
 import jakarta.servlet.http.Cookie;
@@ -57,7 +54,7 @@ public class AuthService {
     private final AuditLogRepository auditLogRepository;
     private final UserCreditRepository userCreditRepository;
     private final JwtProperties jwtProperties;
-    private final com.example.thanhtoannoibo.Service.Security.OtpService otpService;
+    private final OtpService  otpService;
     private final HttpServletRequest httpRequest;
 
     @Value("${app.jwt.access-ttl-minutes:15}")

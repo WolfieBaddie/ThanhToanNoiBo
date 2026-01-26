@@ -13,8 +13,9 @@ import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.Entity.Permission;
 import com.example.thanhtoannoibo.Entity.Role;
 import com.example.thanhtoannoibo.Entity.User;
+import com.example.thanhtoannoibo.Repository.Security.OtpService;
 import com.example.thanhtoannoibo.Service.Security.AuthService;
-import com.example.thanhtoannoibo.Service.Security.OtpService;
+
 import com.example.thanhtoannoibo.Util.CookieUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
