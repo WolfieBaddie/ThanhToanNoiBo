@@ -9,7 +9,7 @@ export const useMyVouchers = () => {
     // Default filters
     const [filters, setFilters] = useState<VoucherFilters>({
         page: 0,
-        size: 10, // Mặc định 10
+        size: 10,
         status: UserVoucherStatusEnum.ACTIVE
     });
 
@@ -24,7 +24,11 @@ export const useMyVouchers = () => {
         setIsLoading(true);
         try {
             const data = await voucherService.getMyVouchers(filters);
+
+            // data.items ở đây là danh sách Voucher (UserVoucherResponse[])
+            // Mỗi voucher bên trong sẽ tự động có field .items (chi tiết món) nhờ update Type
             setVouchers(data.items);
+
             setPagination({
                 pageNumber: data.page,
                 totalPages: data.totalPages,
@@ -42,6 +46,7 @@ export const useMyVouchers = () => {
         fetchVouchers();
     }, [fetchVouchers]);
 
+    // Các hàm helper đổi trang, filter
     const changePage = (newPage: number) => {
         setFilters(prev => ({ ...prev, page: newPage }));
     };
@@ -50,19 +55,18 @@ export const useMyVouchers = () => {
         setFilters(prev => ({ ...prev, status: status, page: 0 }));
     };
 
-    // [MỚI] Hàm thay đổi số lượng item trên 1 trang
     const changePageSize = (newSize: number) => {
-        setFilters(prev => ({ ...prev, size: newSize, page: 0 })); // Reset về trang đầu
+        setFilters(prev => ({ ...prev, size: newSize, page: 0 }));
     };
 
     return {
         vouchers,
         pagination,
         isLoading,
-        filters,        // Trả về filters để UI biết đang select size nào
+        filters,
         changePage,
         filterByStatus,
-        changePageSize, // Export hàm mới
+        changePageSize,
         refresh: fetchVouchers
     };
 };

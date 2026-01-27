@@ -13,7 +13,7 @@ export interface PackageServiceItem {
 
 // 3. Update ServiceResponse thêm trường type
 export interface ServiceResponse {
-    type: 'SERVICE'; // Định danh cứng
+    type: 'SERVICE';
     serviceId: string;
     serviceCode: string;
     serviceName: string;
@@ -23,8 +23,11 @@ export interface ServiceResponse {
     description?: string;
 
     active: boolean;
-}
 
+
+    detailId?: string;
+    remainingQuantity?: number;
+}
 // 4. Định nghĩa PackageResponse mới
 export interface PackageResponse {
     type: 'PACKAGE'; // Định danh cứng

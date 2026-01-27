@@ -1,4 +1,4 @@
-// src/pages/VoucherDetailPage.tsx
+// src/pages/voucher/VoucherDetailPage.tsx
 
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -14,7 +14,8 @@ import {
     AlertCircle,
     QrCode,
     Layers,
-    Utensils // Import icon mới
+    Utensils,
+    Package
 } from 'lucide-react';
 import { useVoucherDetail } from '@/hooks/useVoucherDetails';
 import { formatCurrency } from '@/utils/format';
@@ -24,9 +25,8 @@ const VoucherDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
 
-    // Hook đã được sửa type chuẩn
+    // Hook lấy dữ liệu
     const { voucher, isLoading, error } = useVoucherDetail(id);
-
     const [showQrModal, setShowQrModal] = useState(false);
 
     // --- Loading State ---
@@ -49,7 +49,7 @@ const VoucherDetailPage: React.FC = () => {
                 <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Không tìm thấy vé</h2>
                 <p className="text-slate-500 mb-6">{error || "Vé không tồn tại hoặc đã bị xóa."}</p>
                 <button
-                    onClick={() => navigate('/voucher')}
+                    onClick={() => navigate('/vouchers')}
                     className="px-6 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-xl font-medium transition-colors"
                 >
                     Quay lại kho vé
@@ -59,7 +59,6 @@ const VoucherDetailPage: React.FC = () => {
     }
 
     // --- Logic hiển thị trạng thái ---
-    // [FIX]: Dùng voucher.isExpired thay vì voucher.expired
     const getStatusConfig = () => {
         if (voucher.isExpired) return {
             color: 'bg-slate-100 dark:bg-slate-800',
@@ -112,6 +111,7 @@ const VoucherDetailPage: React.FC = () => {
                             src={voucher.imageUrl}
                             alt={voucher.serviceName}
                             className="w-full h-full object-cover"
+                            onError={(e) => (e.target as HTMLImageElement).src = '/images/placeholder.png'}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
                     </div>
@@ -168,48 +168,85 @@ const VoucherDetailPage: React.FC = () => {
                 {/* Ticket Body */}
                 <div className="p-8 pt-10 space-y-6">
 
-                    {/* [SECTION MỚI] DANH SÁCH DỊCH VỤ TRONG GÓI COMBO */}
-                    {voucher.includedServices && voucher.includedServices.length > 0 && (
+                    {/* [UPDATED SECTION] Hiển thị danh sách items từ JSON mới */}
+                    {voucher.items && voucher.items.length > 0 && (
                         <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                            <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
-                                <Utensils size={16} className="text-indigo-500" />
-                                Chi tiết gói dịch vụ:
-                            </h4>
-                            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700">
-                                {voucher.includedServices.map((item) => (
-                                    <div key={item.serviceId} className="p-3 flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors">
-                                        {/* Ảnh món ăn */}
-                                        <div className="w-12 h-12 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 overflow-hidden shrink-0">
-                                            {item.imageUrl ? (
-                                                <img src={item.imageUrl} alt={item.serviceName} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                                    <Utensils size={16} />
-                                                </div>
-                                            )}
-                                        </div>
+                            <div className="flex items-center justify-between">
+                                <h4 className="font-bold text-slate-800 dark:text-white text-sm flex items-center gap-2">
+                                    <Utensils size={16} className="text-indigo-500" />
+                                    Người dùng có thể chọn mua 1 trong các dịch vụ sau:
+                                </h4>
+                                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                                    {voucher.items.length} món
+                                </span>
+                            </div>
 
-                                        {/* Thông tin món */}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">
-                                                {item.serviceName}
-                                            </p>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded">
-                                                    {item.categoryName || 'Món'}
-                                                </span>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                    Trị giá: {formatCurrency(item.unitPrice)}
+                            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-700">
+                                {voucher.items.map((item) => {
+                                    // Kiểm tra xem món này đã dùng hết chưa
+                                    const isFinished = item.remainingQuantity === 0;
+
+                                    return (
+                                        <div
+                                            key={item.detailId}
+                                            className={`p-3 flex items-center gap-3 transition-colors ${
+                                                isFinished ? 'opacity-60 bg-slate-100/50' : 'hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                                            }`}
+                                        >
+                                            {/* Ảnh món ăn */}
+                                            <div className="w-12 h-12 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 overflow-hidden shrink-0 relative">
+                                                {item.imageUrl ? (
+                                                    <img
+                                                        src={item.imageUrl}
+                                                        alt={item.serviceName}
+                                                        className={`w-full h-full object-cover ${isFinished ? 'grayscale' : ''}`}
+                                                        onError={(e) => (e.target as HTMLImageElement).src = '/images/placeholder.png'}
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-slate-300">
+                                                        <Utensils size={16} />
+                                                    </div>
+                                                )}
+                                                {isFinished && (
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                                                        <CheckCircle2 size={16} className="text-slate-600" />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Thông tin món */}
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm font-semibold truncate ${isFinished ? 'text-slate-500 line-through' : 'text-slate-700 dark:text-slate-200'}`}>
+                                                    {item.serviceName}
                                                 </p>
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                                            <Package size={10} />
+                                                            Tiêu chuẩn: {item.initialQuantity}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Hiển thị số lượng còn lại */}
+                                                    {isFinished ? (
+                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded">
+                                                            Đã dùng
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                                                            Còn lại: {item.remainingQuantity}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
 
-                    {/* NÚT SỬ DỤNG VÉ */}
+                    {/* NÚT SỬ DỤNG VÉ (Giữ nguyên logic mở Modal) */}
                     {!voucher.isExpired && voucher.status === 'ACTIVE' && (
                         <button
                             onClick={() => setShowQrModal(true)}
@@ -264,16 +301,16 @@ const VoucherDetailPage: React.FC = () => {
                         </h4>
                         <ul className="list-disc list-inside text-sm text-blue-600 dark:text-blue-300 space-y-1 pl-1">
                             <li>Vui lòng đưa mã QR cho nhân viên thu ngân để quét.</li>
-                            <li>Vé có giá trị sử dụng 01 lần duy nhất.</li>
-                            {voucher.includedServices && voucher.includedServices.length > 0 && (
-                                <li>Gói combo sẽ kích hoạt tất cả các món cùng lúc khi sử dụng.</li>
+                            <li>Vé có giá trị sử dụng theo số lượng còn lại của từng món.</li>
+                            {voucher.items && voucher.items.length > 0 && (
+                                <li>Với gói combo, bạn có thể sử dụng từng món lẻ vào các thời điểm khác nhau.</li>
                             )}
                         </ul>
                     </div>
                 </div>
             </div>
 
-
+            {/* Modal QR Code */}
             {voucher && (
                 <VoucherQrModal
                     isOpen={showQrModal}

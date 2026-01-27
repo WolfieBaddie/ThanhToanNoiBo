@@ -12,21 +12,36 @@ export enum UserVoucherStatusEnum {
 export interface UserVoucherResponse {
     voucherId: string;
     voucherCode: string;
-    status: UserVoucherStatusEnum;
-    serviceId: string | null;
-    packageId: string | null;
-    serviceName: string;
-    imageUrl?: string | null;
-    categoryName?: string;
-    quantity: number;
-    priceAtPurchase: number;
-    createdAt: string;
-    expiresAt: string | null;
-    usedAt: string | null;
+    status: 'ACTIVE' | 'USED' | 'EXPIRED' | 'CANCELLED'; // Ví dụ các status
 
-    // [MỚI] Danh sách món trong gói
-    includedServices?: ServiceResponse[];
+    serviceId?: string; // Có thể null nếu là combo
+    packageId?: string;
+    serviceName: string;
+    imageUrl: string;
+    categoryName?: string;
+
+    priceAtPurchase: number;
+    createdAt: string; // ISO Date string
+    expiresAt: string;
+    usedAt?: string;
+
+    isExpired: boolean;
+    quantity: number;
+    qrContent: string;
+
+    // [MỚI] Thêm trường items để hứng danh sách chi tiết
+    items?: UserVoucherDetail[];
 }
+
+export interface UserVoucherDetail {
+    detailId: string;
+    serviceId: string;
+    serviceName: string;
+    imageUrl: string;
+    initialQuantity: number;   // Tổng số lượng mua
+    remainingQuantity: number; // Số lượng còn lại
+}
+
 export interface PageResponse<T> {
     items: T[];
     page: number;
