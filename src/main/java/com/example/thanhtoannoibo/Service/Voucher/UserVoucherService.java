@@ -8,6 +8,7 @@ import com.example.thanhtoannoibo.DTO.Request.Voucher.VoucherFilterRequest;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
 import com.example.thanhtoannoibo.DTO.Response.QrCode.QrResponse;
 import com.example.thanhtoannoibo.DTO.Response.Voucher.BuyVoucherResponse;
+import com.example.thanhtoannoibo.DTO.Response.Voucher.UserVoucherDetailResponse;
 import com.example.thanhtoannoibo.DTO.Response.Voucher.UserVoucherResponse;
 import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
@@ -18,12 +19,14 @@ import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Entity.Voucher.PaymentDetail;
 import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
 import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
+import com.example.thanhtoannoibo.Entity.Voucher.UserVoucherDetail;
 import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Catalog.AppPackageRepository;
 import com.example.thanhtoannoibo.Repository.Catalog.AppServiceRepository;
 import com.example.thanhtoannoibo.Repository.Order.OrderRepository;
 import com.example.thanhtoannoibo.Repository.Security.AuditLogRepository;
 import com.example.thanhtoannoibo.Repository.Security.OtpService;
+import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherDetailRepository;
 import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherRepository;
 import com.example.thanhtoannoibo.Repository.Wallet.PaymentDetailRepository;
 import com.example.thanhtoannoibo.Repository.Wallet.TransactionRepository;
@@ -46,6 +49,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -64,6 +68,7 @@ public class UserVoucherService {
     private final NotificationService notificationService;
     private final AppPackageRepository packageRepository;
     private final OtpService otpService;
+    private final UserVoucherDetailRepository  userVoucherDetailRepository;
 
     @Transactional(rollbackFor = Exception.class)
     public BuyVoucherResponse buyVoucher(BuyVoucherRequest request) {
@@ -72,7 +77,7 @@ public class UserVoucherService {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        // 2. Lấy User & Service (để lấy giá và tên)
+        // 2. Lấy User & Service
         User user = authService.getCurrentUser(httpRequest);
         AppService appService = serviceRepository.findById(request.getServiceId())
                 .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
@@ -83,23 +88,21 @@ public class UserVoucherService {
 
         otpService.validateOtp(user.getEmail(), request.getOtpCode(), "TRANSACTION");
 
-
-        // 3. Tính tiền
+        // 3. Tính tiền & 4. Trừ tiền (Giữ nguyên)
         BigDecimal unitPrice = appService.getUnitPrice();
         BigDecimal totalAmount = unitPrice.multiply(BigDecimal.valueOf(request.getAmount()));
 
-        // 4. Trừ tiền
         UserCredit currentCredit = userCreditService.getUserCredit(user.getUserId());
         if (currentCredit.getBalance().compareTo(totalAmount) < 0) {
             throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
         }
         UserCredit updatedCredit = userCreditService.deductBalance(user.getUserId(), totalAmount);
 
-        // 5. Tạo Order (Chỉ lưu snapshot text vào description nếu muốn, hoặc null serviceEntity)
+        // 5. Tạo Order (Giữ nguyên)
         String orderRef = "ORD-" + System.currentTimeMillis() + "-" + RandomStringUtils.randomAlphanumeric(4).toUpperCase();
         Order order = Order.builder()
                 .user(user)
-                .serviceEntity(null) // [YC]: Không lưu serviceId vào DB
+                .serviceEntity(null)
                 .orderRef(orderRef)
                 .amountPaid(totalAmount)
                 .paymentMethod(OrderMethod.CREDIT)
@@ -109,12 +112,12 @@ public class UserVoucherService {
                 .build();
         orderRepository.save(order);
 
-        // 6. Tạo Transaction
+        // 6. Tạo Transaction (Giữ nguyên)
         String txnRef = "TXN-" + System.currentTimeMillis();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("orderId", order.getOrderId().toString());
         metadata.put("quantity", request.getAmount());
-        metadata.put("serviceName", appService.getServiceName()); // Lưu tên vào metadata
+        metadata.put("serviceName", appService.getServiceName());
 
         Transaction transaction = Transaction.builder()
                 .credit(updatedCredit)
@@ -129,42 +132,56 @@ public class UserVoucherService {
                 .build();
         transactionRepository.save(transaction);
 
-        // 7. PaymentDetail (Có thể để service là null nếu muốn triệt để, nhưng thường table này cần link)
-        // Nếu muốn không lưu serviceId cả ở đây thì set null
+        // 7. PaymentDetail (Giữ nguyên)
         PaymentDetail paymentDetail = PaymentDetail.builder()
                 .transaction(transaction)
-                .service(null) // [YC]: Không lưu serviceId
+                .service(null)
                 .quantity(BigDecimal.valueOf(request.getAmount()))
                 .amount(totalAmount)
                 .build();
         paymentDetailRepository.save(paymentDetail);
 
-        // --- 8. TẠO VOUCHER (LƯU SNAPSHOT NAME) ---
+        // --- 8. TẠO VOUCHER MASTER (BẢNG CHA) ---
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = now.plusDays(30);
 
         UserVoucher voucher = createVoucherEntity(
                 user,
-                appService, // Truyền service vào chỉ để lấy tên/ảnh
+                appService,
                 unitPrice,
                 transaction,
                 now,
                 expiresAt,
-                request.getAmount()
+                request.getAmount() // Lưu tổng số lượng vào bảng cha để tham khảo
         );
         userVoucherRepository.save(voucher);
 
+        // --- [MỚI] 8.5. TẠO VOUCHER DETAIL (BẢNG CON) ---
+        // Lưu thông tin chi tiết: Voucher này dùng cho Service nào, số lượng bao nhiêu
+        UserVoucherDetail voucherDetail = UserVoucherDetail.builder()
+                .userVoucher(voucher)       // Link tới bảng cha
+                .service(appService)        // Link tới Service thực tế
+                .initialQuantity(request.getAmount())
+                .remainingQuantity(request.getAmount()) // Mới mua thì còn nguyên
+                .allocatedPrice(unitPrice)  // Giá mua lẻ (không discount)
+                .build();
+
+        userVoucherDetailRepository.save(voucherDetail);
+        // ------------------------------------------------
+
+        // 9. Notification (Giữ nguyên)
         notificationService.createNotification(
                 user,
                 "Mua vé thành công",
                 "Bạn đã mua thành công " + request.getAmount() + " vé " + appService.getServiceName(),
                 "SUCCESS",
-                "/vouchers/" + voucher.getVoucherId() // Link tới chi tiết vé
+                "/vouchers/" + voucher.getVoucherId()
         );
 
-        // 9. Audit Log
+        // 10. Audit Log (Giữ nguyên theo yêu cầu)
         saveAuditLog(user, order, voucher, totalAmount);
 
+        // 11. Return Response
         return BuyVoucherResponse.builder()
                 .orderId(order.getOrderId())
                 .transactionId(transaction.getTransactionId())
@@ -205,33 +222,64 @@ public class UserVoucherService {
     }
 
     // --- Helper Mapping (Đọc trực tiếp từ Voucher, không query AppService) ---
-    private UserVoucherResponse mapToResponse(UserVoucher voucher) {
-        boolean isExpired = voucher.getExpiresAt() != null && voucher.getExpiresAt().isBefore(LocalDateTime.now());
+    private UserVoucherResponse mapToResponse(UserVoucher entity) {
+        boolean isExpired = entity.getExpiresAt() != null && entity.getExpiresAt().isBefore(LocalDateTime.now());
 
+        // 1. [QUAN TRỌNG] Truy vấn bảng Detail để lấy danh sách món ăn
+        List<UserVoucherDetail> details = userVoucherDetailRepository.findByUserVoucher(entity);
+
+        // 2. Map sang DTO Detail
+        List<UserVoucherDetailResponse> detailResponses = new ArrayList<>();
+
+        if (details != null && !details.isEmpty()) {
+            detailResponses = details.stream()
+                    .map(d -> UserVoucherDetailResponse.builder()
+                            .detailId(d.getDetailId())
+                            .serviceId(d.getService().getServiceId())
+                            .serviceName(d.getService().getServiceName())
+                            .imageUrl(d.getService().getImageUrl())
+                            .initialQuantity(d.getInitialQuantity())
+                            .remainingQuantity(d.getRemainingQuantity()) // Quan trọng: Số lượng còn lại
+                            .build())
+                    .collect(Collectors.toList());
+        }
+
+        // 3. Xử lý logic hiển thị tên & ảnh cho Voucher Cha
+        String displayName = entity.getServiceName();
+        String displayImage = entity.getImageUrl();
+
+
+        // 4. Build Response
         return UserVoucherResponse.builder()
-                .voucherId(voucher.getVoucherId())
-                .voucherCode(voucher.getVoucherCode())
-                .status(voucher.getStatus().name())
+                .voucherId(entity.getVoucherId())
+                .voucherCode(entity.getVoucherCode())
+                .status(entity.getStatus().name())
 
-                .serviceId(voucher.getServiceId())
-                .packageId(voucher.getPackageId())
+                .serviceId(entity.getServiceId())
+                .packageId(entity.getPackageId())
 
-                .serviceName(voucher.getServiceName())
-                .imageUrl(voucher.getImageUrl())
-                .categoryName(voucher.getCategoryName())
-                .priceAtPurchase(voucher.getPriceAtPurchase())
-                .createdAt(voucher.getCreatedAt())
-                .expiresAt(voucher.getExpiresAt())
-                .usedAt(voucher.getUsedAt())
+                .serviceName(displayName)
+                .imageUrl(displayImage)
+                .categoryName(entity.getCategoryName())
+
+                .priceAtPurchase(entity.getPriceAtPurchase())
+                .createdAt(entity.getCreatedAt())
+                .expiresAt(entity.getExpiresAt())
+                .usedAt(entity.getUsedAt())
+
                 .isExpired(isExpired)
-                .qrContent(voucher.getVoucherCode())
-                .quantity(voucher.getQuantity() != null ? voucher.getQuantity() : 1)
+                .quantity(entity.getQuantity())
+                .qrContent(entity.getVoucherCode())
+
+                // [MỚI] Gán danh sách món ăn vào đây
+                .items(detailResponses)
                 .build();
     }
 
     // --- Get List (Không cần xử lý N+1 query nữa vì data đã nằm trong UserVoucher) ---
     public Page<UserVoucherResponse> getMyVouchers(VoucherFilterRequest filter, Pageable pageable) {
         User currentUser = authService.getCurrentUser(httpRequest);
+
         Specification<UserVoucher> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("owner").get("userId"), currentUser.getUserId()));
@@ -249,15 +297,13 @@ public class UserVoucherService {
 
         Page<UserVoucher> pageResult = userVoucherRepository.findAll(spec, pageable);
 
-        // Map trực tiếp, không cần fetch Services
         return pageResult.map(this::mapToResponse);
     }
 
-    // ... (Giữ nguyên các hàm getVoucherDetail, saveAuditLog)
     public UserVoucherResponse getVoucherDetail(UUID voucherId) {
         User currentUser = authService.getCurrentUser(httpRequest);
 
-        // 1. Lấy Voucher
+        // 1. Lấy Voucher Cha
         UserVoucher voucher = userVoucherRepository.findById(voucherId)
                 .orElseThrow(() -> new AppException(ErrorCode.VOUCHER_NOT_FOUND));
 
@@ -266,30 +312,8 @@ public class UserVoucherService {
             throw new AppException(ErrorCode.UNAUTHORIZED);
         }
 
-        // 3. Map thông tin cơ bản
-        UserVoucherResponse response = mapToResponse(voucher);
-
-        // 4. [LOGIC MỚI] Nếu là Voucher Combo -> Lấy danh sách món & Map sang ServiceResponse
-        if (voucher.getPackageId() != null) {
-            packageRepository.findByIdWithServices(voucher.getPackageId())
-                    .ifPresent(pkg -> {
-                        List<ServiceResponse> items = pkg.getServices().stream()
-                                .map(service -> ServiceResponse.builder()
-                                        .serviceId(service.getServiceId())
-                                        .serviceCode(service.getServiceCode())
-                                        .serviceName(service.getServiceName())
-                                        .unitPrice(service.getUnitPrice())
-                                        .imageUrl(service.getImageUrl())
-                                        .categoryName(service.getCategory() != null ? service.getCategory().getCategoryName() : "")
-                                        .type("SERVICE") // Mặc định type
-                                        .build())
-                                .toList();
-
-                        response.setIncludedServices(items);
-                    });
-        }
-
-        return response;
+        // 3. Sử dụng hàm mapper mới để trả về đầy đủ thông tin
+        return mapToResponse(voucher);
     }
 
     private void saveAuditLog(User user, Order order, UserVoucher voucher, BigDecimal totalAmount) {
@@ -460,10 +484,9 @@ public class UserVoucherService {
         // 2. Lấy User hiện tại
         User user = authService.getCurrentUser(httpRequest);
 
-        // 3. Lấy thông tin Package
-        // Không cần fetch services EAGER nữa vì ta không duyệt loop services
+        // 3. Lấy thông tin Package (Fetch EAGER services để lấy list món ăn)
         AppPackage appPackage = packageRepository.findById(request.getPackageId())
-                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_NOT_FOUND)); // Sửa ErrorCode cho chuẩn
+                .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_NOT_FOUND));
 
         if (!Boolean.TRUE.equals(appPackage.getIsActive())) {
             throw new AppException(ErrorCode.SERVICE_INACTIVE);
@@ -482,7 +505,7 @@ public class UserVoucherService {
         }
         UserCredit updatedCredit = userCreditService.deductBalance(user.getUserId(), totalAmount);
 
-        // 6. Tạo Order (Snapshot)
+        // 6. Tạo Order
         String orderRef = "PKG-" + System.currentTimeMillis() + "-" + RandomStringUtils.randomAlphanumeric(4).toUpperCase();
         Order order = Order.builder()
                 .user(user)
@@ -526,11 +549,11 @@ public class UserVoucherService {
                 .build();
         paymentDetailRepository.save(paymentDetail);
 
-        // 9. SINH VOUCHER (LOGIC MỚI: 1 Package -> 1 Voucher Record)
+        // 9. SINH VOUCHER MASTER (Bảng Cha - UserVoucher)
+        // Đại diện cho "Quyền sử dụng gói"
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = now.plusDays(30);
 
-        // Gọi hàm helper riêng cho Package
         UserVoucher voucher = createPackageVoucherEntity(
                 user,
                 appPackage,
@@ -542,7 +565,37 @@ public class UserVoucherService {
         );
         userVoucherRepository.save(voucher);
 
-        // 10. Notification & Audit Log
+        // 10. [QUAN TRỌNG] BUNG GÓI RA CHI TIẾT (UserVoucherDetail)
+        // Dựa vào bảng trung gian package_services (Many-to-Many)
+        // appPackage.getServices() sẽ trả về List<AppService>
+        if (appPackage.getServices() != null && !appPackage.getServices().isEmpty()) {
+
+            for (AppService service : appPackage.getServices()) {
+                // Logic số lượng:
+                // Vì bảng trung gian không có cột quantity, ta ngầm định mỗi Service xuất hiện 1 lần trong gói.
+                // Nếu User mua N gói -> Tổng số lượng Service này là N.
+                int totalItemQuantity = request.getQuantity();
+
+                // Tính giá phân bổ (Optional - để báo cáo doanh thu từng món)
+                // Ở đây lấy giá gốc của món (unitPrice) để lưu tham chiếu
+                BigDecimal allocatedPrice = service.getUnitPrice();
+
+                UserVoucherDetail detail = UserVoucherDetail.builder()
+                        .userVoucher(voucher)       // Link về bảng cha
+                        .service(service)           // Link về món ăn cụ thể
+                        .initialQuantity(totalItemQuantity)
+                        .remainingQuantity(totalItemQuantity) // Mới mua còn nguyên
+                        .allocatedPrice(allocatedPrice)
+                        .build();
+
+                userVoucherDetailRepository.save(detail);
+            }
+        } else {
+            // Trường hợp gói rỗng (không có service nào), có thể log warning
+            log.warn("Package {} has no services configured!", appPackage.getPackageCode());
+        }
+
+        // 11. Notification & Log
         notificationService.createNotification(
                 user,
                 "Mua Combo thành công",
@@ -553,7 +606,7 @@ public class UserVoucherService {
 
         saveAuditLogPackage(user, order, appPackage, totalAmount, request.getQuantity());
 
-        // 11. Trả về Response
+        // 12. Response
         return BuyVoucherResponse.builder()
                 .orderId(order.getOrderId())
                 .transactionId(transaction.getTransactionId())

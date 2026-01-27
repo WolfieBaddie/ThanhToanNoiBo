@@ -1,5 +1,3 @@
-// src/pages/merchant/MerchantVerifyPage.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -8,7 +6,6 @@ import {
     AlertTriangle, ArrowLeft, Image as ImageIcon, Loader2, CreditCard, Maximize2,
     ArrowRight, ClipboardList
 } from 'lucide-react';
-// import { formatCurrency } from '@/utils/format'; // [REMOVED] Không dùng formatCurrency để tránh hiển thị "xu"
 import { useMerchantVerify } from "@/hooks/useMerchantVerfiy";
 import { QrCodeResponse } from '@/types/qr.type';
 import { qrService } from '@/services/qr.service';
@@ -89,7 +86,12 @@ const MerchantVerifyPage: React.FC = () => {
         setCurrentStep(1);
     };
 
-    // --- LOADING & ERROR UI ---
+    const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            handleImageUpload(e.target.files[0]);
+        }
+    };
+
     if (isLoadingData) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
@@ -122,7 +124,6 @@ const MerchantVerifyPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-10">
 
-            {/* POPUP XEM ẢNH */}
             <ImageViewerModal
                 isOpen={!!viewerImage}
                 onClose={() => setViewerImage(null)}
@@ -201,17 +202,31 @@ const MerchantVerifyPage: React.FC = () => {
                                     {includedServices.map((service) => {
                                         const state = selectedItems[service.serviceId];
                                         if (!state) return null;
+
+                                        const remaining = service.remainingQuantity ?? 999;
+                                        const isSoldOut = remaining <= 0;
+                                        const isMaxReached = state.quantity >= remaining;
+
                                         return (
-                                            <div key={service.serviceId} onClick={() => toggleItem(service.serviceId)}
+                                            <div key={service.serviceId}
+                                                 onClick={() => !isSoldOut && toggleItem(service.serviceId)}
                                                  className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-4 
-                                                ${state.isSelected ? 'bg-indigo-50/50 border-indigo-500' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
+                                                ${state.isSelected ? 'bg-indigo-50/50 border-indigo-500' : 'bg-white border-slate-100 hover:bg-slate-50'}
+                                                ${isSoldOut ? 'opacity-50 grayscale cursor-not-allowed' : ''} 
+                                                `}>
                                                 <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors shrink-0 
                                                     ${state.isSelected ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-300 bg-white'}`}>
                                                     <CheckCircle2 size={14} strokeWidth={4} />
                                                 </div>
                                                 <div className="flex-1">
-                                                    <p className={`font-bold ${state.isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>{service.serviceName}</p>
-                                                    {/* [EDIT] Hiển thị giá tiền dạng đ (VND) thay vì formatCurrency (xu) */}
+                                                    <div className="flex justify-between items-start">
+                                                        <p className={`font-bold ${state.isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>{service.serviceName}</p>
+                                                        {remaining < 999 && (
+                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isSoldOut ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                                {isSoldOut ? 'Hết hàng' : `Còn: ${remaining}`}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <p className="text-xs font-medium text-slate-500">
                                                         {service.unitPrice.toLocaleString('vi-VN')}đ
                                                     </p>
@@ -220,7 +235,13 @@ const MerchantVerifyPage: React.FC = () => {
                                                     <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-indigo-100 shadow-sm" onClick={e => e.stopPropagation()}>
                                                         <button onClick={() => changeQuantity(service.serviceId, -1)} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-slate-500"><Minus size={16} /></button>
                                                         <span className="w-6 text-center font-bold text-slate-900">{state.quantity}</span>
-                                                        <button onClick={() => changeQuantity(service.serviceId, 1)} className="w-8 h-8 flex items-center justify-center hover:bg-indigo-50 rounded-lg text-indigo-600"><Plus size={16} /></button>
+                                                        <button
+                                                            onClick={() => changeQuantity(service.serviceId, 1)}
+                                                            disabled={isMaxReached}
+                                                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isMaxReached ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'hover:bg-indigo-50 text-indigo-600'}`}
+                                                        >
+                                                            <Plus size={16} />
+                                                        </button>
                                                     </div>
                                                 )}
                                             </div>
@@ -230,7 +251,14 @@ const MerchantVerifyPage: React.FC = () => {
                             ) : (
                                 <div className="bg-slate-50 rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-slate-100 border-dashed">
                                     <Package size={40} className="text-slate-300 mb-3" />
-                                    <p className="text-slate-600 font-bold mb-4">Voucher này áp dụng cho 1 lần sử dụng</p>
+                                    <p className="text-slate-600 font-bold mb-1">Voucher này áp dụng cho 1 lần sử dụng</p>
+
+                                    {qrData.includedServices?.[0]?.remainingQuantity !== undefined && (
+                                        <p className="text-xs font-bold text-blue-600 mb-4 bg-blue-50 px-2 py-1 rounded">
+                                            Còn lại: {qrData.includedServices[0].remainingQuantity} lượt
+                                        </p>
+                                    )}
+
                                     <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
                                         <button onClick={() => setGenericQuantity(Math.max(1, genericQuantity - 1))} className="w-12 h-12 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors">
                                             <Minus size={20} />
@@ -238,7 +266,18 @@ const MerchantVerifyPage: React.FC = () => {
                                         <div className="w-16 text-center">
                                             <span className="text-2xl font-black text-slate-900">{genericQuantity}</span>
                                         </div>
-                                        <button onClick={() => setGenericQuantity(genericQuantity + 1)} className="w-12 h-12 flex items-center justify-center bg-indigo-100 hover:bg-indigo-200 rounded-xl text-indigo-600 transition-colors">
+                                        <button
+                                            onClick={() => {
+                                                const max = qrData.includedServices?.[0]?.remainingQuantity ?? 999;
+                                                if (genericQuantity < max) setGenericQuantity(genericQuantity + 1);
+                                                else notify.error("Đạt giới hạn số lượng");
+                                            }}
+                                            className={`w-12 h-12 flex items-center justify-center rounded-xl transition-colors ${
+                                                genericQuantity >= (qrData.includedServices?.[0]?.remainingQuantity ?? 999)
+                                                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                                    : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-600'
+                                            }`}
+                                        >
                                             <Plus size={20} />
                                         </button>
                                     </div>
@@ -250,7 +289,8 @@ const MerchantVerifyPage: React.FC = () => {
                                 <span className="font-bold text-sm uppercase tracking-wide opacity-80">Tổng số lượng</span>
                                 <div className="flex items-baseline gap-1">
                                     <span className={`text-3xl font-black ${isOverLimit ? 'text-red-400' : 'text-white'}`}>{effectiveQuantity}</span>
-                                    <span className="text-sm font-bold opacity-60">/ {limit}</span>
+                                    {/* [FIX] Ẩn phần limit nếu là Package để tránh hiểu nhầm "2/1" */}
+                                    {!isPackage && <span className="text-sm font-bold opacity-60">/ {limit}</span>}
                                 </div>
                             </div>
                             {isOverLimit && (
@@ -283,7 +323,6 @@ const MerchantVerifyPage: React.FC = () => {
                                 {totalBillAmount > 0 && (
                                     <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
                                         <span className="text-slate-500 font-medium">Tổng giá trị</span>
-                                        {/* [EDIT] Hiển thị tổng tiền dạng đ (VND) */}
                                         <span className="font-bold text-slate-800">
                                             {totalBillAmount.toLocaleString('vi-VN')}đ
                                         </span>
@@ -312,7 +351,7 @@ const MerchantVerifyPage: React.FC = () => {
                                     <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 backdrop-blur-[2px]">
                                         <label className="cursor-pointer px-5 py-2.5 bg-white text-slate-900 rounded-xl font-bold hover:scale-105 transition-all flex items-center gap-2 shadow-xl">
                                             <UploadCloud size={18} /> Thay ảnh
-                                            <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                                            <input type="file" className="hidden" accept="image/*" onChange={onFileChange} />
                                         </label>
                                         <button onClick={removeImage} className="px-5 py-2.5 bg-red-500 text-white rounded-xl font-bold hover:scale-105 transition-all flex items-center gap-2 shadow-xl">
                                             <X size={18} /> Xóa ảnh
@@ -326,7 +365,7 @@ const MerchantVerifyPage: React.FC = () => {
                                     </div>
                                     <p className="font-bold text-slate-700">Chạm để chụp/tải ảnh</p>
                                     <p className="text-xs text-slate-400 mt-1">Bằng chứng giao dịch</p>
-                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} capture="environment" />
+                                    <input type="file" className="hidden" accept="image/*" onChange={onFileChange} capture="environment" />
                                 </label>
                             )}
                         </div>
