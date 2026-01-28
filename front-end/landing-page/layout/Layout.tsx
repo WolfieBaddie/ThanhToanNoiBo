@@ -39,13 +39,13 @@ const Header: React.FC = () => {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-500 ease-in-out px-6 lg:px-12 ${
+        className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-500 ease-in-out px-6 lg:px-12 font-sans ${
           scrolled 
             ? 'py-4 bg-white/80 backdrop-blur-xl border-b border-gray-100 shadow-sm' 
             : 'py-8 bg-transparent'
         }`}
       >
-        <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between font-sans">
           
           <Link to="/" className="flex items-center space-x-2.5 group shrink-0">
             <div className="bg-brand-primary p-2 rounded-2xl shadow-glow">
@@ -107,16 +107,16 @@ const Header: React.FC = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsOpen(false)}
-              className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm"
+              className="fixed inset-0 z-[110] bg-black/50 backdrop-blur-sm font-sans"
             />
             <motion.div
               initial={{ x: "-100%" }}
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 left-0 bottom-0 z-[120] w-[75%] max-w-[300px] bg-white/95 backdrop-blur-xl shadow-2xl rounded-r-3xl flex flex-col border-r border-white/20"
+              className="fixed top-0 left-0 bottom-0 z-[120] w-[75%] max-w-[300px] bg-white/95 backdrop-blur-xl shadow-2xl rounded-r-3xl flex flex-col border-r border-white/20 font-sans"
             >
-              <div className="p-8 flex flex-col h-full">
+              <div className="p-8 flex flex-col h-full font-sans">
                 <div className="flex justify-between items-center mb-12">
                   <div className="flex items-center space-x-2">
                     <div className="bg-brand-primary p-1.5 rounded-xl">
@@ -162,8 +162,8 @@ const Header: React.FC = () => {
 const Footer: React.FC = () => {
   const { t } = useLanguage();
   return (
-    <footer className="bg-slate-900 text-white pt-16 pb-8 border-t border-slate-800 relative z-10 mt-32">
-      <div className="max-w-7xl mx-auto px-8 lg:px-12">
+    <footer className="bg-slate-900 text-white pt-16 pb-8 border-t border-slate-800 relative z-10 mt-32 font-sans">
+      <div className="max-w-7xl mx-auto px-8 lg:px-12"> 
         {/* Top Section: Split Layout */}
         <div className="flex flex-col md:flex-row justify-between gap-12 md:gap-16 mb-16">
           

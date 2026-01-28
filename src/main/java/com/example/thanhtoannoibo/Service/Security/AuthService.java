@@ -33,7 +33,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.example.thanhtoannoibo.Repository.Security.*;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -57,7 +57,7 @@ public class AuthService {
     private final AuditLogRepository auditLogRepository;
     private final UserCreditRepository userCreditRepository;
     private final JwtProperties jwtProperties;
-    private final com.example.thanhtoannoibo.Service.Security.OtpService otpService;
+    private final OtpService otpService;
     private final HttpServletRequest httpRequest;
 
     @Value("${app.jwt.access-ttl-minutes:15}")

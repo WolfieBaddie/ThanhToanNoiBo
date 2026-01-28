@@ -1,6 +1,15 @@
-app:
-  jwt:
-    issuer: "wallet-system"
-    access-ttl-minutes: 60
-    refresh-ttl-days: 1
-    secret: "SUPER_SECRET_ACCESS_TOKEN_T2404E_LON"
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/app_db
+    username: app_user
+    password: app_password
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: security   # ⭐ THÊM DÒNG NÀY
