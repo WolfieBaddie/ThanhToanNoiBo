@@ -6,10 +6,10 @@ import { useLanguage } from "@/translation/LanguageContext";
 // Dữ liệu mẫu cho team (Bạn có thể thay đổi sau)
 const teamMembers = [
   { id: 1, name: "Nguyễn Đỗ Ngọc Quý", role: "Leader - FullStack", image: "/images/quy-nguyen.jpg" },
-  { id: 2, name: "Nguyễn Trọng Tấn", role: "FullStack", image: "https://i.pravatar.cc/150?img=22" },
+  { id: 2, name: "Nguyễn Trọng Tấn", role: "FullStack", image: "/images/tan-nguyen.jpg" },
   { id: 3, name: "Nguyễn Ngọc Văn", role: "FullStack", image: "/images/van-nguyen.jpg" },
   { id: 4, name: "Phạm Trung Hiếu", role: "Frontend", image: "/images/hieu-pham.jpg" },
-  { id: 5, name: "Mai Duy Quân", role: "Tester - Frontend", image: "https://i.pravatar.cc/150?img=55" },
+  { id: 5, name: "Mai Duy Quân", role: "Tester - Frontend", image: "/images/quan-mai.jpg" },
 ];
 
 const About: React.FC = () => {
