@@ -15,6 +15,10 @@ public class ServiceResponse {
     private String categoryName;
     private String imageUrl;
     private boolean isActive;
+
     @Builder.Default
     private String type = "SERVICE";
+
+    private UUID detailId;
+    private Integer remainingQuantity;
 }

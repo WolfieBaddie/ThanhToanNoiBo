@@ -11,22 +11,17 @@ import java.util.UUID;
 
 @Data
 public class ProcessQrRequest {
-    @NotBlank(message = "Mã QR không được để trống")
+    @NotNull(message = "QR Code không được để trống")
     private String qrCode;
-
-    @NotNull(message = "Số tiền hóa đơn không được để trống")
-    @DecimalMin(value = "0.0", inclusive = false, message = "Số tiền phải lớn hơn 0")
+    @DecimalMin(value = "0.0", inclusive = true, message = "Số tiền không được âm")
     private BigDecimal billAmount;
 
-    @Min(value = 1, message = "Số lượng phải lớn hơn 0")
     private Integer quantity;
-
-    private String description; // Ví dụ: "Thanh toán bàn 5", "Mua Cafe"
-
-    private UUID serviceId;
-
+    private String description;
     private String imageUrl;
 
+    // Các trường phục vụ chọn món (Combo)
+    private UUID serviceId;
     private List<QrItemRequest> items;
 
     @Data

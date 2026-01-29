@@ -17,10 +17,7 @@ import com.example.thanhtoannoibo.Entity.Security.AuditLog;
 import com.example.thanhtoannoibo.Entity.Security.UserSession;
 import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository;
-import com.example.thanhtoannoibo.Repository.Security.AuditLogRepository;
-import com.example.thanhtoannoibo.Repository.Security.RoleRepository;
-import com.example.thanhtoannoibo.Repository.Security.SessionRepository;
-import com.example.thanhtoannoibo.Repository.Security.UserRepository;
+import com.example.thanhtoannoibo.Repository.Security.*;
 import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherRepository;
 import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
 import jakarta.servlet.http.Cookie;
@@ -33,7 +30,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.thanhtoannoibo.Repository.Security.*;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -58,6 +54,8 @@ public class AuthService {
     private final UserCreditRepository userCreditRepository;
     private final JwtProperties jwtProperties;
     private final OtpService otpService;
+
+
     private final HttpServletRequest httpRequest;
 
     @Value("${app.jwt.access-ttl-minutes:15}")
