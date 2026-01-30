@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { merchantService } from "@/services/merchant.request.service";
-import { uploadService } from "@/services/upload.service"; // Import service upload chuẩn
+import { uploadService } from "@/services/upload.service";
 import { toast } from 'react-hot-toast';
 import { MerchantSubmitRequest } from "@/types/merchant.request.type";
 import React from "react";
+
 const MERCHANT_KEYS = {
     REQUESTS: ['merchant', 'requests'],
     RECONCILIATION: ['merchant', 'reconciliation'],
+    DETAIL: (id: string) => ['merchant', 'request', id] // Key cho detail
 };
 
 export const useMerchant = () => {
@@ -17,39 +19,32 @@ export const useMerchant = () => {
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-    // 1. Hàm xử lý khi chọn file từ input
+    // 1. Hàm xử lý khi chọn file
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-
-            // Validate kích thước (Ví dụ: < 5MB)
             if (file.size > 5 * 1024 * 1024) {
                 toast.error("File quá lớn. Vui lòng chọn ảnh < 5MB");
                 return;
             }
-
-            // Validate loại file
             if (!file.type.startsWith('image/')) {
-                toast.error("Vui lòng chọn file ảnh (JPG, PNG)");
+                toast.error("Vui lòng chọn file ảnh hợp lệ");
                 return;
             }
-
             setImageFile(file);
-            setPreviewUrl(URL.createObjectURL(file)); // Tạo preview local
+            setPreviewUrl(URL.createObjectURL(file));
         }
     };
 
-    // 2. Hàm xóa ảnh đang chọn
     const removeImage = () => {
         setImageFile(null);
         if (previewUrl && !previewUrl.startsWith('http')) {
-            // Chỉ revoke nếu là blob url local
             URL.revokeObjectURL(previewUrl);
         }
         setPreviewUrl(null);
     };
 
-    // --- ACTIONS KHÁC ---
+    // --- ACTIONS ---
     const refreshRequests = () => {
         queryClient.invalidateQueries({ queryKey: MERCHANT_KEYS.REQUESTS });
     };
@@ -61,6 +56,16 @@ export const useMerchant = () => {
             toast.success("Đang bắt đầu tải file đối soát...");
         } catch (error) {
             toast.error("Không thể tải file đối soát lúc này.");
+        }
+    };
+
+    // [MỚI] Hàm gọi API chi tiết (Dùng để gọi trực tiếp hoặc wrap vào useQuery ở component con)
+    const getRequestDetail = async (id: string) => {
+        try {
+            return await merchantService.getRequestDetail(id);
+        } catch (error) {
+            toast.error("Không thể tải chi tiết yêu cầu");
+            throw error;
         }
     };
 
@@ -80,19 +85,17 @@ export const useMerchant = () => {
         mutationFn: async (data: MerchantSubmitRequest) => {
             let finalQrUrl = data.qrPaymentUrl;
 
-            // [LOGIC CHUẨN] Nếu có chọn ảnh mới -> Upload lên Cloudinary trước
+            // Logic upload ảnh
             if (imageFile) {
                 try {
-                    // Sử dụng uploadService đã có sẵn trong dự án
                     const uploadedUrl = await uploadService.uploadToCloudinary(imageFile);
                     finalQrUrl = uploadedUrl;
                 } catch (err) {
                     console.error("Upload Error:", err);
-                    throw new Error("Lỗi khi tải ảnh lên Cloudinary. Vui lòng thử lại.");
+                    throw new Error("Lỗi khi tải ảnh lên Cloudinary.");
                 }
             }
 
-            // Gửi request cập nhật thông tin kèm URL ảnh đã có
             return merchantService.submitRequest({
                 ...data,
                 qrPaymentUrl: finalQrUrl
@@ -100,8 +103,6 @@ export const useMerchant = () => {
         },
         onSuccess: () => {
             refreshRequests();
-            // Không reset imageFile ngay để user thấy kết quả, hoặc reset tùy logic UX
-            // removeImage();
             toast.success("Cập nhật thông tin thành công!");
         },
         onError: (error: any) => {
@@ -111,24 +112,23 @@ export const useMerchant = () => {
     });
 
     return {
-        // Data List
         requests,
         isLoadingRequests,
         reconciliationData,
         isLoadingReport,
 
-        // Image State & Handlers
+        // Image State
         imageFile,
         previewUrl,
-        setPreviewUrl, // Dùng để set ảnh cũ từ user profile vào preview
+        setPreviewUrl,
         handleImageUpload,
         removeImage,
 
         // Actions
         refreshRequests,
         exportExcel,
+        getRequestDetail, // <--- Đã export function này
 
-        // Submit
         submitRequest: submitMutation.mutateAsync,
         isSubmitting: submitMutation.isPending,
         refreshReport: refetchReport
