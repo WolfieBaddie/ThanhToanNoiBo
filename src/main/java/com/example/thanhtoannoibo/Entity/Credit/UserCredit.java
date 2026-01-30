@@ -1,5 +1,6 @@
 package com.example.thanhtoannoibo.Entity.Credit;
 
+import com.example.thanhtoannoibo.Common.CreditStatus;
 import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Exception.AppException; // Sử dụng Exception chuẩn của App
@@ -48,6 +49,11 @@ public class UserCredit {
     @UpdateTimestamp
     @Column(name = "last_updated_at")
     private LocalDateTime lastUpdatedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    @Builder.Default
+    private CreditStatus status = CreditStatus.ACTIVE;
 
     // --- BUSINESS LOGIC ---
 
