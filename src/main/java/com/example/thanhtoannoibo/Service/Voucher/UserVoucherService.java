@@ -82,9 +82,8 @@ public class UserVoucherService {
         AppService appService = serviceRepository.findById(request.getServiceId())
                 .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
 
-        if (!Boolean.TRUE.equals(appService.getIsActive())) {
+        if(!appService.getStatus().toString().equalsIgnoreCase(CatalogStatus.ACTIVE.toString()))
             throw new AppException(ErrorCode.SERVICE_INACTIVE);
-        }
 
         otpService.validateOtp(user.getEmail(), request.getOtpCode(), "TRANSACTION");
 
@@ -488,9 +487,8 @@ public class UserVoucherService {
         AppPackage appPackage = packageRepository.findById(request.getPackageId())
                 .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_NOT_FOUND));
 
-        if (!Boolean.TRUE.equals(appPackage.getIsActive())) {
+        if(!appPackage.getStatus().toString().equalsIgnoreCase(CatalogStatus.ACTIVE.toString()))
             throw new AppException(ErrorCode.SERVICE_INACTIVE);
-        }
 
         otpService.validateOtp(user.getEmail(), request.getOtpCode(), "TRANSACTION");
 
