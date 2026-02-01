@@ -2,6 +2,7 @@ package com.example.thanhtoannoibo.Service.User;
 
 import com.example.thanhtoannoibo.Common.ErrorCode;
 import com.example.thanhtoannoibo.Common.UserStatus;
+import com.example.thanhtoannoibo.DTO.Request.User.UpdateUserProfileRequest;
 import com.example.thanhtoannoibo.DTO.Request.User.UserFilterRequest;
 import com.example.thanhtoannoibo.DTO.Response.Auth.UserResponse;
 import com.example.thanhtoannoibo.DTO.Response.PageResponse;
@@ -9,6 +10,7 @@ import com.example.thanhtoannoibo.Entity.Role;
 import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Security.UserRepository;
+import com.example.thanhtoannoibo.Service.Notification.NotificationService;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +33,7 @@ import java.util.stream.Collectors;
 public class UserService {
 
     private final UserRepository userRepository;
-
+    private final NotificationService notificationService;
     /**
      * Lấy danh sách Users (Có phân trang & search & filter date)
      */
@@ -91,6 +93,64 @@ public class UserService {
                 .totalPages(page.getTotalPages())
                 .items(items)
                 .build();
+    }
+
+    public UserResponse updateUserProfile(User currentUser, UpdateUserProfileRequest request) {
+
+        // 1. Kiểm tra trạng thái tài khoản
+        if (currentUser.getStatus() == UserStatus.LOCKED) {
+            throw new AppException(ErrorCode.USER_LOCKED);
+        }
+
+        boolean isInfoChanged = false;
+
+        // 2. Cập nhật thông tin cơ bản (Ai cũng được sửa)
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            currentUser.setFullName(request.getFullName());
+            isInfoChanged = true;
+        }
+        if (request.getPhoneNumber() != null) {
+            currentUser.setPhoneNumber(request.getPhoneNumber());
+            isInfoChanged = true;
+        }
+        if (request.getImageUrl() != null) {
+            currentUser.setImageUrl(request.getImageUrl());
+            isInfoChanged = true;
+        }
+
+        // 3. Logic phân quyền cho qrPaymentUrl
+        if (request.getQrPaymentUrl() != null) {
+            // Kiểm tra xem User có Role MERCHANT không
+            boolean isMerchant = currentUser.getRoles().stream()
+                    .anyMatch(role -> "MERCHANT".equalsIgnoreCase(role.getRoleCode()));
+
+            if (isMerchant) {
+                currentUser.setQrPaymentUrl(request.getQrPaymentUrl());
+                isInfoChanged = true;
+            } else {
+                // Nếu là USER thường mà cố tình gửi qrPaymentUrl -> Báo lỗi
+                // Hoặc bạn có thể chọn cách lờ đi (không update), nhưng báo lỗi sẽ chặt chẽ hơn.
+                throw new AppException(ErrorCode.FORBIDDEN);
+            }
+        }
+
+        // 4. Lưu và gửi thông báo
+        if (isInfoChanged) {
+            User savedUser = userRepository.save(currentUser);
+
+            // Gửi thông báo
+            notificationService.createNotification(
+                    savedUser,
+                    "Cập nhật thông tin",
+                    "Thông tin hồ sơ của bạn đã được cập nhật thành công.",
+                    "ACCOUNT",
+                    "/profile"
+            );
+
+            return mapToUserResponse(savedUser);
+        }
+
+        return mapToUserResponse(currentUser);
     }
 
     /**
