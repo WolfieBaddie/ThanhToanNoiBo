@@ -81,7 +81,7 @@ export const useTransactions = (initialParams: TransactionFilterParams = { page:
 
     return {
         data, loading, error, totalItems, totalPages, filters,
-        setPage, setDateFilter, setTypeFilter, setSearchRef, clearFilters,
+        setPage, setDateFilter, setTypeFilter, setSearchRef, clearFilters, setFilters, // [MỚI] Export setFilters ra ngoài
         refetch: fetchTransactions
     };
 };
