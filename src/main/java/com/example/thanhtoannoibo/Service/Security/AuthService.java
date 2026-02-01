@@ -5,6 +5,7 @@ import com.example.thanhtoannoibo.Common.UserStatus;
 import com.example.thanhtoannoibo.Common.UserType;
 import com.example.thanhtoannoibo.Common.UserVoucherStatus;
 import com.example.thanhtoannoibo.Config.JwtProperties;
+import com.example.thanhtoannoibo.DTO.Request.Auth.ForgotPasswordRequest;
 import com.example.thanhtoannoibo.DTO.Request.Auth.LoginRequest;
 import com.example.thanhtoannoibo.DTO.Request.Auth.RefreshTokenRequest;
 import com.example.thanhtoannoibo.DTO.Response.Auth.LoginResponse;
@@ -20,6 +21,7 @@ import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository;
 import com.example.thanhtoannoibo.Repository.Security.*;
 import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherRepository;
 import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
+import com.example.thanhtoannoibo.Service.Notification.NotificationService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -56,6 +58,7 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final OtpService  otpService;
     private final HttpServletRequest httpRequest;
+    private final NotificationService notificationService;
 
     @Value("${app.jwt.access-ttl-minutes:15}")
     private long accessTtlMinutes;
@@ -178,6 +181,30 @@ public class AuthService {
                 });
     }
 
+    public void logout(HttpServletRequest request) {
+        String refreshToken = null;
+
+        // 1. Tìm Refresh Token trong Cookie
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("refreshToken".equals(cookie.getName())) {
+                    refreshToken = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+        // 2. Nếu tìm thấy thì gọi hàm revoke bên trên
+        if (refreshToken != null) {
+            try {
+                this.logout(refreshToken); // Gọi hàm logout(String) nội bộ
+            } catch (Exception e) {
+                // Log lỗi nhưng không ném exception để Controller vẫn tiếp tục xóa Cookie
+                System.out.println("Logout revoke failed for token: " + refreshToken + ". Error: " + e.getMessage());
+            }
+        }
+    }
+
     @Transactional
     public LoginResponse register(RegisterRequest req) {
         // 1. Validate OTP
@@ -249,6 +276,46 @@ public class AuthService {
                 .refreshToken(null) // Không trả về token
                 // Các trường khác null
                 .build();
+    }
+
+    public void sendForgotPasswordOtp(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // Kiểm tra tài khoản bị khóa
+        if (user.getStatus() == UserStatus.LOCKED) {
+            throw new AppException(ErrorCode.USER_LOCKED);
+        }
+
+        otpService.generateAndSendOtp(email, "FORGOT_PASSWORD");
+    }
+
+    @Transactional
+    public void resetPassword(ForgotPasswordRequest request) {
+        // 1. Tìm User
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // 2. Kiểm tra trạng thái khóa
+        if (user.getStatus() == UserStatus.LOCKED) {
+            throw new AppException(ErrorCode.USER_LOCKED);
+        }
+
+        // 3. Validate OTP
+        otpService.validateOtp(request.getEmail(), request.getOtp(), "FORGOT_PASSWORD");
+
+        // 4. Cập nhật mật khẩu mới
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // 5. Gửi thông báo
+        notificationService.createNotification(
+                user,
+                "Đổi mật khẩu thành công",
+                "Mật khẩu tài khoản của bạn đã được đặt lại thành công.",
+                "SECURITY",
+                null
+        );
     }
 
     @Transactional

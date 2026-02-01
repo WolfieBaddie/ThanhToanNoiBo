@@ -1,9 +1,7 @@
 package com.example.thanhtoannoibo.Controller.Security;
 
-import com.example.thanhtoannoibo.DTO.Request.Auth.GenerateOtpRequest;
-import com.example.thanhtoannoibo.DTO.Request.Auth.LoginRequest;
-import com.example.thanhtoannoibo.DTO.Request.Auth.LogoutRequest;
-import com.example.thanhtoannoibo.DTO.Request.Auth.RefreshTokenRequest;
+import com.example.thanhtoannoibo.Common.ErrorCode;
+import com.example.thanhtoannoibo.DTO.Request.Auth.*;
 import com.example.thanhtoannoibo.DTO.Request.Register.RegisterRequest;
 import com.example.thanhtoannoibo.DTO.Response.Auth.GenerateOtpResponse;
 import com.example.thanhtoannoibo.DTO.Response.Auth.LoginResponse;
@@ -13,6 +11,7 @@ import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.Entity.Permission;
 import com.example.thanhtoannoibo.Entity.Role;
 import com.example.thanhtoannoibo.Entity.User;
+import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Security.OtpService;
 import com.example.thanhtoannoibo.Service.Security.AuthService;
 
@@ -66,7 +65,33 @@ public class AuthController {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        // Xóa Cookie ở trình duyệt
+        String refreshToken = null;
+
+        // DEBUG: Kiểm tra xem Server có nhận được cookie không
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                // System.out.println("Cookie found: " + cookie.getName()); // Bật dòng này nếu cần debug kỹ
+                if ("refreshToken".equals(cookie.getName())) {
+                    refreshToken = cookie.getValue();
+                    break;
+                }
+            }
+        } else {
+            System.out.println("LOGOUT WARNING: No cookies received from client!");
+        }
+
+        if (refreshToken != null) {
+            try {
+                authService.logout(refreshToken);
+                System.out.println("LOGOUT SUCCESS: Token revoked in DB.");
+            } catch (Exception e) {
+                System.out.println("LOGOUT ERROR: " + e.getMessage());
+            }
+        } else {
+            System.out.println("LOGOUT WARNING: Refresh Token not found in cookie -> DB revoke skipped.");
+        }
+
+        // Xóa Cookie
         ResponseCookie cleanAccess = cookieUtil.clearCookie("accessToken");
         ResponseCookie cleanRefresh = cookieUtil.clearCookie("refreshToken");
 
@@ -88,6 +113,8 @@ public class AuthController {
                 .phoneNumber(user.getPhoneNumber())
                 .userType(user.getUserType())
                 .status(user.getStatus())
+                .imageUrl(user.getImageUrl())
+                .qrPaymentUrl(user.getQrPaymentUrl())
                 // [FIX] Map Roles & Permissions
                 .roles(user.getRoles().stream()
                         .map(Role::getRoleCode)
@@ -207,6 +234,27 @@ public class AuthController {
         // Trả về Token (Cookie/Header) như Login
         // ... code set cookie ...
         return ResponseEntity.ok(BaseResponse.success(result));
+    }
+
+    @PostMapping("/forgot-password/send-otp")
+    public ResponseEntity<BaseResponse<String>> sendForgotPasswordOtp(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        if (email == null || email.isBlank()) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+
+        authService.sendForgotPasswordOtp(email);
+
+        return ResponseEntity.ok(BaseResponse.success(
+                "Mã OTP xác thực đã được gửi đến " + maskEmail(email)
+        ));
+    }
+
+    // --- API MỚI: Xác nhận OTP và Đổi mật khẩu ---
+    @PostMapping("/forgot-password")
+    public ResponseEntity<BaseResponse<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(BaseResponse.success("Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại."));
     }
 
     private String maskEmail(String email) {
