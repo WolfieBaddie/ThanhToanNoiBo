@@ -4,7 +4,7 @@ import {
     LoginResponse,
     RefreshTokenRequest,
     LogoutRequest,
-    UserProfile, RegisterRequest, GenerateOtpResponse
+    UserProfile, RegisterRequest, GenerateOtpResponse, ForgotPasswordRequest
 } from '../types/auth.types';
 
 const ENDPOINT = '/auth';
@@ -55,4 +55,18 @@ export const authService = {
         const response = await axiosClient.post<GenerateOtpResponse>(`${ENDPOINT}/register/send-otp`, { email });
         return response as unknown as GenerateOtpResponse;
     },
+
+    sendForgotPasswordOtp: async (email: string): Promise<string> => {
+        const response = await axiosClient.post<string>(`${ENDPOINT}/forgot-password/send-otp`, { email });
+        return response as unknown as string;
+    },
+
+    /**
+     * Submit Đổi mật khẩu
+     * Backend trả về: BaseResponse<String> -> Interceptor bóc ra String
+     */
+    resetPassword: async (data: ForgotPasswordRequest): Promise<string> => {
+        const response = await axiosClient.post<string>(`${ENDPOINT}/forgot-password`, data);
+        return response as unknown as string;
+    }
 };

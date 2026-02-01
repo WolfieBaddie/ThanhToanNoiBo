@@ -1,18 +1,22 @@
-// 1. Enum giống Backend
+// types/user.type.ts
+
 export enum UserStatus {
     ACTIVE = 'ACTIVE',
     LOCKED = 'LOCKED',
-    INACTIVE = 'INACTIVE'
+    INACTIVE = 'INACTIVE',
+    DELETED = 'DELETED', // Bổ sung status DELETED
+    SUSPENDED = 'SUSPENDED'
 }
 
 export enum UserType {
     STUDENT = 'STUDENT',
-    LECTURER = 'LECTURER',
+    LECTURER = 'LECTURER', // Nếu hệ thống có
     MERCHANT = 'MERCHANT',
-    ADMIN = 'ADMIN'
+    ADMIN = 'ADMIN',
+    USER = 'USER'
 }
 
-// 2. User Response (Khớp với UserResponse.java)
+// Response hiển thị (GET)
 export interface UserResponse {
     userId: string;
     fullName: string;
@@ -23,23 +27,49 @@ export interface UserResponse {
     username: string;
     lastLoginAt: string | null;
     createdAt: string;
-    roles: string[];      // Backend trả Set<String> -> JS nhận mảng string[]
-    permissions: string[]; // Backend trả Set<String>
+    roles: string[];
+    permissions: string[];
     imageUrl: string | null;
+    qrPaymentUrl: string | null;
+    creditBalance?: number; // Bổ sung số dư ví nếu backend trả về
 }
 
-// 3. Filter Params (Khớp với AdminUserController)
+// [MỚI] Request Body cho Create (POST)
+export interface CreateUserRequest {
+    username: string;
+    password?: string; // Optional nếu tạo Merchant thì có thể random password ở FE hoặc BE xử lý
+    email: string;
+    fullName: string;
+    phoneNumber?: string;
+    userType: UserType;
+    roles?: string[]; // VD: ["ADMIN", "MERCHANT"]
+    qrPaymentUrl?: string; // Dành cho Merchant
+}
+
+// [MỚI] Request Body cho Update (PUT)
+export interface UpdateUserRequest {
+    fullName?: string;
+    phoneNumber?: string;
+    imageUrl?: string;
+    status?: UserStatus;
+    roles?: string[];
+    qrPaymentUrl?: string;
+    newPassword?: string; // Nếu Admin muốn reset pass cho user
+}
+
+// Filter Params
 export interface UserFilterParams {
     page: number;
     size: number;
     keyword?: string;
     status?: UserStatus | null;
     role?: string | null;
+    userType?: UserType | null; // [QUAN TRỌNG] Filter theo loại user
     fromDate?: string;
     toDate?: string;
 }
 
-// 4. Page Response (Wrap chung cho List)
+// Page Response
 export interface UserListResponse {
     items: UserResponse[];
     totalItems: number;

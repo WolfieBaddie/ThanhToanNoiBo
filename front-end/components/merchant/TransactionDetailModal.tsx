@@ -22,7 +22,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
     const formatVND = (val: number) => val.toLocaleString('vi-VN') + 'đ';
 
     if (!isOpen) return null;
-
+    console.log(detail);
     // --- LOGIC TITLE CHO USER ---
     const getUserDisplayTitle = (dt: any) => {
         if (dt.type === 'BUY_VOUCHER') return "Mua Gói dịch vụ";
@@ -30,41 +30,19 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
         return dt.title || "Chi tiết giao dịch";
     };
 
-    // --- [LOGIC MỚI] HIỂN THỊ TỔNG SỐ LƯỢNG (RÀNH MẠCH) ---
+    // --- [SỬA LOGIC] HIỂN THỊ TỔNG QUÁT (KHÔNG CHI TIẾT) ---
     const renderUserTotalAmount = (dt: any) => {
         // 1. Trường hợp ĐỔI QUÀ / SỬ DỤNG VÉ
         if (dt.type === 'REDEMPTION') {
-
-            // Chỉ áp dụng logic đặc biệt cho PACKAGE (Gói/Combo)
-            const isPackage = dt.categoryName?.toLowerCase().includes("gói") ||
-                dt.categoryName?.toLowerCase().includes("combo") ||
-                dt.packageId != null;
-
-            if (isPackage && dt.items && dt.items.length > 0) {
-                // Lọc ra những món có số lượng > 0
-                const activeItems = dt.items.filter((i: any) => i.quantity > 0);
-
-                // TH1: Dùng lẻ (Chỉ chọn đúng 1 loại món, ví dụ: 2 Cơm, 0 Nước)
-                if (activeItems.length === 1) {
-                    const item = activeItems[0];
-                    // Hiển thị: "-2 Vé Cơm sườn"
-                    return `-${item.quantity} Vé ${item.itemName}`;
-                }
-
-                // TH2: Dùng hỗn hợp (Ví dụ: 1 Cơm + 1 Nước, hoặc 2 Cơm + 2 Nước)
-                if (activeItems.length > 1) {
-                    // Lấy số lượng lớn nhất làm đại diện số vé bị trừ
-                    const maxQty = Math.max(...activeItems.map((i: any) => i.quantity));
-                    // Hiển thị: "-1 Vé Combo"
-                    return `-${maxQty} Vé Combo`;
-                }
+            // [FIX] Ưu tiên dùng text hiển thị từ backend (VD: "-4 Vé")
+            if (dt.amountDisplay) {
+                return dt.amountDisplay;
             }
-
-            // Các trường hợp Voucher thường / Không xác định items -> Giữ nguyên logic cũ
-            return dt.amountDisplay || `-${dt.quantity} Vé`;
+            // Fallback: Nếu không có thì hiển thị tổng số lượng (VD: "-4 Vé")
+            return `-${dt.quantity} Vé`;
         }
 
-        // 2. Các trường hợp khác (MUA, NẠP TIỀN...) -> KHÔNG ĐỔI
+        // 2. Các trường hợp khác (MUA, NẠP TIỀN...) -> GIỮ NGUYÊN
         if (dt.type === 'BUY_VOUCHER') {
             if (dt.categoryName?.toLowerCase().includes("gói")) {
                 return `+${dt.quantity} Gói`;

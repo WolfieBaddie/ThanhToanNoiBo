@@ -2,25 +2,19 @@ package com.example.thanhtoannoibo.Controller.Catalog;
 
 import com.example.thanhtoannoibo.DTO.Request.Catalog.ServiceFilterRequest;
 import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
-import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateCategoryRequest;
-import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateServiceRequest;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.CatalogDataResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.PackageResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
 import com.example.thanhtoannoibo.DTO.Response.PageResponse;
-import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
 import com.example.thanhtoannoibo.Entity.Catalog.ServiceCategory;
 import com.example.thanhtoannoibo.Service.Catalog.CatalogService;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -73,42 +67,11 @@ public class CatalogController {
         return BaseResponse.success(mapToResponse(service));
     }
 
-    @PostMapping
-    public BaseResponse<ServiceResponse> createService(@RequestBody @Valid CreateServiceRequest request) {
-        AppService createdService = catalogService.createService(request);
-        return BaseResponse.success(mapToResponse(createdService), "Tạo dịch vụ thành công");
-    }
-
     @GetMapping("/packages")
     public ResponseEntity<BaseResponse<List<PackageResponse>>> getAllPackages() {
         List<PackageResponse> result = catalogService.getActivePackagesWithDetails();
 
         return ResponseEntity.ok(BaseResponse.success(result));
-    }
-
-    // --- ADMIN CREATE API ---
-
-    @PostMapping("/categories")
-    public ResponseEntity<BaseResponse<ServiceCategory>> createCategory(
-            @Valid @RequestBody CreateCategoryRequest request,
-            HttpServletRequest httpRequest
-    ) {
-        // Tự động set metadata từ BaseRequest (nếu cần dùng cho AuditLog sau này)
-        request.setClientIp(httpRequest.getRemoteAddr());
-
-        ServiceCategory category = catalogService.createCategory(request);
-        return ResponseEntity.ok(BaseResponse.success(category, "Tạo danh mục thành công"));
-    }
-
-    @PostMapping("/services")
-    public ResponseEntity<BaseResponse<AppService>> createService(
-            @Valid @RequestBody CreateServiceRequest request,
-            HttpServletRequest httpRequest
-    ) {
-        request.setClientIp(httpRequest.getRemoteAddr());
-
-        AppService service = catalogService.createService(request);
-        return ResponseEntity.ok(BaseResponse.success(service, "Tạo dịch vụ thành công"));
     }
 
     private ServiceResponse mapToResponse(AppService entity) {

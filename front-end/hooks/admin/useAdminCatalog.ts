@@ -1,21 +1,34 @@
-// src/hooks/useAdminCatalog.ts
-
 import { useState, useEffect, useCallback } from 'react';
-import { adminCatalogService, AdminCatalogFilterParams } from '@/services/admin/admin.catalog.service';
+import { adminCatalogService } from '@/services/admin/admin.catalog.service';
+import { catalogService } from '@/services/catalog.service';
+import { CatalogStatus } from '@/types/catalog.type';
 import {
-    ServiceResponse,
+    AdminServiceResponse,
     PackageResponse,
     ServiceCategory
-} from '@/types/catalog.type';
-import { catalogService } from '@/services/catalog.service';
+} from '@/types/admin.catalog.type'; // Đảm bảo import từ file vừa sửa
 import { useDebounce } from '@/hooks/useDebounce';
+
+// Chỉ cần 2 loại tab chính theo yêu cầu: SERVICE (Master) và PACKAGE
+export type AdminViewType = 'SERVICE' | 'PACKAGE';
+
+export interface AdminCatalogFilterParams {
+    type: AdminViewType;
+    page: number;
+    size: number;
+    keyword: string;
+    categoryId?: string;
+    status?: CatalogStatus | null;
+    sortBy?: string;
+    sortDir?: string;
+}
 
 const DEFAULT_PAGE_SIZE = 10;
 
 export const useAdminCatalog = () => {
-    // --- STATE DATA ---
-    // Khai báo rõ kiểu mảng để TS không la ó
-    const [data, setData] = useState<(ServiceResponse | PackageResponse)[]>([]);
+    // Data có thể là Master (AdminServiceResponse) hoặc Package (PackageResponse)
+    // PackageResponse giờ đã bao gồm merchantInfo
+    const [data, setData] = useState<(AdminServiceResponse | PackageResponse)[]>([]);
     const [categories, setCategories] = useState<ServiceCategory[]>([]);
 
     const [totalItems, setTotalItems] = useState(0);
@@ -29,19 +42,19 @@ export const useAdminCatalog = () => {
         size: DEFAULT_PAGE_SIZE,
         keyword: '',
         categoryId: '',
-        isActive: null,
+        status: null,
         sortBy: 'createdAt',
         sortDir: 'desc'
     });
 
     const debouncedKeyword = useDebounce(filters.keyword, 500);
 
-    // 1. Load Categories
+    // Fetch Categories Init
     useEffect(() => {
         const fetchCategories = async () => {
             try {
                 const res = await catalogService.getCategories();
-                if (Array.isArray(res)) setCategories(res);
+                setCategories(res);
             } catch (err) {
                 console.error("Failed to load categories", err);
             }
@@ -49,39 +62,39 @@ export const useAdminCatalog = () => {
         fetchCategories();
     }, []);
 
-    // 2. Main Fetch Function
+    // Fetch Catalog Data
     const fetchCatalog = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await adminCatalogService.getCatalogItems({
-                ...filters,
-                keyword: debouncedKeyword
-            });
-
-            if (res && Array.isArray(res.items)) {
-                // [FIX MAP DATA]: Map dữ liệu để đảm bảo trường 'active' luôn đúng
-                // Backend có thể trả về 'isActive' (từ entity) hoặc 'active' (từ DTO)
-                // Chúng ta ưu tiên map về 'active' cho thống nhất với interface ServiceResponse
-                const mappedItems = res.items.map((item: any) => ({
-                    ...item,
-                    // Logic fallback: nếu có active thì lấy, không thì lấy isActive, mặc định false
-                    active: item.active ?? item.isActive ?? false,
-                    // Tương tự với isActive của Package nếu cần dùng
-                    isActive: item.isActive ?? item.active ?? false
-                }));
-
-                setData(mappedItems);
-                setTotalItems(res.totalItems || 0);
-                setTotalPages(res.totalPages || 0);
+            // Gọi service tương ứng dựa trên Tab Type
+            if (filters.type === 'SERVICE') {
+                const res = await adminCatalogService.getMasterServices({
+                    page: filters.page,
+                    size: filters.size,
+                    keyword: debouncedKeyword,
+                    categoryId: filters.categoryId,
+                    status: filters.status || undefined
+                });
+                setData(res.items);
+                setTotalItems(res.totalItems);
+                setTotalPages(res.totalPages);
             } else {
-                setData([]);
-                setTotalItems(0);
-                setTotalPages(0);
+                // Fetch Packages
+                // Backend trả về PackageResponse mới (có merchantInfo)
+                const res = await adminCatalogService.getPackages({
+                    page: filters.page,
+                    size: filters.size,
+                    keyword: debouncedKeyword,
+                    status: filters.status || undefined
+                });
+                setData(res.items);
+                setTotalItems(res.totalItems);
+                setTotalPages(res.totalPages);
             }
-        } catch (err: any) {
-            console.error("Admin Catalog Error:", err);
-            setError(err.response?.data?.message || "Lỗi tải dữ liệu danh mục");
+        } catch (err) {
+            console.error("Error fetching admin catalog:", err);
+            setError("Không thể tải dữ liệu catalog");
             setData([]);
         } finally {
             setLoading(false);
@@ -91,7 +104,9 @@ export const useAdminCatalog = () => {
         filters.page,
         filters.size,
         filters.categoryId,
-        filters.isActive,
+        filters.status,
+        filters.sortBy,
+        filters.sortDir,
         debouncedKeyword
     ]);
 
@@ -99,33 +114,23 @@ export const useAdminCatalog = () => {
         fetchCatalog();
     }, [fetchCatalog]);
 
-    // --- HELPER ACTIONS ---
-    const setTabType = (type: 'SERVICE' | 'PACKAGE') => {
+    // --- ACTIONS ---
+
+    const setTabType = (type: AdminViewType) => {
         setFilters(prev => ({
             ...prev,
             type,
             page: 0,
             categoryId: '',
-            keyword: ''
+            keyword: '',
+            status: null
         }));
     };
 
-    const setPage = (page: number) => {
-        setFilters(prev => ({ ...prev, page }));
-    };
-
-    const setSearch = (keyword: string) => {
-        setFilters(prev => ({ ...prev, keyword, page: 0 }));
-    };
-
-    const setCategoryFilter = (categoryId: string) => {
-        setFilters(prev => ({ ...prev, categoryId, page: 0 }));
-    };
-
-    const setStatusFilter = (isActive: boolean | null) => {
-        setFilters(prev => ({ ...prev, isActive, page: 0 }));
-    };
-
+    const setPage = (page: number) => setFilters(prev => ({ ...prev, page }));
+    const setSearch = (keyword: string) => setFilters(prev => ({ ...prev, keyword, page: 0 }));
+    const setCategoryFilter = (categoryId: string) => setFilters(prev => ({ ...prev, categoryId, page: 0 }));
+    const setStatusFilter = (status: CatalogStatus | null) => setFilters(prev => ({ ...prev, status, page: 0 }));
     const refresh = () => fetchCatalog();
 
     return {
@@ -136,6 +141,8 @@ export const useAdminCatalog = () => {
         loading,
         error,
         filters,
+
+        // Actions
         setTabType,
         setPage,
         setSearch,

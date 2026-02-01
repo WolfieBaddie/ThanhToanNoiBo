@@ -1,26 +1,28 @@
 package com.example.thanhtoannoibo.Service.Catalog;
 
+import com.example.thanhtoannoibo.Common.CatalogStatus;
 import com.example.thanhtoannoibo.Common.ErrorCode;
-import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateCategoryRequest;
-import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateServiceRequest;
 import com.example.thanhtoannoibo.DTO.Request.Catalog.ServiceFilterRequest;
+import com.example.thanhtoannoibo.DTO.Response.Catalog.MasterServiceResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.PackageResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
 import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
+import com.example.thanhtoannoibo.Entity.Catalog.Counter;
+import com.example.thanhtoannoibo.Entity.Catalog.MasterService;
 import com.example.thanhtoannoibo.Entity.Catalog.ServiceCategory;
+import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Exception.AppException;
-import com.example.thanhtoannoibo.Repository.Catalog.AppPackageRepository;
-import com.example.thanhtoannoibo.Repository.Catalog.AppServiceRepository;
-import com.example.thanhtoannoibo.Repository.Catalog.ServiceCategoryRepository;
+import com.example.thanhtoannoibo.Repository.Catalog.*;
+import com.example.thanhtoannoibo.Repository.Specfication.AppServiceSpecification;
+import com.example.thanhtoannoibo.Service.Security.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
-import org.springframework.util.StringUtils;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,70 +32,29 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class CatalogService {
-    private final AppPackageRepository packageRepository;
+
     private final AppServiceRepository serviceRepository;
+    private final AppPackageRepository packageRepository;
     private final ServiceCategoryRepository categoryRepository;
+    private final MasterServiceRepository masterServiceRepository;
+    private final CounterRepository counterRepository;
+    private final AuthService authService;
+    private final HttpServletRequest httpRequest;
 
-    // --- READ METHODS ---
+    // =========================================================================
+    // PUBLIC READ METHODS (Dành cho App Mobile / Khách hàng)
+    // =========================================================================
+
+    @Transactional(readOnly = true)
     public Page<ServiceResponse> getServices(ServiceFilterRequest filter, Pageable pageable) {
-        // 1. Tạo Specification (Query động)
-        Specification<AppService> spec = (root, query, criteriaBuilder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-
-            if (filter != null) {
-                // Lọc theo từ khóa (Tên service hoặc Mã service)
-                if (StringUtils.hasText(filter.getKeyword())) {
-                    String likePattern = "%" + filter.getKeyword().toLowerCase().trim() + "%";
-
-                    // Tìm trong tên OR tìm trong mã
-                    Predicate nameLike = criteriaBuilder.like(criteriaBuilder.lower(root.get("serviceName")), likePattern);
-                    Predicate codeLike = criteriaBuilder.like(criteriaBuilder.lower(root.get("serviceCode")), likePattern);
-
-                    predicates.add(criteriaBuilder.or(nameLike, codeLike));
-                }
-
-                // Lọc theo Category ID
-                if (filter.getCategoryId() != null) {
-                    predicates.add(criteriaBuilder.equal(
-                            root.get("category").get("categoryId"),
-                            filter.getCategoryId()
-                    ));
-                }
-
-                // [GỢI Ý] Nếu DTO filter có trường isActive, hãy thêm logic này vào:
-                /*
-                if (filter.getIsActive() != null) {
-                    predicates.add(criteriaBuilder.equal(root.get("isActive"), filter.getIsActive()));
-                }
-                */
-            }
-
-            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
-        };
-
-        // 2. Gọi Repository
-        Page<AppService> pageResult = serviceRepository.findAll(spec, pageable);
-
-        // 3. Convert sang DTO Response
-        return pageResult.map(this::convertToResponse);
-    }
-
-    public List<AppPackage> getActivePackages() {
-        return packageRepository.findAllByIsActiveTrue();
-    }
-
-    public List<ServiceCategory> getActiveCategories() {
-        return categoryRepository.findAllByIsActiveTrue();
-    }
-
-    public List<PackageResponse> getActivePackagesWithDetails() {
-        // Gọi query fetch join ở bước 1
-        List<AppPackage> packages = packageRepository.findAllActiveWithServices();
-
-        // Map từ Entity sang DTO
-        return packages.stream()
-                .map(this::mapToPackageResponse)
-                .collect(Collectors.toList());
+        // Khách hàng xem: system=true (món chuẩn) hoặc false (món cụ thể) tùy logic app
+        // Ở đây giả sử khách xem tất cả món ACTIVE
+        Specification<AppService> spec = AppServiceSpecification.buildPostSpecification(
+                filter,
+                null, // counterId null -> xem public hoặc system tùy filter
+                false // isAdmin
+        );
+        return serviceRepository.findAll(spec, pageable).map(this::convertToResponse);
     }
 
     public AppService getServiceById(UUID serviceId) {
@@ -101,55 +62,55 @@ public class CatalogService {
                 .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
     }
 
-    // --- WRITE METHODS (Sử dụng DTO Request) ---
-
-    @Transactional
-    public ServiceCategory createCategory(CreateCategoryRequest request) {
-        // Check trùng Code
-        if (categoryRepository.findByCategoryCode(request.getCategoryCode()).isPresent()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        ServiceCategory category = ServiceCategory.builder()
-                .categoryCode(request.getCategoryCode().toUpperCase())
-                .categoryName(request.getCategoryName())
-                .description(request.getDescription())
-                .iconUrl(request.getIconUrl())
-                .isActive(true)
-                .build();
-
-        return categoryRepository.save(category);
+    public List<PackageResponse> getActivePackagesWithDetails() {
+        // Logic lấy gói đang bán cho khách hàng
+        List<AppPackage> packages = packageRepository.findAllWithServicesByStatus(CatalogStatus.ACTIVE);
+        return packages.stream()
+                .map(this::mapToPackageResponse)
+                .collect(Collectors.toList());
     }
 
-    @Transactional
-    public AppService createService(CreateServiceRequest request) {
-        // Check trùng Code
-        if (serviceRepository.findByServiceCode(request.getServiceCode()).isPresent()) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
-        }
-
-        // Tìm Category
-        ServiceCategory category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST));
-
-        AppService service = AppService.builder()
-                .serviceCode(request.getServiceCode().toUpperCase())
-                .serviceName(request.getServiceName())
-                .category(category)
-                .unitPrice(request.getUnitPrice())
-                .isActive(true)
-                .build();
-
-        return serviceRepository.save(service);
+    public List<ServiceCategory> getActiveCategories() {
+        return categoryRepository.findAllByStatus(CatalogStatus.ACTIVE);
     }
 
+    // =========================================================================
+    // SHARED / UTILITY METHODS
+    // =========================================================================
+
+    /**
+     * Lấy danh sách Master Data (Có thể dùng cho cả Admin xem hoặc Merchant xem để đăng ký)
+     */
+    @Transactional(readOnly = true)
+    public List<MasterServiceResponse> getAvailableMasters() {
+        User currentUser = authService.getCurrentUser(httpRequest);
+        Counter counter = counterRepository.findByManagedBy_UserId(currentUser.getUserId()).orElse(null);
+
+        List<MasterService> allMasters = masterServiceRepository.findAll();
+        List<String> myCodes = new ArrayList<>();
+
+        if (counter != null) {
+            myCodes = serviceRepository.findAllByCounter_CounterId(counter.getCounterId())
+                    .stream().map(AppService::getServiceCode).toList();
+        }
+        final List<String> registeredCodes = myCodes;
+
+        return allMasters.stream().map(m -> MasterServiceResponse.builder()
+                .masterId(m.getMasterId())
+                .serviceCode(m.getServiceCode())
+                .serviceName(m.getServiceName())
+                .fixedPrice(m.getFixedPrice())
+                .imageUrl(m.getImageUrl())
+                .isRegistered(registeredCodes.contains(m.getServiceCode()))
+                .build()).collect(Collectors.toList());
+    }
+
+    // =========================================================================
+    // MAPPERS (Giữ lại để dùng cho hàm Read)
+    // =========================================================================
 
     private ServiceResponse convertToResponse(AppService entity) {
-        String catName = "Unknown";
-        if (entity.getCategory() != null) {
-            catName = entity.getCategory().getCategoryName();
-        }
-
+        String catName = entity.getCategory() != null ? entity.getCategory().getCategoryName() : "Unknown";
         return ServiceResponse.builder()
                 .serviceId(entity.getServiceId())
                 .serviceCode(entity.getServiceCode())
@@ -157,12 +118,11 @@ public class CatalogService {
                 .unitPrice(entity.getUnitPrice())
                 .categoryName(catName)
                 .imageUrl(entity.getImageUrl())
-                .isActive(entity.getIsActive())
+                .status(entity.getStatus())
                 .build();
     }
 
     private PackageResponse mapToPackageResponse(AppPackage entity) {
-        // Map danh sách services con
         List<PackageResponse.PackageServiceItem> items = entity.getServices().stream()
                 .map(service -> PackageResponse.PackageServiceItem.builder()
                         .serviceId(service.getServiceId())
@@ -172,6 +132,19 @@ public class CatalogService {
                         .build())
                 .collect(Collectors.toList());
 
+        // 2. [MỚI] Map thông tin Merchant & Counter
+        PackageResponse.MerchantInfo merchantInfo = null;
+        if (entity.getCounter() != null) {
+            User owner = entity.getCounter().getManagedBy();
+            merchantInfo = PackageResponse.MerchantInfo.builder()
+                    .counterId(entity.getCounter().getCounterId())
+                    .counterName(entity.getCounter().getCounterName())
+                    .location(entity.getCounter().getLocation()) // Quan trọng cho User
+                    .merchantId(owner != null ? owner.getUserId() : null)
+                    .merchantName(owner != null ? owner.getFullName() : "Unknown Merchant")
+                    .build();
+        }
+
         return PackageResponse.builder()
                 .packageId(entity.getPackageId())
                 .packageCode(entity.getPackageCode())
@@ -180,8 +153,9 @@ public class CatalogService {
                 .price(entity.getPrice())
                 .packageType(entity.getPackageType())
                 .creditValue(entity.getCreditValue())
-                .isActive(entity.getIsActive())
-                .items(items) // Set danh sách items đã map
+                .status(entity.getStatus())
+                .items(items)
+                .merchantInfo(merchantInfo) // Set info vào response
                 .build();
     }
 }

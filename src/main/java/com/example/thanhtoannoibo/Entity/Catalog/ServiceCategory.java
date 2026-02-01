@@ -1,5 +1,6 @@
 package com.example.thanhtoannoibo.Entity.Catalog;
 
+import com.example.thanhtoannoibo.Common.CatalogStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -32,9 +33,10 @@ public class ServiceCategory {
     @Column(name = "icon_url")
     private String iconUrl;
 
-    @Column(name = "is_active")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20)
     @Builder.Default
-    private Boolean isActive = true;
+    private CatalogStatus status = CatalogStatus.ACTIVE;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

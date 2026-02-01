@@ -24,7 +24,6 @@ export const useAdminTransactions = (initialParams: AdminTransactionFilterParams
     const [data, setData] = useState<Transaction[]>([]);
     const [totalItems, setTotalItems] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
-
     // UI State
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);

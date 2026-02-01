@@ -8,11 +8,13 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class CreateServiceRequest extends BaseRequest {
+    private List<UUID> masterServiceIds;
 
     @NotBlank(message = "Mã dịch vụ không được để trống")
     private String serviceCode;

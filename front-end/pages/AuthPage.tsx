@@ -51,7 +51,12 @@ const AuthPage: React.FC = () => {
                     />
                 );
             case AuthMode.FORGOT_PASSWORD:
-                return <ForgotPasswordForm onBack={() => setMode(AuthMode.LOGIN)} />;
+                return (
+                    <ForgotPasswordForm
+                        onBack={() => setMode(AuthMode.LOGIN)}
+                        showNotification={handleShowNotification}
+                    />
+                );
             default:
                 return null;
         }

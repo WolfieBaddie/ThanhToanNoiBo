@@ -27,17 +27,30 @@ export const useMerchantVerify = (
         return qrData?.includedServices && qrData.includedServices.length > 0;
     }, [qrData]);
 
+    // Lấy hạn mức chung của Voucher (Nếu null thì mặc định 999)
+    const globalLimit = useMemo(() => {
+        return qrData?.usageLimit ?? 999;
+    }, [qrData]);
+
+    // Tính tổng số lượng đang chọn hiện tại (Real-time)
+    const currentTotalQuantity = useMemo(() => {
+        if (!isPackage) return genericQuantity;
+        return Object.values(selectedItems)
+            .filter(item => item.isSelected)
+            .reduce((sum, item) => sum + item.quantity, 0);
+    }, [selectedItems, isPackage, genericQuantity]);
+
     // --- INIT STATE ---
     useEffect(() => {
         if (qrData && qrData.includedServices) {
             const initialSelection: Record<string, SelectedItemState> = {};
-            qrData.includedServices.forEach(s => {
-                const remaining = s.remainingQuantity ?? 999;
-                const isAvailable = remaining > 0;
 
+            // Không auto select món nào cả. Để user tự chọn.
+            qrData.includedServices.forEach((s) => {
+                const remaining = s.remainingQuantity ?? 999;
                 initialSelection[s.serviceId] = {
-                    quantity: isAvailable ? 1 : 0,
-                    isSelected: isAvailable,
+                    quantity: 1, // Mặc định số lượng là 1 nếu được chọn
+                    isSelected: false,
                     service: s
                 };
             });
@@ -47,36 +60,61 @@ export const useMerchantVerify = (
 
     // --- CHECK LIMIT ---
     const isOverLimit = useMemo(() => {
-        if (!qrData) return false;
-        if (isPackage) return false; // Package check lẻ từng món
-        const max = qrData.includedServices?.[0]?.remainingQuantity ?? qrData.usageLimit ?? 999;
-        return genericQuantity > max;
-    }, [qrData, genericQuantity, isPackage]);
+        return currentTotalQuantity > globalLimit;
+    }, [currentTotalQuantity, globalLimit]);
 
+    // Logic chọn món
     const toggleItem = (serviceId: string) => {
         setSelectedItems(prev => {
             const current = prev[serviceId];
             if (!current) return prev;
-            const maxLimit = current.service.remainingQuantity ?? 999;
-            if (!current.isSelected && maxLimit <= 0) {
-                notify.warning("Món này đã dùng hết lượt!");
-                return prev;
+
+            // Nếu đang Uncheck -> Check (Thêm món)
+            if (!current.isSelected) {
+                // 1. Check hết hàng của món đó
+                const itemRemaining = current.service.remainingQuantity ?? 999;
+                if (itemRemaining <= 0) {
+                    notify.error("Món này đã hết hàng!");
+                    return prev;
+                }
+
+                // 2. Check hạn mức chung (Global Limit)
+                if (currentTotalQuantity + current.quantity > globalLimit) {
+                    notify.error(`Chỉ được chọn tối đa ${globalLimit} phần.`);
+                    return prev;
+                }
             }
+
             return { ...prev, [serviceId]: { ...current, isSelected: !current.isSelected } };
         });
     };
 
+    // Logic tăng giảm số lượng
     const changeQuantity = (serviceId: string, delta: number) => {
         setSelectedItems(prev => {
             const current = prev[serviceId];
             if (!current) return prev;
+
             const newQty = current.quantity + delta;
+
             if (newQty < 1) return prev;
-            const maxLimit = current.service.remainingQuantity ?? 999;
-            if (newQty > maxLimit) {
-                notify.warning(`Khách chỉ còn lại ${maxLimit} phần cho món này.`);
-                return prev;
+
+            // Nếu đang tăng số lượng (delta > 0)
+            if (delta > 0) {
+                // 1. Check hạn mức riêng của món (Stock)
+                const itemMax = current.service.remainingQuantity ?? 999;
+                if (newQty > itemMax) {
+                    notify.error(`Món này chỉ còn ${itemMax} phần.`);
+                    return prev;
+                }
+
+                // 2. Check hạn mức chung (Global Limit)
+                if (currentTotalQuantity + delta > globalLimit) {
+                    notify.error(`Tổng số lượng không được vượt quá ${globalLimit}.`);
+                    return prev;
+                }
             }
+
             return { ...prev, [serviceId]: { ...current, quantity: newQty } };
         });
     };
@@ -112,7 +150,6 @@ export const useMerchantVerify = (
         setIsSubmitting(true);
 
         try {
-            // 1. Prepare Items
             const itemsPayload: QrItemRequest[] = Object.values(selectedItems)
                 .filter(item => item.isSelected)
                 .map(item => ({
@@ -126,11 +163,10 @@ export const useMerchantVerify = (
                 return;
             }
 
-            // 2. [SỬA LẠI] Upload ảnh (Dùng đúng hàm qrService.uploadProof và truyền File trực tiếp)
+            // Upload ảnh
             let uploadedUrl: string | undefined = undefined;
             if (imageFile) {
                 try {
-                    // Gọi đúng hàm uploadProof trong qr.service.ts
                     uploadedUrl = await qrService.uploadProof(imageFile);
                 } catch (err) {
                     console.error("Upload failed", err);
@@ -139,19 +175,20 @@ export const useMerchantVerify = (
                     return;
                 }
             } else {
-                // Bắt buộc có ảnh (theo UI) -> Chặn nếu không có
                 notify.error("Vui lòng chụp ảnh xác thực.");
                 setIsSubmitting(false);
                 return;
             }
 
-            // 3. Prepare Request Data
             const itemDescriptions = Object.values(selectedItems)
                 .filter(i => i.isSelected)
                 .map(i => `${i.quantity}x ${i.service.serviceName}`)
                 .join(", ");
 
-            const quantityToSend = isPackage ? 1 : genericQuantity;
+            // [FIXED] Quantity gửi đi phải là TỔNG SỐ LƯỢNG MÓN ĐÃ CHỌN
+            // để Backend trừ đúng hạn mức (Limit) của Voucher.
+            const quantityToSend = currentTotalQuantity;
+
             const description = isPackage
                 ? `Đổi: ${itemDescriptions}`
                 : `Sử dụng ${genericQuantity} voucher`;
@@ -159,9 +196,9 @@ export const useMerchantVerify = (
             const requestData: ProcessQrRequest = {
                 qrCode: qrData.codeString,
                 billAmount: 0,
-                quantity: quantityToSend,
+                quantity: quantityToSend, // [ĐÃ SỬA] Dùng currentTotalQuantity thay vì hardcode 1
                 description: description,
-                imageUrl: uploadedUrl, // [QUAN TRỌNG] Gửi URL ảnh lên Backend
+                imageUrl: uploadedUrl,
                 items: isPackage ? itemsPayload : undefined,
                 serviceId: (!isPackage && qrData.includedServices?.length === 1)
                     ? qrData.includedServices[0].serviceId
@@ -181,13 +218,9 @@ export const useMerchantVerify = (
         }
     };
 
-    const effectiveQuantityDisplay = isPackage
-        ? Object.values(selectedItems).filter(i => i.isSelected).reduce((sum, i) => sum + i.quantity, 0)
-        : genericQuantity;
-
     return {
         selectedItems,
-        effectiveQuantity: effectiveQuantityDisplay,
+        effectiveQuantity: currentTotalQuantity, // Trả về tổng đã tính toán chuẩn
         totalBillAmount: 0,
         previewUrl,
         isSubmitting,
