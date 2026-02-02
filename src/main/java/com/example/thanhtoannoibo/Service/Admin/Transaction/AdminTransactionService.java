@@ -216,6 +216,18 @@ public class AdminTransactionService {
             default -> entity.getTransactionType().name();
         };
 
+        BigDecimal totalQuantity = BigDecimal.ZERO;
+        List<PaymentDetail> details = paymentDetailRepository.findAllByTransaction_TransactionId(entity.getTransactionId());
+
+        if (details != null && !details.isEmpty()) {
+            for (PaymentDetail dt : details) {
+                totalQuantity = totalQuantity.add(dt.getQuantity());
+            }
+        } else {
+            // Nếu không có detail (VD: Nạp tiền), mặc định quantity là 1
+            totalQuantity = BigDecimal.ONE;
+        }
+
         return TransactionResponse.builder()
                 .transactionId(entity.getTransactionId())
                 .transactionRef(entity.getTransactionRef())
@@ -223,6 +235,7 @@ public class AdminTransactionService {
                 .description(entity.getDescription())
                 .amount(entity.getAmount().abs())
                 .direction("SYSTEM")
+                .quantity(totalQuantity)
                 .status(entity.getStatus().name())
                 .transactionType(entity.getTransactionType().name())
                 .createdAt(entity.getCreatedAt())

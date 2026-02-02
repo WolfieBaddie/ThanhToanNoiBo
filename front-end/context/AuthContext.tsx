@@ -16,11 +16,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
 
-    // Hàm lấy thông tin user đầy đủ (từ /auth/me)
     const fetchUserProfile = async () => {
         try {
             const userData = await authService.getMe();
-            // Đảm bảo roles luôn là mảng để tránh lỗi null khi check quyền
             if (!userData.roles) userData.roles = [];
             setUser(userData);
         } catch (error) {
@@ -31,6 +29,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     useEffect(() => {
         const initAuth = async () => {
+            // [FIX QUAN TRỌNG] Kiểm tra xem có phải user vừa bấm Logout không
+            const isLogout = localStorage.getItem('IS_LOGOUT');
+
+            if (isLogout) {
+                console.log('Phát hiện sự kiện Logout chủ động. Dừng check phiên.');
+                // Xóa cờ để lần sau F5 nó lại check bình thường
+                localStorage.removeItem('IS_LOGOUT');
+
+                // Set user = null và dừng loading ngay lập tức
+                setUser(null);
+                setIsLoading(false);
+                return; // RETURN NGAY TẠI ĐÂY, KHÔNG GỌI fetchUserProfile() NỮA
+            }
+
+            // Nếu không phải Logout thì mới gọi API check phiên
             try {
                 await fetchUserProfile();
             } finally {
@@ -42,14 +55,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const login = async (credentials: LoginRequest) => {
         try {
-            // Bước 1: Gọi Login để lấy Token (Cookie)
-            // Response login trả về user thiếu roles -> KHÔNG DÙNG ĐỂ SET STATE
+            // [FIX] Xóa cờ logout nếu có để đảm bảo đăng nhập được
+            localStorage.removeItem('IS_LOGOUT');
+
             await authService.login(credentials);
-
-            // Bước 2: Gọi ngay /auth/me để lấy User đầy đủ (có Roles)
-            // Lúc này cookie đã được set bởi bước 1 nên request này sẽ hợp lệ
             await fetchUserProfile();
-
         } catch (error) {
             console.error("Login failed:", error);
             throw error;
@@ -62,7 +72,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } catch (error) {
             console.error("Logout error", error);
         } finally {
-            setUser(null);
+            // Dự phòng cho trường hợp gọi logout từ nơi khác ngoài Sidebar
+            localStorage.setItem('IS_LOGOUT', 'true');
             window.location.href = '/login';
         }
     };

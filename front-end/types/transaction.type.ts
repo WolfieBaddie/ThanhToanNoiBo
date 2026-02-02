@@ -28,6 +28,7 @@ export interface Transaction {
     description: string;
     amount: number;
     direction: 'IN' | 'OUT';
+    quantity?: number;
     status: TransactionStatusEnum;
     transactionType: TransactionTypeEnum;
     createdAt: string;

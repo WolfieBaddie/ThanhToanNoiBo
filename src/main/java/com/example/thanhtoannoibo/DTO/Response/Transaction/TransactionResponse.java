@@ -17,7 +17,7 @@ public class TransactionResponse {
 
     private BigDecimal amount;     // Số tiền (Luôn dương để hiển thị)
     private String direction;      // "IN" (Cộng) hoặc "OUT" (Trừ)
-
+    private BigDecimal quantity;
     private String status;         // COMPLETED, PENDING, FAILED
     private String transactionType;// DEPOSIT, BUY_VOUCHER...
 

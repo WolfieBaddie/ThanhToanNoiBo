@@ -1,5 +1,6 @@
 package com.example.thanhtoannoibo.Repository.Wallet;
 
+import com.example.thanhtoannoibo.DTO.Response.MerchantReconciliationDTO;
 import com.example.thanhtoannoibo.Entity.Voucher.Transaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -51,4 +52,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     List<Object[]> getDailyRevenueStats(@Param("merchantId") UUID merchantId,
                                         @Param("startDate") LocalDateTime startDate,
                                         @Param("endDate") LocalDateTime endDate);
+
+    @Query(value = "SELECT * FROM app.sp_get_merchant_reconciliation(:merchantId)", nativeQuery = true)
+    List<MerchantReconciliationDTO> getMerchantReconciliation(@Param("merchantId") UUID merchantId);
 }

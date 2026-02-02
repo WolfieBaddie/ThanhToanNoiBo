@@ -3,37 +3,39 @@ package com.example.thanhtoannoibo.Util;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
-
 @Component
 public class CookieUtil {
-    // Thời gian sống: Access Token (ví dụ 15 phút), Refresh Token (30 ngày)
 
-    public ResponseCookie createAccessTokenCookie(String token, long durationMinutes) {
+    // 1. Tạo Access Token Cookie
+    public ResponseCookie createAccessTokenCookie(String token, long minutes) {
         return ResponseCookie.from("accessToken", token)
-                .httpOnly(true) // Quan trọng: JS không đọc được
-                .secure(false)  // Để false khi chạy localhost (http), lên prod đổi thành true (https)
-                .path("/")      // Cookie có hiệu lực toàn domain
-                .maxAge(Duration.ofMinutes(durationMinutes))
-                .sameSite("Strict") // Chặn CSRF
+                .httpOnly(true)
+                .secure(false) // Để false nếu chạy localhost (http)
+                .path("/")     // [BẮT BUỘC]: Phải có dòng này để Cookie đi toàn hệ thống
+                .maxAge(minutes * 60)
+                .sameSite("Lax")
                 .build();
     }
 
-    public ResponseCookie createRefreshTokenCookie(String token, long durationDays) {
+    // 2. Tạo Refresh Token Cookie
+    public ResponseCookie createRefreshTokenCookie(String token, long days) {
         return ResponseCookie.from("refreshToken", token)
                 .httpOnly(true)
                 .secure(false)
-                .path("/api/auth/refresh") // Chỉ gửi cookie này khi gọi API refresh để tối ưu
-                .maxAge(Duration.ofDays(durationDays))
-                .sameSite("Strict")
+                .path("/")     // [BẮT BUỘC]
+                .maxAge(days * 24 * 60 * 60)
+                .sameSite("Lax")
                 .build();
     }
 
+    // 3. Xóa Cookie
     public ResponseCookie clearCookie(String name) {
         return ResponseCookie.from(name, "")
                 .httpOnly(true)
-                .path("/")
-                .maxAge(0) // Xóa ngay lập tức
+                .secure(false)
+                .path("/")      // [BẮT BUỘC]: Path phải KHỚP với lúc tạo thì mới xóa được
+                .maxAge(0)      // Set tuổi thọ = 0 để trình duyệt xóa ngay lập tức
+                .sameSite("Lax")
                 .build();
     }
 }

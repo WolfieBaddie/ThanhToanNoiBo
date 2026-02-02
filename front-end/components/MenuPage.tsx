@@ -20,7 +20,7 @@ const MenuPage: React.FC = () => {
         changePage,
         refresh
     } = useCatalog();
-
+    console.log(categories);
     const handleClearAll = () => {
         handleSearch('');
         filterByCategory('');

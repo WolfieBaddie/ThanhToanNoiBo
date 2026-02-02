@@ -1,9 +1,9 @@
-// catalog.type.ts
+export type CatalogStatus = 'ACTIVE' | 'INACTIVE' | 'DELETED' | 'PENDING';
 
 // 1. Định nghĩa Type discriminator
 export type CatalogItemType = 'SERVICE' | 'PACKAGE';
 
-// 2. Định nghĩa chi tiết Service trong Package (nếu cần hiển thị list con)
+// 2. Định nghĩa chi tiết Service trong Package
 export interface PackageServiceItem {
     serviceId: string;
     serviceName: string;
@@ -11,7 +11,7 @@ export interface PackageServiceItem {
     originalPrice: number;
 }
 
-// 3. Update ServiceResponse thêm trường type
+// 3. Update ServiceResponse: Thay 'active' bằng 'status'
 export interface ServiceResponse {
     type: 'SERVICE';
     serviceId: string;
@@ -22,24 +22,27 @@ export interface ServiceResponse {
     imageUrl: string | null;
     description?: string;
 
-    active: boolean;
-
+    status: CatalogStatus;
+    masterServiceCode?: string;
 
     detailId?: string;
     remainingQuantity?: number;
 }
-// 4. Định nghĩa PackageResponse mới
+
+// 4. Update PackageResponse: Thay 'isActive' bằng 'status'
 export interface PackageResponse {
-    type: 'PACKAGE'; // Định danh cứng
+    type: 'PACKAGE';
     packageId: string;
     packageCode: string;
     packageName: string;
     description?: string;
     price: number;
-    packageType: string; // 'CREDIT_VALUE', 'item_quantity'...
+    packageType: string; // 'CREDIT_VALUE', 'ITEM_QUANTITY', 'MIXED'
     creditValue: number;
-    isActive: boolean;
-    items: PackageServiceItem[]; // Danh sách món trong gói
+    imageUrl?:string;
+    status: CatalogStatus;
+
+    items: PackageServiceItem[];
 }
 
 // 5. Union Type để dùng chung trong list hiển thị
@@ -52,6 +55,7 @@ export interface ServiceCategory {
     categoryCode: string;
     categoryName: string;
     iconUrl?: string;
+    status?: CatalogStatus;
 }
 
 export interface CatalogFilterParams {

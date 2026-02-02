@@ -338,12 +338,25 @@ public class TransactionService {
 
         TransactionPartnerInfo partnerInfo = mapPartnerInfo(entity, currentUserId);
 
+        BigDecimal totalQuantity = BigDecimal.ZERO;
+        List<PaymentDetail> details = paymentDetailRepository.findAllByTransaction_TransactionId(entity.getTransactionId());
+
+        if (details != null && !details.isEmpty()) {
+            for (PaymentDetail dt : details) {
+                totalQuantity = totalQuantity.add(dt.getQuantity());
+            }
+        } else {
+            // Nếu không có detail (VD: Nạp tiền), mặc định quantity là 1
+            totalQuantity = BigDecimal.ONE;
+        }
+
         return TransactionResponse.builder()
                 .transactionId(entity.getTransactionId())
                 .transactionRef(entity.getTransactionRef())
                 .title(displayTitle)
                 .description(entity.getDescription())
                 .amount(entity.getAmount().abs())
+                .quantity(totalQuantity) // [ĐÃ SỬA] Sử dụng quantity tính toán được
                 .direction(direction)
                 .status(entity.getStatus().name())
                 .transactionType(entity.getTransactionType().name())

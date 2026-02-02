@@ -25,13 +25,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onViewTransac
 
   return (
     <div className="space-y-6">
-      <QRScannerModal 
-        isOpen={showQR} 
-        onClose={() => setShowQR(false)} 
-        onScanComplete={handleQRScanComplete}
-      />
-
-      <Notification 
+      <Notification
         type="success"
         isOpen={notification.isOpen}
         onClose={() => setNotification({ ...notification, isOpen: false })}
@@ -39,7 +33,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onViewTransac
       />
 
       {/* 1. Header Section - Navigate to Voucher instead of opening Scanner */}
-      <DashboardHeader onScanClick={() => onNavigate('voucher')} />
+      <DashboardHeader onScanClick={() => onNavigate('/voucher')} />
 
       {/* 2. Main Grid Layout */}
       <div className="flex flex-col gap-6">

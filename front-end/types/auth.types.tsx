@@ -26,6 +26,12 @@ export interface LogoutRequest {
     deviceId?: string;
 }
 
+export interface ForgotPasswordRequest {
+    email: string;
+    otp: string;
+    newPassword: string;
+}
+
 // --- Response DTOs ---
 export interface UserProfile {
     userId: string;
@@ -37,6 +43,8 @@ export interface UserProfile {
     status: UserStatus;
     lastLoginAt?: string;
     createdAt: string;
+    imageUrl?: string;
+    qrPaymentUrl?: string;
 
     // [CẬP NHẬT] Đổi mảng string sang mảng Enum để type safe
     roles: UserRole[];
@@ -44,6 +52,13 @@ export interface UserProfile {
 
     avatar?: string; // Bổ sung field này nếu MainLayout dùng
     studentCode?: string; // Bổ sung nếu cần hiển thị
+}
+
+export interface UpdateUserProfileRequest {
+    fullName?: string;
+    phoneNumber?: string;
+    imageUrl?: string;
+    qrPaymentUrl?: string; // Chỉ dành cho Merchant
 }
 
 export interface LoginResponse {
