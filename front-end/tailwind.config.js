@@ -9,6 +9,12 @@ export default {
         "./*.{js,ts,jsx,tsx}",
         "./landing-page/**/*.{js,ts,jsx,tsx}"
     ],
+    safelist: [
+        'bg-app-bg',
+        'dark:bg-slate-950',
+        'text-slate-900',
+        'dark:text-white'
+    ],
     theme: {
         extend: {
             colors: {
