@@ -20,6 +20,7 @@ import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,7 +29,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -43,6 +47,9 @@ public class AdminRequestService {
     private final TransactionRepository transactionRepository;
     private final NotificationRepository notificationRepository;
     private final ObjectMapper objectMapper;
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+            .withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
 
     /**
      * 1. Lấy danh sách Request (Phân trang + Tìm kiếm đa tiêu chí)
@@ -152,54 +159,185 @@ public class AdminRequestService {
     /**
      * 4. Xuất báo cáo Excel đối soát (Theo Merchant ID được chỉ định)
      */
-    public byte[] exportReconciliationReport(UUID merchantId) throws Exception {
-        if (!userRepository.existsById(merchantId)) {
-            throw new RuntimeException("Merchant ID không hợp lệ");
-        }
+    public byte[] exportReconciliationReport(UUID merchantId, int month, int year) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
-        // Lấy dữ liệu từ Procedure (Repository đã có hàm này)
-        List<MerchantReconciliationDTO> data = transactionRepository.getMerchantReconciliation(merchantId);
+            // 1. Gọi Repo lấy dữ liệu
+            List<MerchantReconciliationDTO> data = transactionRepository.getMerchantReconciliation(merchantId, month, year);
 
-        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Sheet sheet = workbook.createSheet("Doi Soat Admin");
+            Sheet sheet = workbook.createSheet("Doi_soat_T" + month + "_" + year);
 
-            // Style Header
-            CellStyle headerStyle = workbook.createCellStyle();
-            Font font = workbook.createFont();
-            font.setBold(true);
-            font.setColor(IndexedColors.WHITE.getIndex());
-            headerStyle.setFont(font);
-            headerStyle.setFillForegroundColor(IndexedColors.ROYAL_BLUE.getIndex()); // Màu xanh cho Admin
-            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            // Biến tích lũy tổng
+            BigDecimal totalRevenue = BigDecimal.ZERO;
+            BigDecimal totalTax = BigDecimal.ZERO;
+            BigDecimal totalFee = BigDecimal.ZERO;
+            BigDecimal totalNet = BigDecimal.ZERO;
 
-            // Columns
-            String[] columns = {"Mã GD", "Thời gian", "Số tiền", "Trạng thái", "Nội dung", "Người TT", "Voucher", "Dịch vụ"};
-            Row headerRow = sheet.createRow(0);
-            for (int i = 0; i < columns.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(columns[i]);
-                cell.setCellStyle(headerStyle);
+            // Định nghĩa hằng số chia để tính thuế (1.1)
+            BigDecimal DIVISOR_TAX = new BigDecimal("1.1");
+
+            // --- BƯỚC 1: LOOP TÍNH TOÁN LẠI DỮ LIỆU ---
+            // Chúng ta cần tính toán trước hoặc tính trong khi lặp để ra tổng
+            // Ở đây tôi sẽ tính toán lại từng dòng khi ghi vào Excel, nhưng cần tính tổng trước để ghi Header
+
+            // Tuy nhiên, logic ghi Header trước -> Ghi Data sau.
+            // Nên ta sẽ vừa lặp data để ghi, vừa cộng dồn. Nhưng Header lại nằm trên cùng?
+            // => Cách giải quyết: Ghi Header (Row 0-4) SAU KHI chạy vòng lặp data,
+            // hoặc dùng công thức Excel, nhưng ở đây ta tính Java cho chắc ăn.
+
+            // Cách tốt nhất: Chạy 1 vòng lặp để tính toán và lưu các giá trị đã tính vào list tạm hoặc tính thẳng vào Cell rồi cộng dồn.
+
+            // Khởi tạo style
+            CellStyle titleStyle = workbook.createCellStyle();
+            Font titleFont = workbook.createFont();
+            titleFont.setBold(true);
+            titleFont.setFontHeightInPoints((short) 14);
+            titleStyle.setFont(titleFont);
+            CellStyle boldStyle = createHeaderStyle(workbook);
+            CellStyle currencyStyle = workbook.createCellStyle();
+            DataFormat format = workbook.createDataFormat();
+            currencyStyle.setDataFormat(format.getFormat("#,##0")); // Format số đẹp
+
+            // Tạo Header Row cho bảng dữ liệu (Bắt đầu từ dòng 6)
+            int headerRowIdx = 6;
+            Row headerTable = sheet.createRow(headerRowIdx);
+            String[] headers = {
+                    "Mã GD", "Thời gian", "Trạng thái", "Nội dung",
+                    "Tiền gốc", "Thuế VAT (10%)", "Tổng khách trả", "Phí sàn", "Thực nhận",
+                    "Người trả", "Email", "SĐT", "Voucher", "Hạn SD Voucher"
+            };
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerTable.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(boldStyle);
             }
 
-            // Fill Data
-            int rowIdx = 1;
+            // --- BƯỚC 2: GHI DỮ LIỆU VÀ TÍNH TOÁN ---
+            int rowIdx = headerRowIdx + 1;
+
             for (MerchantReconciliationDTO dto : data) {
                 Row row = sheet.createRow(rowIdx++);
+
+                // Lấy dữ liệu thô
+                BigDecimal grossAmount = dto.getTongThanhToan() != null ? dto.getTongThanhToan() : BigDecimal.ZERO;
+                BigDecimal fee = dto.getPhiSan() != null ? dto.getPhiSan() : BigDecimal.ZERO;
+
+                // --- [LOGIC TÍNH THUẾ 10% TẠI ĐÂY] ---
+                // 1. Tính giá gốc (Net Price) = Tổng / 1.1
+                BigDecimal netPrice = grossAmount.divide(DIVISOR_TAX, 0, java.math.RoundingMode.HALF_UP);
+
+                // 2. Tính Thuế = Tổng - Giá gốc
+                BigDecimal calculatedTax = grossAmount.subtract(netPrice);
+
+                // 3. Tính Thực nhận = Tổng - Thuế - Phí sàn
+                BigDecimal calculatedNet = grossAmount.subtract(calculatedTax).subtract(fee);
+                // -------------------------------------
+
+                // Cộng dồn vào tổng (Summary)
+                totalRevenue = totalRevenue.add(grossAmount);
+                totalTax = totalTax.add(calculatedTax);
+                totalFee = totalFee.add(fee);
+                totalNet = totalNet.add(calculatedNet);
+
+                // Ghi vào Cell
                 row.createCell(0).setCellValue(dto.getMaGiaoDich());
-                row.createCell(1).setCellValue(dto.getThoiGian() != null ? dto.getThoiGian().toString() : "");
-                row.createCell(2).setCellValue(dto.getSoTien() != null ? dto.getSoTien().doubleValue() : 0);
-                row.createCell(3).setCellValue(dto.getTrangThai());
-                row.createCell(4).setCellValue(dto.getNoiDung());
-                row.createCell(5).setCellValue(dto.getNguoiThanhToan());
-                row.createCell(6).setCellValue(dto.getMaVoucher());
-                row.createCell(7).setCellValue(dto.getTenDichVuVoucher());
+                if (dto.getThoiGian() != null) {
+                    row.createCell(1).setCellValue(DATE_FORMATTER.format(dto.getThoiGian()));
+                }
+                row.createCell(2).setCellValue(dto.getTrangThai());
+                row.createCell(3).setCellValue(dto.getNoiDung());
+
+                // Các cột số liệu
+                createNumberCell(row, 4, netPrice, currencyStyle);       // Tiền gốc (Đã trừ thuế)
+                createNumberCell(row, 5, calculatedTax, currencyStyle);  // Thuế (Tính lại)
+                createNumberCell(row, 6, grossAmount, currencyStyle);    // Tổng khách trả
+                createNumberCell(row, 7, fee, currencyStyle);            // Phí sàn
+                createNumberCell(row, 8, calculatedNet, currencyStyle);  // Thực nhận (Tính lại)
+
+                // Thông tin khách
+                row.createCell(9).setCellValue(dto.getNguoiThanhToan());
+                row.createCell(10).setCellValue(dto.getEmailKhach());
+                row.createCell(11).setCellValue(dto.getSdtKhach());
+                row.createCell(12).setCellValue(dto.getMaVoucher());
+                if (dto.getHanSuDungVoucher() != null) {
+                    row.createCell(13).setCellValue(DATE_FORMATTER.format(dto.getHanSuDungVoucher()));
+                }
             }
 
-            // Auto size
-            for (int i = 0; i < columns.length; i++) sheet.autoSizeColumn(i);
+            // --- BƯỚC 3: GHI PHẦN TỔNG HỢP (SUMMARY) Ở ĐẦU TRANG ---
+            // (Giờ mới ghi vì đã có số liệu tổng sau khi lặp)
+
+            Row titleRow = sheet.createRow(0);
+            Cell titleCell = titleRow.createCell(0);
+            titleCell.setCellValue("BÁO CÁO ĐỐI SOÁT THÁNG " + month + "/" + year);
+            titleCell.setCellStyle(titleStyle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 5));
+
+            // Row 1: Tổng doanh thu
+            Row sumRow1 = sheet.createRow(1);
+            sumRow1.createCell(0).setCellValue("Tổng doanh thu (Gross):");
+            sumRow1.getCell(0).setCellStyle(boldStyle);
+            createNumberCell(sumRow1, 1, totalRevenue, currencyStyle);
+
+            // Row 2: Tổng thuế (Đã tính lại)
+            Row sumRow2 = sheet.createRow(2);
+            sumRow2.createCell(0).setCellValue("Tổng thuế VAT (10%):");
+            sumRow2.getCell(0).setCellStyle(boldStyle);
+            createNumberCell(sumRow2, 1, totalTax, currencyStyle);
+
+            // Row 3: Tổng phí sàn
+            Row sumRow3 = sheet.createRow(3);
+            sumRow3.createCell(0).setCellValue("Tổng phí sàn:");
+            sumRow3.getCell(0).setCellStyle(boldStyle);
+            createNumberCell(sumRow3, 1, totalFee, currencyStyle);
+
+            // Row 4: Tổng thực nhận
+            Row sumRow4 = sheet.createRow(4);
+            sumRow4.createCell(0).setCellValue("TỔNG THỰC NHẬN (NET):");
+            sumRow4.getCell(0).setCellStyle(boldStyle);
+            createNumberCell(sumRow4, 1, totalNet, currencyStyle);
+
+            // Auto size cột
+            for(int i=0; i<headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
 
             workbook.write(out);
             return out.toByteArray();
+
+        } catch (Exception e) {
+            log.error("Error exporting excel for admin", e);
+            throw new RuntimeException("Lỗi xuất file báo cáo phía Admin");
+        }
+    }
+
+    private CellStyle createHeaderStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        style.setFont(font);
+        return style;
+    }
+
+    private void setNumericCell(Row row, int colIndex, BigDecimal value) {
+        Cell cell = row.createCell(colIndex);
+        if (value != null) {
+            cell.setCellValue(value.doubleValue());
+        } else {
+            cell.setCellValue(0);
+        }
+    }
+
+    private void createNumberCell(Row row, int colIndex, BigDecimal value, CellStyle style) {
+        Cell cell = row.createCell(colIndex);
+        if (value != null) {
+            cell.setCellValue(value.doubleValue());
+        } else {
+            cell.setCellValue(0);
+        }
+        if (style != null) {
+            cell.setCellStyle(style);
         }
     }
 

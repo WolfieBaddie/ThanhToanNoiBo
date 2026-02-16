@@ -6,7 +6,7 @@ import { UserVoucherStatusEnum } from '@/types/voucher.type';
 import { formatCurrency } from '@/utils/format';
 import { ExchangeVoucherButton } from "@/components/voucher/ExchangeVoucherButton";
 
-// Component con: Xử lý hiển thị ảnh (nếu lỗi -> hiện icon)
+// Component con: Xử lý hiển thị ảnh
 const VoucherIcon = ({ src, alt }: { src: string | null | undefined, alt: string }) => {
     const [imageError, setImageError] = useState(false);
     if (!src || imageError) {
@@ -45,7 +45,7 @@ const VoucherPage: React.FC = () => {
     }, []);
 
     // Helpers
-    const pageSizeOptions = [5, 10, 20, 50];
+    const pageSizeOptions = [9, 12];
 
     const getCardStyle = (status: string) => {
         switch (status) {
@@ -63,6 +63,55 @@ const VoucherPage: React.FC = () => {
             case 'EXPIRED': return { text: 'Hết hạn', color: 'text-red-500 bg-red-50' };
             default: return { text: status, color: 'text-slate-500' };
         }
+    };
+
+    // [MỚI] Helper render số trang (Copy logic từ MenuPage)
+    const renderPageNumbers = () => {
+        const { pageNumber, totalPages } = pagination;
+        const current = pageNumber + 1;
+        const delta = 1;
+        const range = [];
+        const rangeWithDots = [];
+        let l;
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= current - delta && i <= current + delta)) {
+                range.push(i);
+            }
+        }
+
+        for (let i of range) {
+            if (l) {
+                if (i - l === 2) {
+                    rangeWithDots.push(l + 1);
+                } else if (i - l !== 1) {
+                    rangeWithDots.push('...');
+                }
+            }
+            rangeWithDots.push(i);
+            l = i;
+        }
+
+        return rangeWithDots.map((page, index) => {
+            if (page === '...') {
+                return <span key={`dots-${index}`} className="w-10 h-10 flex items-center justify-center text-slate-400 font-medium">...</span>;
+            }
+            const pNum = page as number;
+            const isActive = pNum === current;
+            return (
+                <button
+                    key={pNum}
+                    onClick={() => changePage(pNum - 1)}
+                    className={`w-10 h-10 rounded-xl text-sm font-bold transition-all ${
+                        isActive
+                            ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20 scale-110'
+                            : 'bg-white border border-slate-200 hover:bg-slate-50 text-slate-600'
+                    }`}
+                >
+                    {pNum}
+                </button>
+            );
+        });
     };
 
     return (
@@ -162,12 +211,31 @@ const VoucherPage: React.FC = () => {
                         })}
                     </div>
 
-                    {/* Pagination */}
+                    {/* [MỚI] Pagination Style số */}
                     {pagination.totalPages > 1 && (
-                        <div className="flex justify-center items-center gap-4 pt-8">
-                            <button onClick={() => changePage(pagination.pageNumber - 1)} disabled={pagination.pageNumber === 0} className="p-3 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-50 bg-white text-slate-600"><ChevronLeft size={20} /></button>
-                            <span className="text-sm font-bold text-slate-700">Trang {pagination.pageNumber + 1} / {pagination.totalPages}</span>
-                            <button onClick={() => changePage(pagination.pageNumber + 1)} disabled={pagination.pageNumber >= pagination.totalPages - 1} className="p-3 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-50 bg-white text-slate-600"><ChevronRight size={20} /></button>
+                        <div className="flex flex-col items-center gap-4 pt-10 pb-8">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => changePage(pagination.pageNumber - 1)}
+                                    disabled={pagination.pageNumber === 0}
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <ChevronLeft size={20} />
+                                </button>
+
+                                {renderPageNumbers()}
+
+                                <button
+                                    onClick={() => changePage(pagination.pageNumber + 1)}
+                                    disabled={pagination.pageNumber >= pagination.totalPages - 1}
+                                    className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <ChevronRight size={20} />
+                                </button>
+                            </div>
+                            <span className="text-xs font-medium text-slate-400">
+                                Đang xem trang {pagination.pageNumber + 1} trên tổng số {pagination.totalPages}
+                            </span>
                         </div>
                     )}
                 </>

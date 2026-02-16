@@ -6,6 +6,7 @@ import com.example.thanhtoannoibo.DTO.Request.Catalog.ServiceFilterRequest;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.MasterServiceResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.PackageResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
+import com.example.thanhtoannoibo.DTO.Response.Catalog.UserServiceResponse;
 import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
 import com.example.thanhtoannoibo.Entity.Catalog.Counter;
@@ -19,13 +20,16 @@ import com.example.thanhtoannoibo.Service.Security.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -46,15 +50,84 @@ public class CatalogService {
     // =========================================================================
 
     @Transactional(readOnly = true)
-    public Page<ServiceResponse> getServices(ServiceFilterRequest filter, Pageable pageable) {
-        // Khách hàng xem: system=true (món chuẩn) hoặc false (món cụ thể) tùy logic app
-        // Ở đây giả sử khách xem tất cả món ACTIVE
-        Specification<AppService> spec = AppServiceSpecification.buildPostSpecification(
-                filter,
-                null, // counterId null -> xem public hoặc system tùy filter
-                false // isAdmin
-        );
-        return serviceRepository.findAll(spec, pageable).map(this::convertToResponse);
+    public Page<UserServiceResponse> getServices(ServiceFilterRequest filter, Pageable pageable) {
+        Specification<AppService> spec = AppServiceSpecification.filter(filter);
+        List<AppService> allFilteredServices = serviceRepository.findAll(spec);
+
+        // 2. Gom nhóm (Group By MasterCode hoặc ServiceCode)
+        Map<String, List<AppService>> groupedMap = allFilteredServices.stream()
+                .collect(Collectors.groupingBy(service -> {
+                    return (service.getMasterServiceCode() != null && !service.getMasterServiceCode().isEmpty())
+                            ? service.getMasterServiceCode()
+                            : service.getServiceCode();
+                }));
+
+        // 3. Map sang DTO
+        List<UserServiceResponse> responseList = new ArrayList<>();
+
+        for (Map.Entry<String, List<AppService>> entry : groupedMap.entrySet()) {
+            List<AppService> group = entry.getValue();
+            if (group.isEmpty()) continue;
+
+            AppService representative = group.get(0); // Lấy phần tử đầu làm đại diện hiển thị
+
+            // Map Options (Các quầy bán)
+            List<UserServiceResponse.ServiceOption> options = group.stream()
+                    .map(svc -> {
+                        String counterName = "Unknown";
+                        String location = "";
+                        String merchantName = "";
+                        UUID counterId = null;
+
+                        if (svc.getCounter() != null) {
+                            counterId = svc.getCounter().getCounterId();
+                            counterName = svc.getCounter().getCounterName();
+                            location = svc.getCounter().getLocation();
+                            if (svc.getCounter().getManagedBy() != null) {
+                                merchantName = svc.getCounter().getManagedBy().getFullName();
+                            }
+                        }
+
+                        return UserServiceResponse.ServiceOption.builder()
+                                .serviceId(svc.getServiceId())
+                                .unitPrice(svc.getUnitPrice())
+                                .counterId(counterId)
+                                .counterName(counterName)
+                                .location(location)
+                                .merchantName(merchantName)
+                                .status(svc.getStatus())
+                                .remainingQuantity(100) // Fake số lượng hoặc lấy từ kho
+                                .build();
+                    })
+                    .collect(Collectors.toList());
+
+            // Tính giá Min/Max
+            BigDecimal minPrice = group.stream().map(AppService::getUnitPrice).min(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
+            BigDecimal maxPrice = group.stream().map(AppService::getUnitPrice).max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
+
+            responseList.add(UserServiceResponse.builder()
+                    .masterServiceCode(entry.getKey())
+                    .serviceName(representative.getServiceName())
+                    .categoryName(representative.getCategory() != null ? representative.getCategory().getCategoryName() : "")
+                    .imageUrl(representative.getImageUrl())
+                    .minPrice(minPrice)
+                    .maxPrice(maxPrice)
+                    .options(options)
+                    .build());
+        }
+
+        // 4. Phân trang thủ công trên List đã gom nhóm (Do số lượng Group < số lượng Record)
+        int start = (int) pageable.getOffset();
+        int end = Math.min((start + pageable.getPageSize()), responseList.size());
+
+        List<UserServiceResponse> pageContent;
+        if (start > responseList.size()) {
+            pageContent = new ArrayList<>();
+        } else {
+            pageContent = responseList.subList(start, end);
+        }
+
+        return new PageImpl<>(pageContent, pageable, responseList.size());
     }
 
     public AppService getServiceById(UUID serviceId) {
@@ -152,6 +225,7 @@ public class CatalogService {
                 .description(entity.getDescription())
                 .price(entity.getPrice())
                 .packageType(entity.getPackageType())
+                .comboType(entity.getComboType())
                 .creditValue(entity.getCreditValue())
                 .status(entity.getStatus())
                 .items(items)

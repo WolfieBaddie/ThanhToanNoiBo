@@ -5,6 +5,7 @@ import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.CatalogDataResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.PackageResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
+import com.example.thanhtoannoibo.DTO.Response.Catalog.UserServiceResponse;
 import com.example.thanhtoannoibo.DTO.Response.PageResponse;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
 import com.example.thanhtoannoibo.Entity.Catalog.ServiceCategory;
@@ -28,7 +29,7 @@ public class CatalogController {
     private final CatalogService catalogService;
 
     @GetMapping("/services")
-    public BaseResponse<PageResponse<ServiceResponse>> getListServices(
+    public BaseResponse<PageResponse<UserServiceResponse>> getListServices(
             // Filter Params
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) UUID categoryId,
@@ -49,7 +50,7 @@ public class CatalogController {
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
 
         // 3. Gọi Service (Service trả về Page<ServiceResponse>)
-        Page<ServiceResponse> pageResult = catalogService.getServices(filterRequest, pageable);
+        Page<UserServiceResponse> pageResult = catalogService.getServices(filterRequest, pageable);
 
         // 4. Convert sang Custom PageResponse và trả về
         return BaseResponse.success(PageResponse.from(pageResult));
@@ -97,19 +98,19 @@ public class CatalogController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        // 1. Gọi lấy Packages (Thường số lượng ít, lấy hết hoặc lấy top active)
         List<PackageResponse> packages = catalogService.getActivePackagesWithDetails();
 
-        // 2. Gọi lấy Services (Có phân trang & filter keyword)
+        // Lấy Services (Gom nhóm)
         ServiceFilterRequest filter = new ServiceFilterRequest();
         filter.setKeyword(keyword);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<ServiceResponse> servicesPage = catalogService.getServices(filter, pageable);
 
-        // 3. Gom lại
+        Page<UserServiceResponse> servicesPage = catalogService.getServices(filter, pageable);
+
+        // Map vào CatalogDataResponse
         CatalogDataResponse data = CatalogDataResponse.builder()
                 .packages(packages)
-                .services(PageResponse.from(servicesPage))
+                .services(PageResponse.from(servicesPage)) // Page này giờ chứa UserServiceResponse
                 .build();
 
         return ResponseEntity.ok(BaseResponse.success(data));

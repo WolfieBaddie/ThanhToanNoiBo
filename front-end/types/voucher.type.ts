@@ -8,20 +8,19 @@ export enum UserVoucherStatusEnum {
     LOCKED = 'LOCKED'
 }
 
-// Cập nhật DTO Response
 export interface UserVoucherResponse {
     voucherId: string;
     voucherCode: string;
-    status: 'ACTIVE' | 'USED' | 'EXPIRED' | 'CANCELLED'; // Ví dụ các status
+    status: string;
 
-    serviceId?: string; // Có thể null nếu là combo
+    serviceId?: string;
     packageId?: string;
     serviceName: string;
     imageUrl: string;
     categoryName?: string;
 
     priceAtPurchase: number;
-    createdAt: string; // ISO Date string
+    createdAt: string;
     expiresAt: string;
     usedAt?: string;
 
@@ -29,7 +28,14 @@ export interface UserVoucherResponse {
     quantity: number;
     qrContent: string;
 
-    // [MỚI] Thêm trường items để hứng danh sách chi tiết
+    totalRemainingUsage?: number;
+
+    comboType?: 'ALL_INCLUSIVE' | 'SELECT_ONE';
+    usageLimit?: number;
+
+    counterName?: string;
+    counterLocation?: string;
+
     items?: UserVoucherDetail[];
 }
 
@@ -38,9 +44,11 @@ export interface UserVoucherDetail {
     serviceId: string;
     serviceName: string;
     imageUrl: string;
-    initialQuantity: number;   // Tổng số lượng mua
-    remainingQuantity: number; // Số lượng còn lại
+    initialQuantity: number;
+    remainingQuantity: number;
+    allocatedPrice?: number;
 }
+
 
 export interface PageResponse<T> {
     items: T[];
@@ -78,6 +86,7 @@ export interface BuyVoucherResponse {
     quantity: number;
     voucherCodes: string[];
     purchasedAt: string;
+    totalUsage?: number;
 }
 
 export interface ExchangeVoucherRequest {

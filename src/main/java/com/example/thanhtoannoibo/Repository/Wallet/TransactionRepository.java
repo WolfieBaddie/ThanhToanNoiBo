@@ -53,6 +53,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
                                         @Param("startDate") LocalDateTime startDate,
                                         @Param("endDate") LocalDateTime endDate);
 
-    @Query(value = "SELECT * FROM app.sp_get_merchant_reconciliation(:merchantId)", nativeQuery = true)
-    List<MerchantReconciliationDTO> getMerchantReconciliation(@Param("merchantId") UUID merchantId);
+    @Query(value = "SELECT * FROM app.sp_get_merchant_reconciliation(:merchantId, :month, :year)", nativeQuery = true)
+    List<MerchantReconciliationDTO> getMerchantReconciliation(
+            @Param("merchantId") UUID merchantId,
+            @Param("month") int month,
+            @Param("year") int year
+    );
 }

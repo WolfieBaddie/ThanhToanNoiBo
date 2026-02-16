@@ -11,33 +11,36 @@ export default {
     theme: {
         extend: {
             colors: {
-                // Cập nhật: Màu nền (App Background) - Xám xanh nhẹ
-                'app-bg': '#E9EEF5',
+                // --- MÀU NỀN ---
+                'app-bg': '#E9EEF5', // Giữ nguyên nền xám xanh nhẹ
 
-                // Cập nhật: Màu đen thương hiệu (Brand Black) - Slate 900
-                // Dùng cho văn bản chính hoặc các nút tối màu để tạo tương phản cao
+                // --- BỘ MÀU THƯƠNG HIỆU (BRANDING) ---
+                // [UPDATED] Đổi về Xanh Dương (Blue-600)
+                'brand-primary': '#2563EB',
+                'brand-secondary': '#1D4ED8', // Blue-700 (Đậm hơn chút cho gradient/hover)
+                'brand-dark': '#0F172A',      // Slate-900 (Màu chữ tối)
+
                 'brand-black': '#0F172A',
 
-                // Cập nhật: Màu chủ đạo (Primary) - Lime rực rỡ
+                // Map lại vào primary
                 primary: {
-                    DEFAULT: '#B6F026',
-                    // Cập nhật glow theo hệ màu Lime (RGB: 182, 240, 38)
-                    glow: 'rgba(182, 240, 38, 0.5)'
+                    DEFAULT: '#2563EB', // [UPDATED] Blue-600
+                    // Cập nhật RGB cho hiệu ứng glow (37, 99, 235) - Màu xanh dương
+                    glow: 'rgba(37, 99, 235, 0.5)'
                 },
 
-                // Giữ nguyên cấu hình Dark Mode (Slate palette)
-                // Lưu ý: dark.base hiện tại trùng mã với brand-black, rất tốt cho tính nhất quán
+                // Dark Mode Palette
                 dark: {
-                    base: '#0f172a',    // Nền tổng thể (Slate 950)
-                    card: '#1e293b',    // Nền Card (Slate 800)
-                    lighter: '#334155', // Hover state
-                    border: '#334155',  // Viền (Slate 700)
+                    base: '#0f172a',
+                    card: '#1e293b',
+                    lighter: '#334155',
+                    border: '#334155',
                 },
 
-                // Các màu nhấn phụ trợ (Giữ nguyên)
+                // Accent Colors
                 accent: {
-                    green: '#10b981', // Emerald 500
-                    purple: '#8b5cf6', // Violet 500
+                    green: '#10b981',
+                    purple: '#8b5cf6',
                 }
             },
             fontFamily: {

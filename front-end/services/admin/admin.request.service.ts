@@ -37,29 +37,27 @@ export const adminRequestService = {
      * - Dùng axiosClient (đã có Cookie Auth + Fix Interceptor)
      * - Nhận về Blob và tạo link tải
      */
-    exportReconciliationReport: async (merchantId: string): Promise<void> => {
-        // Gọi API với responseType là blob để nhận file binary
-        // Biến 'data' ở đây chính là cục Blob (do Interceptor trả về trực tiếp)
+    exportReconciliationReport: async (merchantId: string, month: number, year: number): Promise<void> => {
+        // Gọi API với merchantId, month, year
         const data = await axiosClient.get('/admin/merchant-requests/export-report', {
-            params: { merchantId },
+            params: { merchantId, month, year },
             responseType: 'blob'
         });
 
-        // Tạo Blob object từ dữ liệu trả về
+        // Tạo Blob object
         const blob = new Blob([data as any], {
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         });
 
-        // Tạo link ảo trong DOM để trigger download
+        // Tạo link tải file: admin_reconciliation_report_ID_T2_2026.xlsx
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `admin_reconciliation_report_${merchantId}.xlsx`);
+        link.setAttribute('download', `admin_reconciliation_report_${merchantId}_T${month}_${year}.xlsx`);
         document.body.appendChild(link);
+        link.click();
 
-        link.click(); // Tự động click để tải về
-
-        // Dọn dẹp bộ nhớ
+        // Cleanup
         link.remove();
         window.URL.revokeObjectURL(url);
     }

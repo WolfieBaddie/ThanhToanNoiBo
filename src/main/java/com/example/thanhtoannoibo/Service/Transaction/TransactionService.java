@@ -170,6 +170,8 @@ public class TransactionService {
                 .transactionId(txn.getTransactionId())
                 .transactionRef(txn.getTransactionRef())
                 .amount(txn.getAmount().abs())
+                .taxAmount(txn.getTaxAmount() != null ? txn.getTaxAmount() : BigDecimal.ZERO)
+                .originalAmount(txn.getAmountOriginal() != null ? txn.getAmountOriginal() : txn.getAmount().abs())
                 .status(txn.getStatus().name())
                 .type(txn.getTransactionType().name())
                 .description(txn.getDescription())

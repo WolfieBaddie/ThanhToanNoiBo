@@ -63,4 +63,11 @@ public interface AppServiceRepository extends JpaRepository<AppService, UUID>, J
 
     // [MỚI] Tìm thằng AppService hệ thống (Con đầu tiên, chưa gắn counter)
     Optional<AppService> findByMasterServiceCodeAndCounterIsNull(String masterServiceCode);
+
+    long countByCounter_CounterId(UUID counterId);
+
+    List<AppService> findByCounter_CounterId(UUID counterId);
+
+    @Query("SELECT s FROM AppService s WHERE s.counter.counterId = :counterId AND s.masterServiceCode = :masterCode AND s.status = 'ACTIVE'")
+    Optional<AppService> findByCounterAndMasterServiceCode(@Param("counterId") UUID counterId, @Param("masterCode") String masterCode);
 }

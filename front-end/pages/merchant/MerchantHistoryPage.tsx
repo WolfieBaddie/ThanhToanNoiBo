@@ -1,5 +1,3 @@
-// src/pages/merchant/MerchantHistoryPage.tsx
-
 import React, { useState } from 'react';
 import {
     Search, Calendar, Filter, RefreshCw,
@@ -20,7 +18,7 @@ const MerchantHistoryPage: React.FC = () => {
 
     // --- STATE UI ---
     const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
-    const [isDateModalOpen, setIsDateModalOpen] = useState(false); // State bật/tắt modal
+    const [isDateModalOpen, setIsDateModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
     // --- DATA FETCHING ---
@@ -46,8 +44,6 @@ const MerchantHistoryPage: React.FC = () => {
 
     const handleDateApply = (from: Date, to: Date) => {
         setDateFilter(from, to);
-        // Lưu ý: DateRangeModal của bạn đã tự gọi onClose khi apply,
-        // nhưng set lại false ở đây cũng không sao để đảm bảo state đồng bộ.
         setIsDateModalOpen(false);
     };
 
@@ -66,7 +62,7 @@ const MerchantHistoryPage: React.FC = () => {
 
     const formatDateTime = (iso: string) => {
         const d = new Date(iso);
-        return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+        return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
     };
 
     const getStatusConfig = (status: string) => {
@@ -80,56 +76,106 @@ const MerchantHistoryPage: React.FC = () => {
 
     const hasFilter = !!(filters.fromDate || filters.transactionRef || filters.type);
 
+    // --- PAGINATION HELPER ---
+    const renderPagination = () => {
+        const { page: currentPage = 0 } = filters;
+        const current = currentPage + 1;
+        const delta = 1;
+        const range = [];
+        const rangeWithDots = [];
+        let l;
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= current - delta && i <= current + delta)) {
+                range.push(i);
+            }
+        }
+
+        for (let i of range) {
+            if (l) {
+                if (i - l === 2) {
+                    rangeWithDots.push(l + 1);
+                } else if (i - l !== 1) {
+                    rangeWithDots.push('...');
+                }
+            }
+            rangeWithDots.push(i);
+            l = i;
+        }
+
+        return rangeWithDots.map((page, index) => {
+            if (page === '...') {
+                return <span key={`dots-${index}`} className="w-10 h-10 flex items-center justify-center text-slate-400 font-medium">...</span>;
+            }
+            const pNum = page as number;
+            const isActive = pNum === current;
+            return (
+                <button
+                    key={pNum}
+                    onClick={() => setPage(pNum - 1)}
+                    className={`w-10 h-10 rounded-xl text-sm font-bold transition-all ${isActive
+                        ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20 scale-110'
+                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                    }`}
+                >
+                    {pNum}
+                </button>
+            );
+        });
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 font-sans pb-20">
-            {/* Modal Chi tiết (Loại này là Fixed Center Modal nên để ngoài cùng OK) */}
+            {/* Modal Chi tiết */}
             <TransactionDetailModal
                 isOpen={!!selectedTxId}
                 onClose={() => setSelectedTxId(null)}
                 transactionId={selectedTxId}
+                isUserView={true}
             />
 
             {/* --- MAIN CONTENT --- */}
             <div className="p-4 md:p-8 space-y-6">
 
-                {/* --- HEADER --- */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="flex items-center gap-3">
+                {/* --- HEADER + FILTER BAR (Đã bỏ sticky/float) --- */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-4 rounded-3xl border border-slate-200 shadow-sm">
+
+                    {/* Left: Title & Back Button */}
+                    <div className="flex items-center gap-3 shrink-0">
                         <button
                             onClick={() => navigate(-1)}
-                            className="p-2 hover:bg-white rounded-xl text-slate-500 transition-colors border border-transparent hover:border-slate-200"
+                            className="p-2 hover:bg-slate-50 rounded-xl text-slate-500 transition-colors border border-transparent hover:border-slate-200"
                         >
                             <ArrowLeft size={24} />
                         </button>
                         <div>
-                            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900">Lịch sử giao dịch</h1>
-                            <p className="text-slate-500 font-medium text-sm">Xem và quản lý tất cả biến động số dư.</p>
+                            <h1 className="text-xl font-extrabold text-slate-900">Lịch sử giao dịch</h1>
+                            <p className="text-slate-500 font-medium text-xs hidden sm:block">Biến động số dư & đơn hàng</p>
                         </div>
                     </div>
-                </div>
 
-                {/* --- FILTER BAR --- */}
-                <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col xl:flex-row gap-4 justify-between items-center sticky top-4 z-30">
-                    <div className="flex flex-col md:flex-row gap-3 w-full xl:w-auto flex-1">
-                        {/* Search */}
-                        <div className="relative flex-1">
-                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    {/* Right: Filters & Search */}
+                    <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
+
+                        {/* Search Input */}
+                        <div className="relative min-w-[200px] flex-1">
+                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Tìm mã giao dịch..."
+                                placeholder="Tìm mã GD..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 onKeyDown={handleSearch}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2.5 pl-11 pr-4 text-sm focus:outline-none focus:border-indigo-500 transition-all font-medium text-slate-900 placeholder:text-slate-400"
+                                className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-3 text-sm focus:outline-none focus:border-indigo-500 transition-all font-medium text-slate-900 placeholder:text-slate-400"
                             />
                         </div>
 
                         {/* Type Filter */}
-                        <div className="relative min-w-[180px]">
+                        <div className="relative min-w-[140px]">
                             <select
                                 value={filters.type || 'ALL'}
                                 onChange={handleTypeChange}
-                                className="w-full appearance-none bg-white border border-slate-200 rounded-xl py-2.5 pl-4 pr-10 text-sm font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer"
+                                className="w-full appearance-none bg-white border border-slate-200 rounded-xl py-2 pl-3 pr-8 text-sm font-bold text-slate-600 hover:bg-slate-50 focus:outline-none focus:border-indigo-500 transition-all cursor-pointer h-full"
                             >
                                 <option value="ALL">Tất cả loại</option>
                                 <option value="PAYMENT">Thanh toán</option>
@@ -140,22 +186,20 @@ const MerchantHistoryPage: React.FC = () => {
                             <ArrowDownUp size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                         </div>
 
-                        {/* --- [FIX DATE MODAL HERE] --- */}
-                        {/* Bọc button và Modal trong thẻ div relative để Modal (absolute) hiển thị đúng vị trí */}
+                        {/* Date Filter */}
                         <div className="relative">
                             <button
                                 onClick={() => setIsDateModalOpen(!isDateModalOpen)}
-                                className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border transition-all font-bold text-sm whitespace-nowrap min-w-[140px]
+                                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-xl border transition-all font-bold text-sm whitespace-nowrap h-full min-w-[130px]
                                 ${filters.fromDate
                                     ? 'bg-slate-900 border-slate-900 text-white'
-                                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50'
+                                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                                 }`}
                             >
-                                <Calendar size={18} />
-                                <span>{filters.fromDate ? `${filters.fromDate} - ${filters.toDate || '...'}` : 'Chọn ngày'}</span>
+                                <Calendar size={16} />
+                                <span>{filters.fromDate ? `${filters.fromDate} - ...` : 'Thời gian'}</span>
                             </button>
 
-                            {/* Đặt Modal ngay tại đây */}
                             <DateRangeModal
                                 isOpen={isDateModalOpen}
                                 onClose={() => setIsDateModalOpen(false)}
@@ -164,23 +208,22 @@ const MerchantHistoryPage: React.FC = () => {
                                 initialTo={filters.toDate}
                             />
                         </div>
-                        {/* ----------------------------- */}
 
-                        {hasFilter && (
-                            <button onClick={handleClearFilters} className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors border border-red-100 flex-shrink-0" title="Xóa bộ lọc">
-                                <Filter size={18} />
+                        {/* Actions: Clear & Refresh */}
+                        <div className="flex items-center gap-2">
+                            {hasFilter && (
+                                <button onClick={handleClearFilters} className="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 transition-colors border border-red-100" title="Xóa bộ lọc">
+                                    <Filter size={18} />
+                                </button>
+                            )}
+                            <button onClick={() => refetch()} className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-slate-200 bg-white" title="Làm mới">
+                                <RefreshCw size={18} />
                             </button>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-3 w-full xl:w-auto justify-end">
-                        <button onClick={() => refetch()} className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-200" title="Làm mới">
-                            <RefreshCw size={18} />
-                        </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* --- TABLE CONTENT (Giữ nguyên) --- */}
+                {/* --- TABLE CONTENT --- */}
                 <div className="bg-white rounded-[32px] border border-slate-200 shadow-sm overflow-hidden min-h-[400px] relative">
                     {loading && (
                         <div className="absolute inset-0 bg-white/80 z-20 flex items-center justify-center backdrop-blur-sm">
@@ -216,12 +259,12 @@ const MerchantHistoryPage: React.FC = () => {
                                         >
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0
                                                             ${tx.direction === 'IN' ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
                                                         {tx.direction === 'IN' ? <ArrowDownUp size={18} /> : <RefreshCw size={18} />}
                                                     </div>
                                                     <div>
-                                                        <p className="font-bold text-slate-800 text-sm line-clamp-1">{tx.title}</p>
+                                                        <p className="font-bold text-slate-800 text-sm line-clamp-1 max-w-[200px]">{tx.title}</p>
                                                         <p className="text-xs text-slate-400 font-mono mt-0.5">{tx.transactionRef}</p>
                                                     </div>
                                                 </div>
@@ -229,7 +272,7 @@ const MerchantHistoryPage: React.FC = () => {
                                             <td className="px-6 py-4">
                                                 {tx.partnerInfo ? (
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+                                                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
                                                             {tx.partnerInfo.partnerImage ? (
                                                                 <img src={tx.partnerInfo.partnerImage} className="w-full h-full object-cover" alt="" />
                                                             ) : (
@@ -243,9 +286,15 @@ const MerchantHistoryPage: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-right">
+                                                {tx.isRedemption ? (
+                                                    <span className="text-sm font-bold text-slate-700 block max-w-[150px] truncate ml-auto" title={tx.subTitle}>
+                                                            {tx.displayAmount}
+                                                        </span>
+                                                ) : (
                                                     <span className={`text-sm font-bold ${tx.direction === 'IN' ? 'text-emerald-600' : 'text-slate-900'}`}>
-                                                        {tx.direction === 'IN' ? '+' : '-'}{formatCurrency(tx.amount)}
-                                                    </span>
+                                                            {tx.displayAmount}
+                                                        </span>
+                                                )}
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border ${status.color}`}>
@@ -283,28 +332,24 @@ const MerchantHistoryPage: React.FC = () => {
                     )}
                 </div>
 
-                {/* --- PAGINATION (Giữ nguyên) --- */}
-                {totalPages > 0 && (
+                {/* --- PAGINATION (STYLE ĐÃ SỬA GIỐNG MENU PAGE) --- */}
+                {totalPages > 1 && (
                     <div className="flex justify-center pb-8">
-                        <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setPage(Math.max(0, (filters.page || 0) - 1))}
                                 disabled={filters.page === 0}
-                                className="p-2.5 hover:bg-slate-100 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-500"
+                                className="p-3 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed bg-white transition-colors text-slate-600"
                             >
                                 <ChevronLeft size={20} />
                             </button>
 
-                            <div className="flex items-center gap-1 px-2">
-                                <span className="text-sm font-bold text-slate-600">
-                                    Trang {(filters.page || 0) + 1} / {totalPages}
-                                </span>
-                            </div>
+                            {renderPagination()}
 
                             <button
                                 onClick={() => setPage(Math.min(totalPages - 1, (filters.page || 0) + 1))}
                                 disabled={(filters.page || 0) >= totalPages - 1}
-                                className="p-2.5 hover:bg-slate-100 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-500"
+                                className="p-3 rounded-xl border border-slate-200 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed bg-white transition-colors text-slate-600"
                             >
                                 <ChevronRight size={20} />
                             </button>

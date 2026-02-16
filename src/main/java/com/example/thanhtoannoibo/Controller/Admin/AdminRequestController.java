@@ -90,11 +90,20 @@ public class AdminRequestController {
      * GET /api/admin/merchant-requests/export-report?merchantId=...
      */
     @GetMapping("/export-report")
-    public ResponseEntity<byte[]> exportReport(@RequestParam UUID merchantId) throws Exception {
-        byte[] excelContent = adminRequestService.exportReconciliationReport(merchantId);
+    public ResponseEntity<byte[]> exportReport(
+            @RequestParam UUID merchantId,
+            @RequestParam int month,
+            @RequestParam int year
+    ) throws Exception {
+
+        // Gọi Service với đầy đủ tham số
+        byte[] excelContent = adminRequestService.exportReconciliationReport(merchantId, month, year);
+
+        // Tên file: Admin_DoiSoat_MerchantID_T2_2026.xlsx
+        String fileName = "Doi_soat_T" + month + "_" + year + ".xlsx";
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=admin_reconciliation_report_" + merchantId + ".xlsx")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + fileName)
                 .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
                 .body(excelContent);
     }

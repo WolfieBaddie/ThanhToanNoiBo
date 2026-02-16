@@ -1,26 +1,29 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, LayoutGrid, LayoutList, Utensils, Package, Layers } from 'lucide-react';
+import { Plus, LayoutGrid, LayoutList, Utensils, Package, ChevronLeft, ChevronRight, Store } from 'lucide-react';
 
 // 1. Import Components
 import { MerchantServiceFilter } from "@/components/merchant/MerchantServiceFilter";
 import { MerchantServiceGrid } from "@/components/merchant/MerchantServiceGrid";
 import { MerchantServiceForm, FormMode } from "@/components/merchant/MerchantServiceForm";
-import { MerchantPackageForm } from "@/components/merchant/MerchantPackageForm"; // Form Combo
+import { MerchantPackageForm } from "@/components/merchant/MerchantPackageForm";
 import { Notification } from "@/components/ui/Notification";
+// [MỚI] Import Component Quản lý Quầy
+import { MerchantCounterManagement } from "@/components/merchant/MerchantCounterManagement";
 
 // 2. Import Hooks & Services & Types
 import { useMerchantCatalog } from '@/hooks/useMerchantCatalog';
 import { merchantCatalogService } from '@/services/merchant.catalog.service';
 import { ServiceResponse, PackageResponse } from '@/types/catalog.type';
+// [KHÔI PHỤC] Giữ nguyên import DTO theo ý bạn
 import { CreateServiceRequest, UpdateServiceRequest } from '@/types/merchant.type';
 import { ServiceItem } from "@/types/merchant.types";
 
 const MerchantServicePage: React.FC = () => {
-    // --- HOOKS (Lấy dữ liệu & Actions từ API) ---
+    // --- HOOKS ---
     const {
-        services,           // Danh sách món ăn
-        packages,           // Danh sách gói combo
-        activeTab,          // 'SERVICE' | 'PACKAGE'
+        services,
+        packages,
+        activeTab,
         switchTab,
         categories,
         pagination,
@@ -31,32 +34,25 @@ const MerchantServicePage: React.FC = () => {
         filterByCategory,
         changePage,
         refresh,
-
-        // Actions cho Package
         createPackage,
         updatePackage,
         deletePackage
     } = useMerchantCatalog();
 
     // --- LOCAL STATE ---
-
-    // 1. State cho Form Món ăn (Service)
     const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
     const [editingService, setEditingService] = useState<ServiceItem | null>(null);
     const [serviceFormMode, setServiceFormMode] = useState<FormMode>('CREATE');
 
-    // 2. State cho Form Combo (Package)
     const [isPackageFormOpen, setIsPackageFormOpen] = useState(false);
     const [editingPackage, setEditingPackage] = useState<PackageResponse | null>(null);
     const [packageFormMode, setPackageFormMode] = useState<'CREATE' | 'EDIT'>('CREATE');
 
-    // 3. UI State chung
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'card'>('list');
 
-    // 4. Notification State
     const [notiState, setNotiState] = useState<{
         isOpen: boolean;
         type: 'success' | 'error' | 'warning' | 'info';
@@ -68,15 +64,16 @@ const MerchantServicePage: React.FC = () => {
     };
 
     // --- DATA MAPPING ---
-
-    // Map dữ liệu (Service hoặc Package) về dạng chuẩn để hiển thị lên Grid
     const mappedItems: ServiceItem[] = useMemo(() => {
+        // [MỚI] Nếu là tab Counter thì trả về rỗng để không render Grid
+        if (activeTab === 'COUNTER') return [];
+
         if (activeTab === 'SERVICE') {
             return services.map((s: ServiceResponse) => ({
                 id: s.serviceId,
                 name: s.serviceName,
                 price: s.unitPrice,
-                image: s.imageUrl || '',
+                image: viewMode === 'list' ? '' : (s.imageUrl || ''),
                 category: s.categoryName,
                 isAvailable: s.status === 'ACTIVE',
                 description: '',
@@ -87,30 +84,26 @@ const MerchantServicePage: React.FC = () => {
                 id: p.packageId,
                 name: p.packageName,
                 price: p.price,
-                image: '', // Package chưa có ảnh đại diện
+                image: '',
                 category: 'Combo',
                 isAvailable: p.status === 'ACTIVE',
                 description: p.description || '',
                 masterServiceCode: null,
             } as unknown as ServiceItem));
         }
-    }, [services, packages, activeTab]);
+    }, [services, packages, activeTab, viewMode]);
 
-    // Danh sách món ăn dùng để chọn trong Form Combo
-    const serviceItemsForSelection: ServiceItem[] = useMemo(() => {
+    const serviceItemsForSelection = useMemo(() => {
         return services.map((s: ServiceResponse) => ({
             id: s.serviceId,
             name: s.serviceName,
             price: s.unitPrice,
             image: s.imageUrl || '',
-            category: s.categoryName,
-            isAvailable: s.status === 'ACTIVE',
-            description: '',
-            masterServiceCode: s.masterServiceCode || null,
-        } as unknown as ServiceItem));
+            category: s.categoryName
+        } as any));
     }, [services]);
 
-    // --- SYNC FILTER LOGIC ---
+    // --- EFFECTS ---
     useEffect(() => {
         const timer = setTimeout(() => handleSearch(searchTerm), 500);
         return () => clearTimeout(timer);
@@ -125,25 +118,21 @@ const MerchantServicePage: React.FC = () => {
         setSelectedCategory('');
     };
 
-    // --- HANDLERS: OPEN FORMS ---
-
-    // 1. Mở form Tạo mới (Tùy theo tab đang đứng)
+    // --- HANDLERS ---
     const handleOpenCreate = () => {
         if (activeTab === 'PACKAGE') {
             setEditingPackage(null);
             setPackageFormMode('CREATE');
             setIsPackageFormOpen(true);
-        } else {
+        } else if (activeTab === 'SERVICE') {
             setEditingService(null);
             setServiceFormMode('CREATE');
             setIsServiceFormOpen(true);
         }
     };
 
-    // 2. Mở form Sửa (Edit)
     const handleOpenEdit = (item: ServiceItem) => {
         if (activeTab === 'PACKAGE') {
-            // Tìm lại object PackageResponse gốc từ danh sách packages để lấy đủ thông tin (gồm items bên trong)
             const pkg = packages.find(p => p.packageId === item.id);
             if (pkg) {
                 setEditingPackage(pkg);
@@ -159,7 +148,6 @@ const MerchantServicePage: React.FC = () => {
         }
     };
 
-    // 3. Mở form Đăng ký (Chỉ cho Service hệ thống)
     const handleOpenRegister = (item: ServiceItem) => {
         if (activeTab === 'PACKAGE') {
             showNotification("Chưa hỗ trợ đăng ký Combo hệ thống.", "info");
@@ -170,15 +158,13 @@ const MerchantServicePage: React.FC = () => {
         setIsServiceFormOpen(true);
     };
 
-    // --- HANDLERS: ACTIONS ---
-
     const handleDelete = async (id: number | string) => {
         if (window.confirm("Bạn có chắc muốn xóa mục này? Hành động này không thể hoàn tác.")) {
             try {
                 if (activeTab === 'SERVICE') {
                     await merchantCatalogService.deleteService(String(id));
                 } else {
-                    await deletePackage(String(id)); // Gọi action từ Hook
+                    await deletePackage(String(id));
                 }
                 showNotification("Đã xóa thành công.", "success");
                 refresh();
@@ -194,7 +180,6 @@ const MerchantServicePage: React.FC = () => {
                 const item = services.find(s => s.serviceId === id);
                 if (item) await merchantCatalogService.toggleServiceStatus(String(id), item.status);
             } else {
-                // Với Package, trạng thái thường được sửa trong Form Edit, nhưng nếu muốn toggle nhanh:
                 showNotification("Vui lòng vào 'Sửa' để cập nhật trạng thái Combo.", "info");
                 return;
             }
@@ -204,43 +189,37 @@ const MerchantServicePage: React.FC = () => {
         }
     };
 
-    // --- SUBMIT HANDLERS ---
-
-    // 1. Submit Form Service (Món ăn)
     const handleServiceSubmit = async (formData: Partial<ServiceItem>) => {
         setIsSubmitting(true);
         try {
             if (serviceFormMode === 'REGISTER' && formData.id) {
-                const payload: CreateServiceRequest = {
+                await merchantCatalogService.createService({
                     masterServiceIds: [String(formData.id)],
                     serviceCode: `REG_${formData.id}`,
                     serviceName: formData.name || '',
                     unitPrice: Number(formData.price) || 0,
                     categoryId: formData.category || '',
                     imageUrl: formData.image || ''
-                };
-                await merchantCatalogService.createService(payload);
+                });
                 showNotification("Đăng ký thành công!", "success");
             } else if (serviceFormMode === 'CREATE') {
-                const payload: CreateServiceRequest = {
+                await merchantCatalogService.createService({
                     serviceCode: `REQ_${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
                     serviceName: formData.name || '',
                     unitPrice: Number(formData.price) || 0,
                     categoryId: formData.category || '',
                     imageUrl: formData.image || '',
                     masterServiceIds: []
-                };
-                await merchantCatalogService.createService(payload);
+                });
                 showNotification("Tạo món mới thành công!", "success");
             } else if (serviceFormMode === 'EDIT' && editingService) {
-                const payload: UpdateServiceRequest = {
+                await merchantCatalogService.updateService(String(editingService.id), {
                     serviceName: formData.name,
                     unitPrice: formData.price,
                     imageUrl: formData.image,
                     categoryId: formData.category,
                     status: formData.isAvailable ? 'ACTIVE' : 'INACTIVE'
-                };
-                await merchantCatalogService.updateService(String(editingService.id), payload);
+                });
                 showNotification("Cập nhật thành công!", "success");
             }
             refresh();
@@ -253,17 +232,14 @@ const MerchantServicePage: React.FC = () => {
         }
     };
 
-    // 2. Submit Form Package (Combo)
     const handlePackageSubmit = async (data: any) => {
         setIsSubmitting(true);
         try {
             if (packageFormMode === 'CREATE') {
-                // data đã đúng format CreatePackageRequest
                 await createPackage(data);
                 showNotification("Tạo gói Combo thành công!", "success");
             } else {
                 if (editingPackage) {
-                    // data đã đúng format UpdatePackageRequest
                     await updatePackage(editingPackage.packageId, data);
                     showNotification("Cập nhật Combo thành công!", "success");
                 }
@@ -277,6 +253,53 @@ const MerchantServicePage: React.FC = () => {
         }
     };
 
+    const renderPageNumbers = () => {
+        const { pageNumber, totalPages } = pagination;
+        const current = pageNumber + 1;
+        const delta = 1;
+        const range = [];
+        const rangeWithDots = [];
+        let l;
+
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= current - delta && i <= current + delta)) {
+                range.push(i);
+            }
+        }
+
+        for (let i of range) {
+            if (l) {
+                if (i - l === 2) {
+                    rangeWithDots.push(l + 1);
+                } else if (i - l !== 1) {
+                    rangeWithDots.push('...');
+                }
+            }
+            rangeWithDots.push(i);
+            l = i;
+        }
+
+        return rangeWithDots.map((page, index) => {
+            if (page === '...') {
+                return <span key={`dots-${index}`} className="w-8 h-8 flex items-center justify-center text-slate-400 font-bold">...</span>;
+            }
+            const pNum = page as number;
+            return (
+                <button
+                    key={pNum}
+                    onClick={() => changePage(pNum - 1)}
+                    className={`w-8 h-8 rounded-lg text-sm font-bold transition-all ${
+                        pNum === current
+                            ? 'bg-slate-900 text-white shadow-md shadow-slate-900/20'
+                            : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
+                    }`}
+                >
+                    {pNum}
+                </button>
+            );
+        });
+    };
+
     return (
         <div className="space-y-6 pb-20 relative">
             {/* 1. HEADER */}
@@ -288,7 +311,7 @@ const MerchantServicePage: React.FC = () => {
                     <p className="text-slate-500 font-medium">
                         {isSystemMode
                             ? 'Đăng ký bán các món ăn hoặc gói combo có sẵn.'
-                            : 'Quản lý danh sách món ăn, combo và trạng thái kinh doanh.'}
+                            : 'Quản lý danh sách món ăn, combo và quầy hàng.'}
                     </p>
                 </div>
 
@@ -316,20 +339,34 @@ const MerchantServicePage: React.FC = () => {
                         >
                             <Package size={16} /> Combo
                         </button>
+
+                        {/* [MỚI] Nút Tab Quầy Hàng */}
+                        <button
+                            onClick={() => switchTab('COUNTER')}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+                                activeTab === 'COUNTER'
+                                    ? 'bg-white dark:bg-slate-700 text-emerald-600 shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                            }`}
+                        >
+                            <Store size={16} /> Quầy hàng
+                        </button>
                     </div>
 
-                    {/* VIEW MODE */}
-                    <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-indigo-50 dark:bg-slate-700 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                            <LayoutList size={20} />
-                        </button>
-                        <button onClick={() => setViewMode('card')} className={`p-2 rounded-lg transition-all ${viewMode === 'card' ? 'bg-indigo-50 dark:bg-slate-700 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                            <LayoutGrid size={20} />
-                        </button>
-                    </div>
+                    {/* VIEW MODE SWITCHER (Ẩn khi ở tab Counter) */}
+                    {activeTab !== 'COUNTER' && (
+                        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                            <button onClick={() => setViewMode('list')} className={`p-2 rounded-lg transition-all ${viewMode === 'list' ? 'bg-indigo-50 dark:bg-slate-700 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                                <LayoutList size={20} />
+                            </button>
+                            <button onClick={() => setViewMode('card')} className={`p-2 rounded-lg transition-all ${viewMode === 'card' ? 'bg-indigo-50 dark:bg-slate-700 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
+                                <LayoutGrid size={20} />
+                            </button>
+                        </div>
+                    )}
 
-                    {/* CREATE BUTTON */}
-                    {!isSystemMode && (
+                    {/* Create Button (Ẩn khi ở tab Counter vì Counter quản lý riêng) */}
+                    {!isSystemMode && activeTab !== 'COUNTER' && (
                         <button
                             onClick={handleOpenCreate}
                             className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold shadow-lg transition-transform active:scale-95 text-white
@@ -347,51 +384,58 @@ const MerchantServicePage: React.FC = () => {
                 </div>
             </div>
 
-            {/* 2. FILTER */}
-            <MerchantServiceFilter
-                searchTerm={searchTerm} setSearchTerm={setSearchTerm}
-                selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory}
-                categories={categories} isSystemMode={isSystemMode}
-                onToggleSystemMode={toggleSystemMode} onClear={handleClearFilters}
-            />
+            {/* --- BODY CONTENT --- */}
 
-            {/* 3. GRID */}
-            <MerchantServiceGrid
-                items={mappedItems}
-                isLoading={isLoading}
-                isSystemMode={isSystemMode}
-                viewMode={viewMode}
-                onEdit={isSystemMode ? handleOpenRegister : handleOpenEdit}
-                onDelete={handleDelete}
-                onToggleStatus={handleToggleStatus}
-                onClearFilters={handleClearFilters}
-                onOpenCreate={handleOpenCreate}
-            />
+            {activeTab === 'COUNTER' ? (
+                // [MỚI] Hiển thị Component Quản lý Quầy
+                <MerchantCounterManagement />
+            ) : (
+                // Hiển thị Grid Service/Package cũ
+                <>
+                    <MerchantServiceFilter
+                        searchTerm={searchTerm} setSearchTerm={setSearchTerm}
+                        selectedCategory={selectedCategory} setSelectedCategory={setSelectedCategory}
+                        categories={categories} isSystemMode={isSystemMode}
+                        onToggleSystemMode={toggleSystemMode} onClear={handleClearFilters}
+                    />
 
-            {/* 4. PAGINATION */}
-            {pagination.totalPages > 1 && (
-                <div className="flex justify-center gap-2 mt-8">
-                    <span className="text-sm text-slate-500 self-center">
-                        Trang {pagination.pageNumber + 1} / {pagination.totalPages}
-                     </span>
-                    <div className="flex gap-2">
-                        <button
-                            disabled={pagination.pageNumber === 0}
-                            onClick={() => changePage(pagination.pageNumber - 1)}
-                            className="px-3 py-1 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-sm font-medium"
-                        >Prev</button>
-                        <button
-                            disabled={pagination.pageNumber >= pagination.totalPages - 1}
-                            onClick={() => changePage(pagination.pageNumber + 1)}
-                            className="px-3 py-1 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-sm font-medium"
-                        >Next</button>
-                    </div>
-                </div>
+                    <MerchantServiceGrid
+                        items={mappedItems}
+                        isLoading={isLoading}
+                        isSystemMode={isSystemMode}
+                        viewMode={viewMode}
+                        onEdit={isSystemMode ? handleOpenRegister : handleOpenEdit}
+                        onDelete={handleDelete}
+                        onToggleStatus={handleToggleStatus}
+                        onClearFilters={handleClearFilters}
+                        onOpenCreate={handleOpenCreate}
+                    />
+
+                    {pagination.totalPages > 1 && (
+                        <div className="flex justify-center items-center gap-2 mt-8 pb-10">
+                            <button
+                                onClick={() => changePage(pagination.pageNumber - 1)}
+                                disabled={pagination.pageNumber === 0}
+                                className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <ChevronLeft size={20} />
+                            </button>
+
+                            {renderPageNumbers()}
+
+                            <button
+                                onClick={() => changePage(pagination.pageNumber + 1)}
+                                disabled={pagination.pageNumber >= pagination.totalPages - 1}
+                                className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <ChevronRight size={20} />
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
 
-            {/* 5. FORM MODALS */}
-
-            {/* Form tạo/sửa Món ăn */}
+            {/* 5. MODALS */}
             <MerchantServiceForm
                 isOpen={isServiceFormOpen}
                 onClose={() => setIsServiceFormOpen(false)}
@@ -402,18 +446,16 @@ const MerchantServicePage: React.FC = () => {
                 mode={serviceFormMode}
             />
 
-            {/* Form tạo/sửa Gói Combo */}
             <MerchantPackageForm
                 isOpen={isPackageFormOpen}
                 onClose={() => setIsPackageFormOpen(false)}
                 onSubmit={handlePackageSubmit}
-                availableServices={serviceItemsForSelection} // Truyền danh sách món để chọn
+                availableServices={serviceItemsForSelection}
                 isSubmitting={isSubmitting}
-                mode={packageFormMode}        // CREATE | EDIT
-                initialData={editingPackage}  // Dữ liệu cũ nếu đang Edit
+                mode={packageFormMode}
+                initialData={editingPackage}
             />
 
-            {/* 6. NOTIFICATION */}
             <Notification
                 isOpen={notiState.isOpen} type={notiState.type}
                 message={notiState.message} onClose={() => setNotiState(prev => ({ ...prev, isOpen: false }))}

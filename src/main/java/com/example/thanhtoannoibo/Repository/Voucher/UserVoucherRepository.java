@@ -59,4 +59,13 @@ public interface UserVoucherRepository extends JpaRepository<UserVoucher, UUID>,
     List<UserVoucher> findActiveVouchersByServiceIds(@Param("serviceIds") List<UUID> serviceIds);
 
     List<UserVoucher> findByPackageIdAndStatus(UUID packageId, UserVoucherStatus status);
+
+    @Query("SELECT v FROM UserVoucher v WHERE v.status = 'ACTIVE' AND v.packageId IN :packageIds")
+    List<UserVoucher> findActiveVouchersByPackageIds(@Param("packageIds") List<UUID> packageIds);
+
+    @Query("SELECT v FROM UserVoucher v WHERE v.status = 'ACTIVE' AND (v.serviceId IN :serviceIds OR v.packageId IN :packageIds)")
+    List<UserVoucher> findActiveVouchersByServiceIdsOrPackageIds(
+            @Param("serviceIds") List<UUID> serviceIds,
+            @Param("packageIds") List<UUID> packageIds
+    );
 }

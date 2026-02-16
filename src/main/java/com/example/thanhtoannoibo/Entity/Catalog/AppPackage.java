@@ -41,6 +41,12 @@ public class AppPackage {
     @Column(name = "credit_value")
     private BigDecimal creditValue;
 
+    @Column(name = "combo_type")
+    private String comboType;
+
+    @Column(name = "usage_limit")
+    private Integer usageLimit;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 20)
     @Builder.Default

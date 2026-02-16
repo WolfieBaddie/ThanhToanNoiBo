@@ -92,11 +92,61 @@ public class QrCodeService {
             throw new AppException(ErrorCode.VOUCHER_USED_OR_EXPIRED);
         }
 
-        // 3. XỬ LÝ SỐ LƯỢNG
         int quantityToUse = (request.getQuantity() != null && request.getQuantity() > 0) ? request.getQuantity() : 1;
 
-        if (linkedVoucher.getQuantity() < quantityToUse) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
+        // Xác định loại Combo (Mặc định là SELECT_ONE / SINGLE vì dùng chung logic Ví Tổng)
+        String comboType = "SELECT_ONE";
+        if (linkedVoucher.getPackageId() != null) {
+            AppPackage pkg = appPackageRepository.findById(linkedVoucher.getPackageId()).orElse(null);
+            if (pkg != null && pkg.getComboType() != null) {
+                comboType = pkg.getComboType();
+            } else if (pkg != null) {
+                comboType = "ALL_INCLUSIVE"; // Mặc định nếu package không set type
+            }
+        }
+
+        int finalQrUsageLimit = quantityToUse;
+
+        if ("ALL_INCLUSIVE".equals(comboType)) {
+
+            List<UserVoucherDetail> details = userVoucherDetailRepository.findByUserVoucher(linkedVoucher);
+            if (details.isEmpty()) {
+                if (linkedVoucher.getTotalRemainingUsage() < quantityToUse)
+                    throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+            } else {
+                for (UserVoucherDetail detail : details) {
+                    if (detail.getRemainingQuantity() < quantityToUse) {
+                        throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+                    }
+                }
+            }
+
+
+            int totalRealItemsLeft = linkedVoucher.getTotalRemainingUsage();
+            int totalOwnedPackages = linkedVoucher.getQuantity();
+
+            if (totalOwnedPackages > 0) {
+                long calculatedLimit = ((long) totalRealItemsLeft * quantityToUse) / totalOwnedPackages;
+
+                finalQrUsageLimit = (int) calculatedLimit;
+
+                if (finalQrUsageLimit < quantityToUse && totalRealItemsLeft >= quantityToUse) {
+                    finalQrUsageLimit = quantityToUse;
+                }
+
+                finalQrUsageLimit = Math.min(finalQrUsageLimit, totalRealItemsLeft);
+
+            } else {
+                finalQrUsageLimit = totalRealItemsLeft;
+            }
+
+        }
+        else {
+            if (linkedVoucher.getTotalRemainingUsage() < quantityToUse) {
+                throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+            }
+
+            finalQrUsageLimit = quantityToUse;
         }
 
         // 4. TÍNH TOÁN GIÁ TRỊ & HẠN DÙNG
@@ -123,7 +173,7 @@ public class QrCodeService {
 
             qrCode.setCodeString(newCodeString);       // Cập nhật mã hiển thị mới
             qrCode.setAmount(totalQrValue);            // Cập nhật giá trị (đề phòng giá thay đổi)
-            qrCode.setUsageLimit(quantityToUse);       // Cập nhật số lượng
+            qrCode.setUsageLimit(finalQrUsageLimit);       // Cập nhật số lượng
             qrCode.setUsageCount(0);                   // Reset số lần dùng
             qrCode.setStatus(QrCodeStatus.ACTIVE);     // Kích hoạt lại
             qrCode.setExpiresAt(proposedQrExpiry);     // Gia hạn
@@ -139,7 +189,7 @@ public class QrCodeService {
                     .payerVoucher(linkedVoucher)
                     .ownerType("USER")
                     .amount(totalQrValue)
-                    .usageLimit(quantityToUse)
+                    .usageLimit(finalQrUsageLimit)
                     .usageCount(0)
                     .status(QrCodeStatus.ACTIVE)
                     .expiresAt(proposedQrExpiry)
@@ -195,25 +245,92 @@ public class QrCodeService {
     public ProcessQrResponse processTransaction(ProcessQrRequest req, HttpServletRequest httpRequest) {
         User merchant = authService.getCurrentUser(httpRequest);
 
-        // 1. Validate Merchant & Quầy
+        // 1. VALIDATE MERCHANT & QUẦY
         Counter merchantCounter = counterRepository.findByManagedBy_UserId(merchant.getUserId())
                 .orElseThrow(() -> new AppException(ErrorCode.MERCHANT_NO_COUNTER));
 
-        // 2. Validate QR
+        // 2. VALIDATE QR & LẤY THÔNG TIN VOUCHER
         QRCode targetQr = qrCodeRepository.findActiveQRCodeForUpdate(req.getQrCode())
                 .orElseThrow(() -> new AppException(ErrorCode.QR_CODE_NOT_FOUND));
 
         if (targetQr.getStatus() != QrCodeStatus.ACTIVE) {
             throw new AppException(ErrorCode.QR_CODE_EXPIRED);
         }
-
         if (targetQr.getExpiresAt() != null && targetQr.getExpiresAt().isBefore(LocalDateTime.now())) {
             targetQr.setStatus(QrCodeStatus.EXPIRED);
             qrCodeRepository.save(targetQr);
             throw new AppException(ErrorCode.QR_CODE_EXPIRED);
         }
 
-        // 3. KIỂM TRA & CẬP NHẬT QR
+        UserVoucher voucher = targetQr.getPayerVoucher();
+
+        // =========================================================================
+        // [FIX] XÁC ĐỊNH SERVICE GỐC (ORIGIN) - KHÔNG THROW LỖI VỘI
+        // =========================================================================
+        AppService originService = null;
+
+        // Trường hợp 1: Client gửi lên (User chọn món cụ thể trong Combo để dùng)
+        if (req.getServiceId() != null) {
+            originService = appServiceRepository.findById(req.getServiceId())
+                    .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
+        }
+        // Trường hợp 2: Voucher là vé lẻ (có gắn serviceId sẵn)
+        else if (voucher.getServiceId() != null) {
+            originService = appServiceRepository.findById(voucher.getServiceId())
+                    .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
+        }
+        // Trường hợp 3: Voucher là Combo (Package) và dùng trọn gói -> originService = NULL (Hợp lệ)
+
+        // =========================================================================
+        // [MỚI] VALIDATE QUYỀN PHỤC VỤ & KHỚP LỆNH QUẦY (CROSS-COUNTER)
+        // =========================================================================
+        AppService actualServiceToProcess = null;
+
+        if (originService != null) {
+            // A. NẾU LÀ DÙNG MÓN CỤ THỂ (Lẻ hoặc trong Combo)
+            boolean isDirectOwner = false;
+
+            // Check 1: Quét đúng quầy gốc?
+            if (originService.getCounter() != null &&
+                    originService.getCounter().getCounterId().equals(merchantCounter.getCounterId())) {
+                isDirectOwner = true;
+                actualServiceToProcess = originService;
+            }
+
+            // Check 2: Nếu khác quầy, check Master Code (Quét chéo)
+            if (!isDirectOwner) {
+                if (originService.getMasterServiceCode() != null) {
+                    // Tìm xem quầy hiện tại có bán món tương tự không
+                    Optional<AppService> matchingService = appServiceRepository.findByCounterAndMasterServiceCode(
+                            merchantCounter.getCounterId(),
+                            originService.getMasterServiceCode()
+                    );
+
+                    if (matchingService.isPresent()) {
+                        // Tráo đổi service: Ghi nhận doanh thu cho service của quầy này
+                        actualServiceToProcess = matchingService.get();
+                    } else {
+                        throw new AppException(ErrorCode.SERVICE_NOT_BELONG_TO_COUNTER);
+                    }
+                } else {
+                    // Món riêng (SVC_OWN) -> Bắt buộc đúng quầy
+                    throw new AppException(ErrorCode.COUNTER_NOT_FOUND);
+                }
+            }
+        } else {
+            // B. NẾU LÀ DÙNG GÓI COMBO (Không xác định service cụ thể)
+            // Logic: Gói Combo (Package) thường là của Hệ thống (System) bán -> Dùng ở đâu cũng được
+            // Hoặc nếu Package do Merchant tạo -> Phải check owner (Logic này tùy bạn, ở đây tôi cho phép nếu là System Package)
+
+            if (voucher.getPackageId() == null) {
+                // Trường hợp vô lý: Không có Service ID cũng không có Package ID
+                throw new AppException(ErrorCode.INVALID_REQUEST);
+            }
+        }
+
+        // =========================================================================
+        // 3. CẬP NHẬT TRẠNG THÁI QR (Usage Count)
+        // =========================================================================
         int currentUsage = targetQr.getUsageCount();
         int maxLimit = targetQr.getUsageLimit();
         int remainingQrUsage = maxLimit - currentUsage;
@@ -232,46 +349,127 @@ public class QrCodeService {
         qrCodeRepository.save(targetQr);
 
         // =========================================================================
-        // 4. XỬ LÝ NGHIỆP VỤ
+        // 4. CHUẨN BỊ DỮ LIỆU GHI LOG & TRỪ KHO
         // =========================================================================
-        UserVoucher voucher = targetQr.getPayerVoucher();
-        AppService targetService = null;
         AppPackage targetPackage = null;
-        String transactionDesc = req.getDescription(); // Description gửi từ Frontend hoặc tạo bên dưới
-
         if (voucher.getPackageId() != null) {
-            targetPackage = appPackageRepository.findById(voucher.getPackageId())
-                    .orElse(null);
+            targetPackage = appPackageRepository.findById(voucher.getPackageId()).orElse(null);
         }
 
-        if (req.getServiceId() != null) {
-            targetService = appServiceRepository.findById(req.getServiceId())
-                    .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
-        } else if (voucher.getServiceId() != null) {
-            targetService = appServiceRepository.findById(voucher.getServiceId())
-                    .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
-        }
+        // [FIX] Gán targetService bằng cái đã qua xử lý (có thể null nếu dùng Package)
+        AppService targetService = actualServiceToProcess;
 
-        // Nếu description trống, tự build description mặc định
+        // Build Description
+        String transactionDesc = req.getDescription();
         if (transactionDesc == null || transactionDesc.isEmpty()) {
             if (targetService != null) {
                 transactionDesc = String.format("Đổi %d %s", qtyToProcess, targetService.getServiceName());
             } else if (targetPackage != null) {
                 transactionDesc = String.format("Sử dụng gói %s", targetPackage.getPackageName());
             } else {
-                transactionDesc = "Sử dụng tại " + merchantCounter.getCounterName();
+                transactionDesc = "Sử dụng dịch vụ tại " + merchantCounter.getCounterName();
             }
         }
 
         // 5. Trừ kho Voucher Cha (Master)
-        if (voucher.getQuantity() < qtyToProcess) {
-            throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+        int actualDeductQty = 0;
+        if (req.getItems() != null && !req.getItems().isEmpty()) {
+            actualDeductQty = req.getItems().stream().mapToInt(ProcessQrRequest.QrItemRequest::getQuantity).sum();
+        } else {
+            actualDeductQty = (req.getQuantity() != null && req.getQuantity() > 0) ? req.getQuantity() : 1;
         }
-        voucher.setQuantity(voucher.getQuantity() - qtyToProcess);
-        if (voucher.getQuantity() == 0) {
-            voucher.setStatus(UserVoucherStatus.EXPIRED);
+
+        // TRƯỜNG HỢP 1: VÉ LẺ (Service Lẻ)
+        if (voucher.getPackageId() == null) {
+            // Vé lẻ thì cứ trừ thẳng Ví Tổng
+            if (voucher.getTotalRemainingUsage() < actualDeductQty) {
+                throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+            }
+            voucher.setTotalRemainingUsage(voucher.getTotalRemainingUsage() - actualDeductQty);
+
+            // Trừ Detail (nếu có logic detail cho vé lẻ)
+            if (voucher.getServiceId() != null) {
+                deductVoucherItem(voucher, voucher.getServiceId(), actualDeductQty);
+            }
+        }
+        // TRƯỜNG HỢP 2 & 3: COMBO (Có PackageId)
+        else {
+            AppPackage pkg = appPackageRepository.findById(voucher.getPackageId()).orElse(null);
+            String comboType = (pkg != null && pkg.getComboType() != null) ? pkg.getComboType() : "ALL_INCLUSIVE";
+
+            if ("SELECT_ONE".equals(comboType)) {
+                // [SELECT ONE]: Trừ Ví Tổng trước (Chốt chặn)
+                if (voucher.getTotalRemainingUsage() < actualDeductQty) {
+                    throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+                }
+                voucher.setTotalRemainingUsage(voucher.getTotalRemainingUsage() - actualDeductQty);
+
+                // Sau đó trừ món khách chọn
+                if (req.getItems() != null) {
+                    for (ProcessQrRequest.QrItemRequest item : req.getItems()) {
+                        deductVoucherItem(voucher, item.getServiceId(), item.getQuantity());
+                    }
+                } else if (req.getServiceId() != null) {
+                    deductVoucherItem(voucher, req.getServiceId(), actualDeductQty);
+                }
+            }
+            else {
+                // [ALL INCLUSIVE]: Xử lý Combo Trọn Gói (Hỗ trợ dùng lẻ hoặc dùng cả gói)
+
+                // TRƯỜNG HỢP 1: Client gửi danh sách món cụ thể (Quét lẻ món trong gói)
+                if (req.getItems() != null && !req.getItems().isEmpty()) {
+                    // actualDeductQty ở trên đã tính là tổng sum(quantity) của các items
+
+                    // Duyệt qua từng item yêu cầu và trừ đúng món đó
+                    for (ProcessQrRequest.QrItemRequest item : req.getItems()) {
+                        // Tái sử dụng hàm deductVoucherItem để tìm detail và trừ kho an toàn
+                        deductVoucherItem(voucher, item.getServiceId(), item.getQuantity());
+                    }
+
+                    // Update ví tổng (TotalRemainingUsage) để hiển thị cho khớp
+                    // Trừ đi tổng số lượng item đã dùng (actualDeductQty)
+                    if (voucher.getTotalRemainingUsage() >= actualDeductQty) {
+                        voucher.setTotalRemainingUsage(voucher.getTotalRemainingUsage() - actualDeductQty);
+                    } else {
+                        voucher.setTotalRemainingUsage(0);
+                    }
+                }
+
+                // TRƯỜNG HỢP 2: Client KHÔNG gửi items (Quét trọn gói theo số lượng gói)
+                else {
+                    // actualDeductQty lúc này là SỐ GÓI (packages) user muốn dùng (VD: Dùng 1 gói)
+                    List<UserVoucherDetail> details = userVoucherDetailRepository.findByUserVoucher(voucher);
+                    int totalItemsDeducted = 0;
+
+                    for (UserVoucherDetail detail : details) {
+                        // Với All Inclusive, dùng 1 gói nghĩa là trừ 1 đơn vị của TẤT CẢ các món
+                        if (detail.getRemainingQuantity() < actualDeductQty) {
+                            throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+                        }
+                        detail.setRemainingQuantity(detail.getRemainingQuantity() - actualDeductQty);
+                        userVoucherDetailRepository.save(detail);
+
+                        // Cộng dồn tổng số item thực tế bị trừ để update ví tổng
+                        // VD: Gói có 2 món, dùng 1 gói -> Tổng trừ 2 items
+                        totalItemsDeducted += actualDeductQty;
+                    }
+
+                    // Update ví tổng
+                    if (voucher.getTotalRemainingUsage() >= totalItemsDeducted) {
+                        voucher.setTotalRemainingUsage(voucher.getTotalRemainingUsage() - totalItemsDeducted);
+                    } else {
+                        voucher.setTotalRemainingUsage(0);
+                    }
+                }
+            }
+        }
+
+        // Check trạng thái USED
+        if (voucher.getTotalRemainingUsage() == 0) {
+            voucher.setStatus(UserVoucherStatus.USED);
             voucher.setUsedAt(LocalDateTime.now());
         }
+
         userVoucherRepository.save(voucher);
 
         // 6. Cộng tiền Merchant
@@ -308,7 +506,7 @@ public class QrCodeService {
                 .amount(transactionValue)
                 .balanceAfter(merchantCredit.getBalance())
                 .status(TransactionStatus.COMPLETED)
-                // .description(transactionDesc) // Set tạm, sẽ update sau nếu cần chi tiết
+                .description(transactionDesc) // Set tạm, sẽ update sau nếu cần chi tiết
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -320,6 +518,11 @@ public class QrCodeService {
         if (targetPackage != null) {
             metadata.put("package_name", targetPackage.getPackageName());
         }
+
+        if (targetService != null) {
+            metadata.put("service_name", targetService.getServiceName());
+        }
+
         mainTxn.setMetadata(metadata);
         transactionRepository.save(mainTxn);
 
@@ -341,20 +544,19 @@ public class QrCodeService {
                     PaymentDetail detail = PaymentDetail.builder()
                             .transaction(mainTxn)
                             .packageRef(targetPackage)
-                            .service(s)
+                            .service(s) // Service cụ thể
                             .quantity(BigDecimal.valueOf(itemReq.getQuantity()))
+                            // Nếu là đổi voucher thì amount = 0 hoặc giá định danh, tùy logic kinh doanh
                             .amount(s.getUnitPrice().multiply(BigDecimal.valueOf(itemReq.getQuantity())))
                             .createdAt(LocalDateTime.now())
                             .build();
                     paymentDetails.add(detail);
 
-                    // Build log chi tiết: "2 x Cơm, 1 x Nước"
                     if(finalLogBuilder.length() > 0) finalLogBuilder.append(", ");
                     finalLogBuilder.append(itemReq.getQuantity()).append(" x ").append(s.getServiceName());
                 }
             }
         }
-        // TRƯỜNG HỢP 2: Frontend không gửi items (Vé lẻ)
         else {
             PaymentDetail detail = PaymentDetail.builder()
                     .transaction(mainTxn)
@@ -366,11 +568,10 @@ public class QrCodeService {
                     .build();
             paymentDetails.add(detail);
 
-            // Build log đơn giản
             if (targetService != null) {
                 finalLogBuilder.append(qtyToProcess).append(" x ").append(targetService.getServiceName());
             } else if (targetPackage != null) {
-                finalLogBuilder.append(qtyToProcess).append(" x ").append(targetPackage.getPackageName());
+                finalLogBuilder.append(qtyToProcess).append(" x Gói ").append(targetPackage.getPackageName());
             } else {
                 finalLogBuilder.append("Voucher ").append(qtyToProcess).append(" lượt");
             }
@@ -428,6 +629,26 @@ public class QrCodeService {
                 .status("SUCCESS")
                 .message("Giao dịch thành công.")
                 .build();
+    }
+
+
+    private void deductVoucherItem(UserVoucher voucher, UUID serviceId, int quantityToDeduct) {
+        // 1. Tìm chi tiết (UserVoucherDetail) dựa vào VoucherID và ServiceID
+        UserVoucherDetail detail = userVoucherDetailRepository.findDetailByVoucherAndService(
+                voucher.getVoucherId(),
+                serviceId // Truyền đúng kiểu dữ liệu (UUID)
+        ).orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_IN_VOUCHER));
+
+        // 2. Kiểm tra số lượng tồn kho
+        if (detail.getRemainingQuantity() < quantityToDeduct) {
+            throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+        }
+
+        // 3. Trừ số lượng
+        detail.setRemainingQuantity(detail.getRemainingQuantity() - quantityToDeduct);
+
+        // 4. Lưu lại
+        userVoucherDetailRepository.save(detail);
     }
 
     private String formatMoney(BigDecimal amount) {
@@ -512,14 +733,25 @@ public class QrCodeService {
         String voucherCode = (voucher != null) ? voucher.getVoucherCode() : null;
         UUID voucherId = (voucher != null) ? voucher.getVoucherId() : null;
         User owner = qr.getOwner();
-
+        Integer currentTotalUsage = 0;
+        String comboType = "ALL_INCLUSIVE";
+        String packageName = null;
         List<ServiceResponse> includedServices = new ArrayList<>();
 
         if (voucher != null) {
-            // [LOGIC MỚI] Thay vì check Package/Service, ta lấy từ bảng chi tiết (UserVoucherDetail)
-            // Việc này cover cả trường hợp Voucher Lẻ và Voucher Combo
+            currentTotalUsage = voucher.getTotalRemainingUsage();
             List<UserVoucherDetail> details = userVoucherDetailRepository.findByUserVoucher(voucher);
 
+            if (voucher.getPackageId() != null) {
+                AppPackage pkg = appPackageRepository.findById(voucher.getPackageId()).orElse(null);
+                if (pkg != null) {
+                    comboType = pkg.getComboType();
+                    packageName = pkg.getPackageName();
+                }
+            } else {
+                comboType = "SELECT_ONE";
+                packageName = voucher.getServiceName();
+            }
             if (details != null && !details.isEmpty()) {
                 // Map từ UserVoucherDetail sang ServiceResponse
                 includedServices = details.stream()
@@ -551,6 +783,9 @@ public class QrCodeService {
 
                 .includedServices(includedServices) // Danh sách này giờ đã có remainingQuantity
                 .usageLimit(qr.getUsageLimit())
+                .totalRemainingUsage(currentTotalUsage)
+                .comboType(comboType)
+                .packageName(packageName)
                 .build();
     }
 

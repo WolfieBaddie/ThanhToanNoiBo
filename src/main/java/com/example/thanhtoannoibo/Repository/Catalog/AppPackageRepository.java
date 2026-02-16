@@ -38,4 +38,8 @@ public interface AppPackageRepository extends JpaRepository<AppPackage, UUID>, J
             "WHERE p.packageId = :id")
     Optional<AppPackage> findByIdWithServices(@Param("id") UUID id);
 
+    long countByCounter_CounterId(UUID counterId);
+
+    List<AppPackage> findByCounter_CounterId(UUID counterId);
+
 }

@@ -103,7 +103,7 @@ public class AdminPackageManager {
                 .packageName(request.getPackageName())
                 .description(request.getDescription())
                 .price(request.getPrice())
-                .packageType(request.getPackageType())
+                .comboType(request.getComboType() != null ? request.getComboType() : "ALL_INCLUSIVE")
                 .creditValue(request.getCreditValue())
                 .status(CatalogStatus.ACTIVE) // Admin tạo mặc định Active
                 .services(new HashSet<>(servicesToAdd))
@@ -176,6 +176,11 @@ public class AdminPackageManager {
         if (StringUtils.hasText(request.getDescription()) && !request.getDescription().equals(pkg.getDescription())) {
             changeDetails.append("Cập nhật mô tả. ");
             pkg.setDescription(request.getDescription());
+            isUpdated = true;
+        }
+        if (request.getComboType() != null && !request.getComboType().equals(pkg.getComboType())) {
+            changeDetails.append(String.format("Loại Combo: %s -> %s. ", pkg.getComboType(), request.getComboType()));
+            pkg.setComboType(request.getComboType());
             isUpdated = true;
         }
 
@@ -339,6 +344,7 @@ public class AdminPackageManager {
                 .description(entity.getDescription())
                 .price(entity.getPrice())
                 .packageType(entity.getPackageType())
+                .comboType(entity.getComboType())
                 .creditValue(entity.getCreditValue())
                 .status(entity.getStatus())
                 .items(items)

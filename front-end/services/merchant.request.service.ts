@@ -18,11 +18,23 @@ export const merchantService = {
     getRequestDetail: (id: string): Promise<MerchantRequestResponse> =>
         axiosClient.get(`/merchant/requests/${id}`),
 
-    // [CẬP NHẬT] Lấy URL để xuất Excel (Dùng window.location để browser tự tải)
-    getExportReconciliationUrl: () => {
-        const baseUrl = axiosClient.defaults.baseURL || '';
-        // Xử lý để tránh 2 dấu gạch chéo nếu baseURL có / ở cuối
-        const cleanBaseUrl = baseUrl.replace(/\/$/, '');
-        return `${cleanBaseUrl}/merchant/reconciliation/export`;
-    }
+    exportReconciliationExcel: async (month: number, year: number): Promise<void> => {
+        const response = await axiosClient.get('/merchant/reconciliation/export', {
+            params: { month, year }, // Truyền tham số
+            responseType: 'blob'
+        });
+
+        // Xử lý file blob
+        const blob = new Blob([response as any], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `DoiSoat_T${month}_${year}.xlsx`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    },
 };

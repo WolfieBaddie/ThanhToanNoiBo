@@ -61,26 +61,27 @@ public class MerchantRequestController {
      * API Đối soát: Lấy danh sách giao dịch chi tiết (tên khách, voucher, số tiền...)
      */
     @GetMapping("/reconciliation")
-    public BaseResponse<List<MerchantReconciliationDTO>> getReconciliationData() {
-        // 1. Lấy User hiện tại
-        User currentUser = authService.getCurrentUser(request);
-
-        // 2. Gọi Procedure thông qua Service để lấy dữ liệu đối soát phẳng
-        List<MerchantReconciliationDTO> data = merchantRequestService.getReconciliationData(currentUser.getUserId());
-
-        return BaseResponse.success(data);
+    public BaseResponse<List<MerchantReconciliationDTO>> getReconciliation(
+            @RequestParam UUID merchantId,
+            @RequestParam int month,
+            @RequestParam int year
+    ) {
+        return BaseResponse.success(merchantRequestService.getReconciliationData(merchantId, month, year));
     }
 
     @GetMapping("/reconciliation/export")
-    public ResponseEntity<byte[]> exportExcel() throws Exception {
+    public ResponseEntity<byte[]> exportExcel(
+            @RequestParam int month,
+            @RequestParam int year
+    ) throws Exception {
         // 1. Lấy User hiện tại
         User currentUser = authService.getCurrentUser(request);
 
-        // 2. Gọi Service xuất file
-        byte[] excelContent = merchantRequestService.exportReconciliationExcel(currentUser.getUserId());
+        // 2. Gọi Service xuất file (Truyền đúng tháng/năm)
+        byte[] excelContent = merchantRequestService.exportReconciliationExcel(currentUser.getUserId(), month, year);
 
-        // 3. Trả về Header cho phép tải file
-        String fileName = "DoiSoat_" + currentUser.getUsername() + ".xlsx";
+        // 3. Tạo tên file: DoiSoat_Username_T2_2026.xlsx
+        String fileName = String.format("DoiSoat_%s_T%d_%d.xlsx", currentUser.getUsername(), month, year);
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + fileName)

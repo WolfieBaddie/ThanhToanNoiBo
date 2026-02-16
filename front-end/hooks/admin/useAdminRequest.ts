@@ -93,9 +93,22 @@ export const useAdminRequest = () => {
     };
 
     // Xuất báo cáo
-    const exportReport = async (merchantId: string) => {
-        // Trả về promise để component cha có thể await và hiện notification
-        return await adminRequestService.exportReconciliationReport(merchantId);
+    const exportReport = async (merchantId: string, month: number, year: number) => {
+        try {
+            // Hiển thị loading toast vì việc tải file có thể mất vài giây
+            const promise = adminRequestService.exportReconciliationReport(merchantId, month, year);
+
+            await toast.promise(promise, {
+                loading: 'Đang tạo báo cáo...',
+                success: 'Đã tải xuống báo cáo thành công!',
+                error: 'Lỗi khi xuất báo cáo.'
+            });
+
+            return true;
+        } catch (error) {
+            console.error("Export error:", error);
+            return false;
+        }
     };
 
     return {

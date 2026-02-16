@@ -124,14 +124,6 @@ export const MainLayout: React.FC<MainLayoutProps> = () => {
                             <Menu size={24} />
                         </button>
 
-                        <div className="hidden md:flex items-center bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-2.5 w-80 transition-all focus-within:ring-2 focus-within:ring-primary dark:focus-within:ring-slate-700 shadow-sm">
-                            <Search size={18} className="text-slate-400 mr-2" />
-                            <input
-                                type="text"
-                                placeholder="Tìm kiếm..."
-                                className="bg-transparent border-none outline-none text-sm w-full text-slate-700 dark:text-slate-200 placeholder:text-slate-400 font-medium"
-                            />
-                        </div>
                     </div>
 
                     <div className="flex items-center gap-4 sm:gap-6">

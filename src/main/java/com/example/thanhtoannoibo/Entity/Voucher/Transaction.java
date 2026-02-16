@@ -40,7 +40,6 @@ public class Transaction {
     private UserCredit credit;
     // --------------------
 
-    // Người nhận tiền (nếu có - giữ nguyên logic cũ)
     @ManyToOne
     @JoinColumn(name = "payee_user_id")
     private User payee;
@@ -51,6 +50,12 @@ public class Transaction {
 
     @Column(name = "amount", nullable = false)
     private BigDecimal amount;
+
+    @Column(name = "amount_original")
+    private BigDecimal amountOriginal;
+
+    @Column(name = "tax_amount")
+    private BigDecimal taxAmount;
 
     @Column(name = "balance_after", nullable = false)
     private BigDecimal balanceAfter;

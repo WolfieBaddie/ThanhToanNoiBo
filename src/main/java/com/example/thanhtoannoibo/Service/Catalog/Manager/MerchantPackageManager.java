@@ -75,7 +75,7 @@ public class MerchantPackageManager {
                 .packageCode(request.getPackageCode())
                 .packageName(request.getPackageName())
                 .description(request.getDescription())
-                .packageType("ITEM_QUANTITY")
+                .comboType(request.getComboType() != null ? request.getComboType() : "ALL_INCLUSIVE")
                 .price(request.getPrice())
                 .status(CatalogStatus.PENDING)
                 .counter(counter)
@@ -129,6 +129,10 @@ public class MerchantPackageManager {
         }
         if (request.getDescription() != null && !request.getDescription().equals(pkg.getDescription())) {
             pkg.setDescription(request.getDescription());
+            contentChanged = true;
+        }
+        if (request.getComboType() != null && !request.getComboType().equals(pkg.getComboType())) {
+            pkg.setComboType(request.getComboType());
             contentChanged = true;
         }
         if (request.getServiceIds() != null) {
@@ -324,6 +328,7 @@ public class MerchantPackageManager {
                 .description(entity.getDescription())
                 .price(entity.getPrice())
                 .packageType(entity.getPackageType())
+                .comboType(entity.getComboType())
                 .creditValue(entity.getCreditValue())
                 .status(entity.getStatus())
                 .items(items)

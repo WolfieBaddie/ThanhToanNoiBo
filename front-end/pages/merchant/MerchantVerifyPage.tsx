@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-    User, Mail, Phone, BadgeCheck,
-    Package, Minus, Plus, UploadCloud, X, CheckCircle2,
-    AlertTriangle, ArrowLeft, Image as ImageIcon, Loader2, CreditCard, Maximize2,
-    ArrowRight, ClipboardList
+    User, Minus, Plus, UploadCloud, X, CheckCircle2,
+    AlertTriangle, ArrowLeft, Image as ImageIcon, Loader2,
+    ArrowRight, Layers, Ticket, Package
 } from 'lucide-react';
 import { useMerchantVerify } from "@/hooks/useMerchantVerfiy";
 import { QrCodeResponse } from '@/types/qr.type';
@@ -40,7 +39,6 @@ const MerchantVerifyPage: React.FC = () => {
                 const data = await qrService.verifyQr(qrCodeParam);
                 setQrData(data);
             } catch (error: any) {
-                console.error("Verify Error:", error);
                 setFetchError(error.response?.data?.message || "Không thể tải thông tin mã QR.");
             } finally {
                 setIsLoadingData(false);
@@ -49,12 +47,10 @@ const MerchantVerifyPage: React.FC = () => {
         fetchData();
     }, [qrCodeParam, qrData]);
 
-    // 3. HOOK LOGIC
+    // 3. HOOK LOGIC (GIỮ NGUYÊN)
     const {
         selectedItems,
         effectiveQuantity,
-        totalBillAmount,
-        isPackage,
         isOverLimit,
         previewUrl,
         isSubmitting,
@@ -64,19 +60,28 @@ const MerchantVerifyPage: React.FC = () => {
         removeImage,
         submitTransaction,
         genericQuantity,
-        setGenericQuantity
+        setGenericQuantity,
+        isSelectOne,
+        isAllInclusive,
+        isSingle
     } = useMerchantVerify(qrData, (result) => {
         navigate('/merchant/success', { state: { result: result }, replace: true });
     });
 
-    // --- LOGIC CHUYỂN BƯỚC ---
+    // Biến cờ check Combo
+    const isCombo = isSelectOne || isAllInclusive;
+
     const handleNextStep = () => {
         if (effectiveQuantity === 0) {
-            notify.error("Vui lòng chọn ít nhất 1 món/vé.");
+            notify.error("Vui lòng chọn ít nhất 1 mục.");
+            return;
+        }
+        if (isCombo && Object.values(selectedItems).filter(i => i.isSelected).length === 0) {
+            notify.error("Vui lòng chọn món khách yêu cầu.");
             return;
         }
         if (isOverLimit) {
-            notify.error("Vượt quá giới hạn sử dụng.");
+            notify.error("Vượt quá giới hạn cho phép.");
             return;
         }
         setCurrentStep(2);
@@ -89,249 +94,212 @@ const MerchantVerifyPage: React.FC = () => {
     const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             handleImageUpload(e.target.files[0]);
+            e.target.value = ''; // Reset để chọn lại được
         }
     };
 
-    if (isLoadingData) {
-        return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
-                <Loader2 size={40} className="animate-spin text-indigo-600 mb-4" />
-                <p className="text-slate-500 font-medium">Đang kiểm tra thông tin...</p>
-            </div>
-        );
-    }
+    // --- VARIABLES LABEL (LOGIC HIỂN THỊ) ---
+    const qrUsageLimit = qrData?.usageLimit || 1;
+    const includedServices = qrData?.includedServices || [];
+
+    // Label động dựa trên loại vé
+    const unitLabel = isSingle ? "Vé" : "Món";
+    const actionLabel = isSingle ? "Số lượng vé sử dụng" : "Chọn món khách dùng";
+    const limitLabel = isSingle ? "Số dư Vé" : "Hạn mức (Món)";
+
+    if (isLoadingData) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-indigo-600 w-10 h-10"/></div>;
 
     if (!qrData || fetchError) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
-                <div className="bg-white p-8 rounded-3xl shadow-sm text-center max-w-sm border border-slate-100">
-                    <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <AlertTriangle size={32} />
-                    </div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-2">Không thể xác thực</h2>
-                    <p className="text-slate-500 mb-6">{fetchError || "Dữ liệu không hợp lệ."}</p>
-                    <button onClick={() => navigate('/merchant/dashboard')} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors">
-                        Về trang chủ
-                    </button>
-                </div>
+                <AlertTriangle size={48} className="text-red-500 mb-4" />
+                <p className="text-slate-600 font-bold text-lg mb-6">{fetchError || "Dữ liệu không hợp lệ."}</p>
+                <button onClick={() => navigate('/merchant/dashboard')} className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold">Về trang chủ</button>
             </div>
         );
     }
 
-    const includedServices = qrData.includedServices || [];
-    const limit = qrData.usageLimit || 1;
-
     return (
-        <div className="min-h-screen bg-slate-50 font-sans pb-10">
+        <div className="min-h-screen bg-slate-100 font-sans text-slate-800 pb-20">
+            <ImageViewerModal isOpen={!!viewerImage} onClose={() => setViewerImage(null)} imageUrl={viewerImage} alt="Phóng to ảnh" />
 
-            <ImageViewerModal
-                isOpen={!!viewerImage}
-                onClose={() => setViewerImage(null)}
-                imageUrl={viewerImage}
-                alt="Phóng to ảnh"
-            />
-
-            {/* HEADER */}
-            <div className="bg-white border-b border-slate-200">
-                <div className="px-4 py-4 md:px-8 max-w-5xl mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <button onClick={() => currentStep === 1 ? navigate('/merchant/dashboard') : handleBackStep()} className="p-2 -ml-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
-                            <ArrowLeft size={24} />
+            {/* HEADER (STATIC) */}
+            <div className="bg-white border-b border-slate-200 shadow-sm py-4">
+                <div className="max-w-4xl mx-auto px-6 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => currentStep === 1 ? navigate('/merchant/dashboard') : handleBackStep()} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500">
+                            <ArrowLeft size={28} />
                         </button>
-                        <h1 className="text-lg font-bold text-slate-800">
-                            {currentStep === 1 ? "Bước 1: Chọn dịch vụ" : "Bước 2: Xác thực ảnh"}
-                        </h1>
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-800 leading-tight">
+                                {currentStep === 1 ? "Xử lý Vé & Combo" : "Xác thực ảnh"}
+                            </h1>
+                            <div className="flex gap-2 mt-1">
+                                {isAllInclusive && <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">TRỌN GÓI</span>}
+                                {isSelectOne && <span className="text-xs font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded border border-orange-200">TỰ CHỌN</span>}
+                                {isSingle && <span className="text-xs font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded border border-emerald-200">VÉ LẺ</span>}
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex gap-2">
-                        <div className={`w-3 h-3 rounded-full transition-colors ${currentStep >= 1 ? 'bg-indigo-600' : 'bg-slate-200'}`}></div>
-                        <div className={`w-3 h-3 rounded-full transition-colors ${currentStep >= 2 ? 'bg-indigo-600' : 'bg-slate-200'}`}></div>
+                    {/* Stepper */}
+                    <div className="flex items-center gap-2">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${currentStep >= 1 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>1</div>
+                        <div className="w-8 h-0.5 bg-slate-300"></div>
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${currentStep >= 2 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>2</div>
                     </div>
                 </div>
             </div>
 
-            {/* MAIN CONTENT WRAPPER */}
-            <div className="max-w-5xl mx-auto px-4 md:px-8 pt-6 space-y-6">
+            {/* MAIN CONTENT */}
+            <div className="max-w-4xl mx-auto px-6 pt-8 space-y-6">
 
-                {/* === BƯỚC 1: THÔNG TIN USER & CHỌN MÓN === */}
                 {currentStep === 1 && (
-                    <div className="space-y-6 animate-in slide-in-from-left-4 fade-in duration-300">
-                        {/* 1.1 Thông tin Khách hàng */}
-                        <div className="bg-white rounded-[24px] p-5 border border-slate-200 shadow-sm flex items-center gap-4">
-                            <div
-                                className={`relative shrink-0 group ${qrData.imageUrl ? 'cursor-pointer' : ''}`}
-                                onClick={() => qrData.imageUrl && setViewerImage(qrData.imageUrl)}
-                            >
-                                <div className="w-16 h-16 rounded-2xl bg-slate-100 overflow-hidden border-2 border-white shadow-md relative z-10">
-                                    {qrData.imageUrl ? (
-                                        <img src={qrData.imageUrl} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
-                                    ) : (
-                                        <User className="w-full h-full p-3 text-slate-300" />
-                                    )}
+                    <>
+                        {/* 1. CARD THÔNG TIN (FULL WIDTH) */}
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                            {/* Header Gói */}
+                            <div className="bg-slate-900 p-6 text-white flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-xl font-bold flex items-center gap-2">
+                                        <Package size={20} className="text-indigo-300"/>
+                                        {qrData.packageName || "Dịch vụ"}
+                                    </h2>
+                                    <p className="opacity-80 font-mono mt-1 flex items-center gap-2 text-sm bg-white/10 w-fit px-2 rounded">
+                                        <Ticket size={14}/> {qrData.voucherCode}
+                                    </p>
                                 </div>
-                                <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1 rounded-full border-2 border-white z-20">
-                                    <BadgeCheck size={12} />
+                                <div className="text-right">
+                                    <p className="text-xs opacity-60 uppercase font-bold">{limitLabel}</p>
+                                    <p className="text-3xl font-black">{qrUsageLimit}</p>
                                 </div>
-                                {qrData.imageUrl && (
-                                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Maximize2 size={16} className="text-white drop-shadow-md" />
-                                    </div>
-                                )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <h2 className="text-xl font-black text-slate-900 truncate">{qrData.fullName || "Khách vãng lai"}</h2>
-                                <p className="text-sm text-slate-500 font-medium truncate">{qrData.email || "---"}</p>
+
+                            {/* Body User */}
+                            <div className="p-6 flex items-center gap-4 bg-white">
+                                <div className="w-14 h-14 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                                    {qrData.imageUrl ? <img src={qrData.imageUrl} className="w-full h-full object-cover" /> : <User size={28} className="m-auto mt-3 text-slate-400"/>}
+                                </div>
+                                <div>
+                                    <p className="text-xs text-slate-500 font-bold uppercase mb-0.5">Khách hàng</p>
+                                    <p className="font-bold text-slate-900 text-lg">{qrData.fullName || "Khách vãng lai"}</p>
+                                    <p className="text-slate-500 text-sm">{qrData.email}</p>
+                                </div>
+                                <div className="ml-auto text-right border-l border-slate-100 pl-6">
+                                    <p className="text-xs text-slate-500 font-bold uppercase mb-0.5">Đã sử dụng</p>
+                                    <p className="font-bold text-indigo-600 text-xl">{qrData.usageCount} <span className="text-sm text-slate-400 font-normal">lượt</span></p>
+                                </div>
                             </div>
                         </div>
 
-                        {/* 1.2 Thông tin Voucher & Chọn Món */}
-                        <div className="bg-white p-6 rounded-[24px] border border-slate-200 shadow-sm">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="font-bold text-slate-900 flex items-center gap-2 text-lg">
-                                    <CheckCircle2 className="text-indigo-600" size={24} />
-                                    Chọn dịch vụ
-                                </h3>
-                                <div className="text-right">
-                                    <span className="text-[10px] text-slate-400 font-bold uppercase block">Hạn mức</span>
-                                    <span className="text-sm font-black text-slate-900">{limit} Lần</span>
-                                </div>
-                            </div>
+                        {/* 2. KHU VỰC CHỌN (LIST CÓ HÌNH ẢNH) */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
+                            <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2 border-b border-slate-100 pb-4">
+                                <Layers className="text-indigo-600" size={24}/> {actionLabel}
+                            </h3>
 
-                            {/* Danh sách món */}
-                            {includedServices.length > 0 ? (
-                                <div className="space-y-3">
+                            {/* --- LIST ITEM (COMBO) --- */}
+                            {isCombo && (
+                                <div className="grid grid-cols-1 gap-4">
                                     {includedServices.map((service) => {
-                                        const state = selectedItems[service.serviceId];
-                                        if (!state) return null;
-
+                                        const state = selectedItems[service.serviceId] || { quantity: 0, isSelected: false };
                                         const remaining = service.remainingQuantity ?? 999;
                                         const isSoldOut = remaining <= 0;
-                                        const isMaxReached = state.quantity >= remaining;
 
                                         return (
                                             <div key={service.serviceId}
                                                  onClick={() => !isSoldOut && toggleItem(service.serviceId)}
-                                                 className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center gap-4 
-                                                ${state.isSelected ? 'bg-indigo-50/50 border-indigo-500' : 'bg-white border-slate-100 hover:bg-slate-50'}
+                                                 className={`relative p-4 rounded-xl border-2 transition-all cursor-pointer flex items-center gap-5 hover:bg-slate-50
+                                                ${state.isSelected ? 'bg-indigo-50 border-indigo-500' : 'bg-white border-slate-100'}
                                                 ${isSoldOut ? 'opacity-50 grayscale cursor-not-allowed' : ''} 
                                                 `}>
-                                                <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-colors shrink-0 
-                                                    ${state.isSelected ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-300 bg-white'}`}>
-                                                    <CheckCircle2 size={14} strokeWidth={4} />
+
+                                                <div className={`w-8 h-8 rounded-lg border-2 flex items-center justify-center transition-colors shrink-0 
+                                                    ${state.isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white'}`}>
+                                                    {state.isSelected && <CheckCircle2 size={18} strokeWidth={3} />}
                                                 </div>
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between items-start">
-                                                        <p className={`font-bold ${state.isSelected ? 'text-indigo-900' : 'text-slate-700'}`}>{service.serviceName}</p>
-                                                        {remaining < 999 && (
-                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isSoldOut ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                                {isSoldOut ? 'Hết hàng' : `Còn: ${remaining}`}
+
+                                                <div className="w-20 h-20 rounded-lg bg-slate-200 overflow-hidden border border-slate-100 shrink-0 shadow-sm">
+                                                    <img
+                                                        src={service.imageUrl || "https://placehold.co/100"}
+                                                        alt={service.serviceName}
+                                                        className="w-full h-full object-cover"
+                                                    />
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`font-bold text-lg truncate ${state.isSelected ? 'text-indigo-900' : 'text-slate-800'}`}>
+                                                        {service.serviceName}
+                                                    </p>
+                                                    <div className="mt-1">
+                                                        {!isSoldOut ? (
+                                                            <span className="text-sm text-slate-500 font-medium bg-slate-100 px-2 py-0.5 rounded">
+                                                                Kho: <b>{remaining}</b>
                                                             </span>
+                                                        ) : (
+                                                            <span className="text-xs font-bold bg-red-100 text-red-600 px-2 py-0.5 rounded">HẾT HÀNG</span>
                                                         )}
                                                     </div>
-                                                    <p className="text-xs font-medium text-slate-500">
-                                                        {service.unitPrice.toLocaleString('vi-VN')}đ
-                                                    </p>
                                                 </div>
+
+                                                {/* Counter (+/-) */}
                                                 {state.isSelected && (
-                                                    <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-indigo-100 shadow-sm" onClick={e => e.stopPropagation()}>
-                                                        <button onClick={() => changeQuantity(service.serviceId, -1)} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-slate-500"><Minus size={16} /></button>
-                                                        <span className="w-6 text-center font-bold text-slate-900">{state.quantity}</span>
-                                                        <button
-                                                            onClick={() => changeQuantity(service.serviceId, 1)}
-                                                            disabled={isMaxReached}
-                                                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${isMaxReached ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'hover:bg-indigo-50 text-indigo-600'}`}
-                                                        >
-                                                            <Plus size={16} />
-                                                        </button>
+                                                    <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-lg p-1.5 shadow-sm" onClick={e => e.stopPropagation()}>
+                                                        <button onClick={() => changeQuantity(service.serviceId, -1)} className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 rounded-md text-slate-500"><Minus size={20} /></button>
+                                                        <span className="w-8 text-center font-bold text-xl text-indigo-700">{state.quantity}</span>
+                                                        <button onClick={() => changeQuantity(service.serviceId, 1)} className="w-8 h-8 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-md"><Plus size={20} /></button>
                                                     </div>
                                                 )}
                                             </div>
                                         );
                                     })}
                                 </div>
-                            ) : (
-                                <div className="bg-slate-50 rounded-2xl p-6 flex flex-col items-center justify-center text-center border-2 border-slate-100 border-dashed">
-                                    <Package size={40} className="text-slate-300 mb-3" />
-                                    <p className="text-slate-600 font-bold mb-1">Voucher này áp dụng cho 1 lần sử dụng</p>
+                            )}
 
-                                    {qrData.includedServices?.[0]?.remainingQuantity !== undefined && (
-                                        <p className="text-xs font-bold text-blue-600 mb-4 bg-blue-50 px-2 py-1 rounded">
-                                            Còn lại: {qrData.includedServices[0].remainingQuantity} lượt
-                                        </p>
-                                    )}
-
-                                    <div className="flex items-center gap-4 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-                                        <button onClick={() => setGenericQuantity(Math.max(1, genericQuantity - 1))} className="w-12 h-12 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors">
-                                            <Minus size={20} />
-                                        </button>
-                                        <div className="w-16 text-center">
-                                            <span className="text-2xl font-black text-slate-900">{genericQuantity}</span>
-                                        </div>
+                            {/* --- VÉ LẺ (SINGLE) --- */}
+                            {isSingle && (
+                                <div className="bg-slate-50 rounded-2xl p-8 border-2 border-dashed border-slate-300 flex flex-col items-center">
+                                    <p className="font-bold text-lg text-slate-700 mb-6">Nhập số lượng vé cần trừ</p>
+                                    <div className="flex items-center gap-6 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                                        <button onClick={() => setGenericQuantity(Math.max(1, genericQuantity - 1))} className="w-14 h-14 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg"><Minus size={24}/></button>
+                                        <span className="text-4xl font-black min-w-[80px] text-center text-slate-900">{genericQuantity}</span>
                                         <button
                                             onClick={() => {
-                                                const max = qrData.includedServices?.[0]?.remainingQuantity ?? 999;
+                                                const max = Math.min(qrData.totalRemainingUsage ?? 999, qrUsageLimit);
                                                 if (genericQuantity < max) setGenericQuantity(genericQuantity + 1);
-                                                else notify.error("Đạt giới hạn số lượng");
+                                                else notify.error("Đạt giới hạn vé");
                                             }}
-                                            className={`w-12 h-12 flex items-center justify-center rounded-xl transition-colors ${
-                                                genericQuantity >= (qrData.includedServices?.[0]?.remainingQuantity ?? 999)
-                                                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                                                    : 'bg-indigo-100 hover:bg-indigo-200 text-indigo-600'
-                                            }`}
-                                        >
-                                            <Plus size={20} />
-                                        </button>
+                                            className="w-14 h-14 flex items-center justify-center bg-indigo-100 text-indigo-600 hover:bg-indigo-200 rounded-lg"><Plus size={24}/></button>
                                     </div>
+                                    <p className="mt-4 text-slate-500">Còn lại trong ví: <b>{qrData.totalRemainingUsage}</b> vé</p>
                                 </div>
                             )}
 
-                            {/* Tổng kết số lượng */}
-                            <div className="mt-6 flex justify-between items-center p-4 bg-slate-900 text-white rounded-2xl shadow-lg shadow-slate-200">
-                                <span className="font-bold text-sm uppercase tracking-wide opacity-80">Tổng số lượng</span>
-                                <div className="flex items-baseline gap-1">
-                                    <span className={`text-3xl font-black ${isOverLimit ? 'text-red-400' : 'text-white'}`}>{effectiveQuantity}</span>
-                                    {/* [FIX] Ẩn phần limit nếu là Package để tránh hiểu nhầm "2/1" */}
-                                    {!isPackage && <span className="text-sm font-bold opacity-60">/ {limit}</span>}
+                            {/* 3. TOTAL BAR (NẰM TRONG FORM) */}
+                            <div className="mt-8 bg-slate-50 p-6 rounded-xl border border-slate-200 flex justify-between items-center">
+                                <div>
+                                    <p className="text-xs text-slate-500 font-bold uppercase mb-1">Xác nhận trừ</p>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className={`text-4xl font-black ${isOverLimit ? 'text-red-500' : 'text-slate-900'}`}>{effectiveQuantity}</span>
+                                        <span className="text-base font-bold text-slate-500 uppercase">{unitLabel}</span>
+                                    </div>
+                                    {isOverLimit && <span className="text-red-500 text-sm font-bold bg-red-100 px-2 py-0.5 rounded mt-1 inline-block">Vượt quá giới hạn!</span>}
                                 </div>
+                                <button
+                                    onClick={handleNextStep}
+                                    disabled={effectiveQuantity === 0 || isOverLimit}
+                                    className="px-10 py-4 bg-emerald-600 text-white rounded-xl font-bold text-lg hover:bg-emerald-700 disabled:bg-slate-300 disabled:text-slate-500 flex items-center gap-2 shadow-lg shadow-emerald-200/50 transition-all"
+                                >
+                                    Tiếp tục <ArrowRight size={24}/>
+                                </button>
                             </div>
-                            {isOverLimit && (
-                                <p className="text-center text-red-500 text-xs font-bold mt-2 flex justify-center gap-1">
-                                    <AlertTriangle size={14} /> Số lượng vượt quá hạn mức vé
-                                </p>
-                            )}
                         </div>
-                    </div>
+                    </>
                 )}
 
-                {/* === BƯỚC 2: XÁC THỰC ẢNH === */}
+                {/* STEP 2: UPLOAD ẢNH (KHÔI PHỤC LAYOUT CŨ) */}
                 {currentStep === 2 && (
-                    <div className="space-y-6 animate-in slide-in-from-right-4 fade-in duration-300">
-                        {/* 2.1 Tóm tắt đơn hàng */}
-                        <div className="bg-white p-5 rounded-[24px] border border-slate-200 shadow-sm">
-                            <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                                <ClipboardList className="text-orange-500" size={20} />
-                                Tóm tắt giao dịch
-                            </h3>
-                            <div className="bg-slate-50 rounded-xl p-4 space-y-2">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500 font-medium">Khách hàng</span>
-                                    <span className="font-bold text-slate-800">{qrData.fullName}</span>
-                                </div>
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-slate-500 font-medium">Số lượng vé trừ</span>
-                                    <span className="font-bold text-indigo-600">{effectiveQuantity} Vé</span>
-                                </div>
-                                {totalBillAmount > 0 && (
-                                    <div className="flex justify-between text-sm pt-2 border-t border-slate-200">
-                                        <span className="text-slate-500 font-medium">Tổng giá trị</span>
-                                        <span className="font-bold text-slate-800">
-                                            {totalBillAmount.toLocaleString('vi-VN')}đ
-                                        </span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* 2.2 Upload Ảnh */}
+                    <div className="space-y-6">
+                        {/* --- KHÔI PHỤC: SINGLE COLUMN UPLOAD (NHƯ CŨ) --- */}
                         <div className="bg-white p-6 md:p-8 rounded-[32px] border border-slate-200 shadow-sm">
                             <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2 text-lg">
                                 <ImageIcon className="text-pink-500" size={24} />
@@ -341,12 +309,7 @@ const MerchantVerifyPage: React.FC = () => {
                             {previewUrl ? (
                                 <div className="relative w-full rounded-2xl border border-slate-200 bg-slate-50 overflow-hidden group">
                                     <div className="min-h-[300px] flex items-center justify-center bg-slate-100/50">
-                                        <img
-                                            src={previewUrl}
-                                            alt="Proof"
-                                            className="w-full h-auto max-h-[500px] object-contain cursor-zoom-in"
-                                            onClick={() => setViewerImage(previewUrl)}
-                                        />
+                                        <img src={previewUrl} alt="Proof" className="w-full h-auto max-h-[500px] object-contain cursor-zoom-in" onClick={() => setViewerImage(previewUrl)} />
                                     </div>
                                     <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 backdrop-blur-[2px]">
                                         <label className="cursor-pointer px-5 py-2.5 bg-white text-slate-900 rounded-xl font-bold hover:scale-105 transition-all flex items-center gap-2 shadow-xl">
@@ -364,46 +327,20 @@ const MerchantVerifyPage: React.FC = () => {
                                         <UploadCloud size={28} />
                                     </div>
                                     <p className="font-bold text-slate-700">Chạm để chụp/tải ảnh</p>
-                                    <p className="text-xs text-slate-400 mt-1">Bằng chứng giao dịch</p>
                                     <input type="file" className="hidden" accept="image/*" onChange={onFileChange} capture="environment" />
                                 </label>
                             )}
                         </div>
+
+                        {/* FOOTER ACTIONS */}
+                        <div className="flex flex-col-reverse md:flex-row justify-end gap-4 pt-8 border-t border-slate-200 mt-8">
+                            <button onClick={handleBackStep} className="w-full md:w-auto px-8 py-3.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors">Quay lại</button>
+                            <button onClick={submitTransaction} disabled={isSubmitting || !previewUrl} className="w-full md:w-auto px-12 py-3.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 flex items-center justify-center gap-2 shadow-lg shadow-emerald-200">
+                                {isSubmitting ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={20} />} Xác nhận
+                            </button>
+                        </div>
                     </div>
                 )}
-
-                {/* --- FOOTER ACTIONS --- */}
-                <div className="flex flex-col-reverse md:flex-row justify-end items-center gap-4 pt-8 border-t border-slate-200 mt-8">
-                    {currentStep === 1 ? (
-                        <>
-                            <button onClick={() => navigate('/merchant/dashboard')} className="w-full md:w-auto px-8 py-3.5 rounded-xl font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors">
-                                Hủy bỏ
-                            </button>
-                            <button
-                                onClick={handleNextStep}
-                                disabled={effectiveQuantity === 0 || isOverLimit}
-                                className="w-full md:w-auto px-12 py-3.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 transition-all disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
-                            >
-                                Tiếp tục <ArrowRight size={20} />
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            <button onClick={handleBackStep} className="w-full md:w-auto px-8 py-3.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors">
-                                Quay lại
-                            </button>
-                            <button
-                                onClick={submitTransaction}
-                                disabled={isSubmitting || !previewUrl}
-                                className="w-full md:w-auto px-12 py-3.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-200 flex items-center justify-center gap-2 transition-all disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
-                            >
-                                {isSubmitting ? <Loader2 className="animate-spin" /> : <CheckCircle2 size={20} />}
-                                Xác nhận
-                            </button>
-                        </>
-                    )}
-                </div>
-
             </div>
         </div>
     );

@@ -67,3 +67,31 @@ export interface UpdatePackageRequest {
     status?: 'ACTIVE' | 'INACTIVE' | 'DELETED';
     serviceIds?: string[];
 }
+
+export interface Counter {
+    counterId: string;
+    counterCode: string;
+    counterName: string;
+    counterType: string;
+    location?: string;
+    deviceIdentifier?: string;
+    status: 'ACTIVE' | 'INACTIVE'
+    createdBy?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface CreateCounterRequest {
+    counterCode: string;
+    counterName: string;
+    counterType: string;
+    location?: string;
+    deviceIdentifier?: string;
+}
+
+export interface UpdateCounterRequest {
+    counterName?: string;
+    location?: string;
+    deviceIdentifier?: string;
+    status?: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
+}

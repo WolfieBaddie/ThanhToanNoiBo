@@ -24,7 +24,9 @@ export interface QrCodeResponse {
 
     voucherId: string;
     voucherCode: string;
-
+    totalRemainingUsage?: number;
+    comboType?: 'ALL_INCLUSIVE' | 'SELECT_ONE';
+    packageName?: string;
     usageLimit: number;
     usageCount: number;
 

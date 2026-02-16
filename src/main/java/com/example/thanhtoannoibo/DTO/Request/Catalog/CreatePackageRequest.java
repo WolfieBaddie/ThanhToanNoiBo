@@ -26,6 +26,8 @@ public class CreatePackageRequest {
     @NotBlank(message = "Loại gói không được để trống")
     private String packageType;
 
+    private String comboType;
+
     private BigDecimal creditValue; // Optional, tùy loại gói
 
     @NotEmpty(message = "Gói phải chứa ít nhất 1 dịch vụ")

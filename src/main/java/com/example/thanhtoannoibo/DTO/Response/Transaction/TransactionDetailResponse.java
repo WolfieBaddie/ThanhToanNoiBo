@@ -15,6 +15,8 @@ public class TransactionDetailResponse {
     private UUID transactionId;
     private String transactionRef;
     private BigDecimal amount;      // Tổng tiền
+    private BigDecimal originalAmount; // Tiền gốc
+    private BigDecimal taxAmount;      // Tiền thuế
     private String status;          // Trạng thái
     private String type;            // Loại (DEPOSIT/BUY_VOUCHER...)
     private String description;     // Mô tả giao dịch

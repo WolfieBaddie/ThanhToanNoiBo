@@ -1,7 +1,6 @@
 import axios, { AxiosError } from 'axios';
 
-const BASE_URL = 'http://localhost:8080/api';
-
+const BASE_URL = 'https://spx-wallet.duckdns.org/api';
 export const axiosClient = axios.create({
     baseURL: BASE_URL,
     headers: {
