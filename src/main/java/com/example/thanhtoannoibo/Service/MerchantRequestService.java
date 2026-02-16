@@ -14,12 +14,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,6 +41,9 @@ public class MerchantRequestService {
     private final NotificationRepository notificationRepository; // Thêm Repo này
     private final ObjectMapper objectMapper;
 
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+            .withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
+
     /**
      * 1. Merchant tự cập nhật thông tin (Tên & QR)
      * - Lưu lịch sử vào bảng merchant_requests (để trace lại sau này)
@@ -43,13 +52,19 @@ public class MerchantRequestService {
      */
     @Transactional
     public void submitUpdateInfoRequest(User merchant, MerchantSubmitRequest dto) throws Exception {
+        LocalDate today = LocalDate.now();
+        int lastDayOfMonth = today.lengthOfMonth();
+
+        if (today.getDayOfMonth() < (lastDayOfMonth - 1)) {
+            throw new RuntimeException("Chưa đến kỳ kết toán. Bạn chỉ được gửi yêu cầu vào 2 ngày cuối tháng.");
+        }
+
         // A. Lưu lịch sử request (Log lại việc thay đổi)
         MerchantRequest request = MerchantRequest.builder()
                 .merchantId(merchant.getUserId())
-                .requestType("UPDATE_INFO")
+                .requestType("WITHDRAWAL")
                 .requestData(objectMapper.writeValueAsString(dto))
                 .status("PENDING") // Tự động Approved vì update luôn
-                .reviewedAt(LocalDateTime.now()) // Thời gian duyệt là ngay lập tức
                 .build();
         requestRepository.save(request);
 
@@ -66,7 +81,7 @@ public class MerchantRequestService {
 
         if (isUpdated) {
             userRepository.save(merchant);
-            log.info("Merchant {} updated their profile directly.", merchant.getUserId());
+            log.info("Tạo yêu cầu đối soát thành công", merchant.getUserId());
 
             // C. Tạo Notification cho Merchant
             createNotification(
@@ -88,54 +103,163 @@ public class MerchantRequestService {
     /**
      * 3. Lấy dữ liệu đối soát
      */
-    public List<MerchantReconciliationDTO> getReconciliationData(UUID merchantId) {
-        return transactionRepository.getMerchantReconciliation(merchantId);
+    public List<MerchantReconciliationDTO> getReconciliationData(UUID merchantId, int month, int year) {
+        // Gọi xuống Repository với đủ 3 tham số
+        return transactionRepository.getMerchantReconciliation(merchantId, month, year);
     }
 
     /**
      * 4. Xuất file Excel đối soát
      */
-    public byte[] exportReconciliationExcel(UUID merchantId) throws Exception {
-        List<MerchantReconciliationDTO> data = getReconciliationData(merchantId);
+    public byte[] exportReconciliationExcel(UUID merchantId, int month, int year) {
+        try (Workbook workbook = new XSSFWorkbook();
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
-        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-            Sheet sheet = workbook.createSheet("Doi Soat Giao Dich");
+            // 1. Lấy dữ liệu
+            List<MerchantReconciliationDTO> data = transactionRepository.getMerchantReconciliation(merchantId, month, year);
 
-            // ... (Code tạo Excel giữ nguyên như cũ) ...
+            Sheet sheet = workbook.createSheet("Doi_soat_T" + month + "_" + year);
 
-            // Header Style
-            CellStyle headerStyle = workbook.createCellStyle();
-            Font font = workbook.createFont();
-            font.setBold(true);
-            headerStyle.setFont(font);
-            headerStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+            // Các biến tích lũy
+            BigDecimal totalRevenue = BigDecimal.ZERO;
+            BigDecimal totalTax = BigDecimal.ZERO;
+            BigDecimal totalFee = BigDecimal.ZERO;
+            BigDecimal totalNet = BigDecimal.ZERO;
 
-            String[] columns = {"Mã giao dịch", "Thời gian", "Số tiền", "Trạng thái", "Nội dung", "Người thanh toán", "Voucher", "Món ăn/Dịch vụ"};
-            Row headerRow = sheet.createRow(0);
-            for (int i = 0; i < columns.length; i++) {
+            BigDecimal DIVISOR_TAX = new BigDecimal("1.1");
+
+            // --- STYLE ---
+            CellStyle titleStyle = workbook.createCellStyle();
+            Font titleFont = workbook.createFont();
+            titleFont.setBold(true);
+            titleFont.setFontHeightInPoints((short) 14);
+            titleStyle.setFont(titleFont);
+
+            CellStyle boldStyle = createHeaderStyle(workbook);
+
+            CellStyle currencyStyle = workbook.createCellStyle();
+            DataFormat format = workbook.createDataFormat();
+            currencyStyle.setDataFormat(format.getFormat("#,##0"));
+
+            // --- HEADER TABLE (Dòng 6) ---
+            int headerRowIdx = 6;
+            Row headerRow = sheet.createRow(headerRowIdx);
+            String[] headers = {
+                    "Mã GD", "Thời gian", "Trạng thái", "Nội dung",
+                    "Tiền gốc (Net)", "Thuế VAT (10%)", "Tổng khách trả", "Phí sàn", "Thực nhận",
+                    "Người trả", "Email", "SĐT", "Voucher", "Hạn SD Voucher"
+            };
+
+            for (int i = 0; i < headers.length; i++) {
                 Cell cell = headerRow.createCell(i);
-                cell.setCellValue(columns[i]);
-                cell.setCellStyle(headerStyle);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(boldStyle);
             }
 
-            int rowIdx = 1;
+            // --- DATA ROWS (Từ dòng 7) ---
+            int rowIdx = headerRowIdx + 1;
             for (MerchantReconciliationDTO dto : data) {
                 Row row = sheet.createRow(rowIdx++);
+
+                // 1. Tính toán lại
+                BigDecimal grossAmount = dto.getTongThanhToan() != null ? dto.getTongThanhToan() : BigDecimal.ZERO;
+                BigDecimal fee = dto.getPhiSan() != null ? dto.getPhiSan() : BigDecimal.ZERO;
+
+                // Net = Gross / 1.1
+                BigDecimal netPrice = grossAmount.divide(DIVISOR_TAX, 0, RoundingMode.HALF_UP);
+                // Tax = Gross - Net
+                BigDecimal calculatedTax = grossAmount.subtract(netPrice);
+                // Real Net = Gross - Tax - Fee
+                BigDecimal calculatedNet = grossAmount.subtract(calculatedTax).subtract(fee);
+
+                // 2. Cộng dồn
+                totalRevenue = totalRevenue.add(grossAmount);
+                totalTax = totalTax.add(calculatedTax);
+                totalFee = totalFee.add(fee);
+                totalNet = totalNet.add(calculatedNet);
+
+                // 3. Ghi dữ liệu
                 row.createCell(0).setCellValue(dto.getMaGiaoDich());
-                row.createCell(1).setCellValue(dto.getThoiGian().toString());
-                row.createCell(2).setCellValue(dto.getSoTien().doubleValue());
-                row.createCell(3).setCellValue(dto.getTrangThai());
-                row.createCell(4).setCellValue(dto.getNoiDung());
-                row.createCell(5).setCellValue(dto.getNguoiThanhToan());
-                row.createCell(6).setCellValue(dto.getMaVoucher() != null ? dto.getMaVoucher() : "");
-                row.createCell(7).setCellValue(dto.getTenDichVuVoucher() != null ? dto.getTenDichVuVoucher() : "");
+                if (dto.getThoiGian() != null) {
+                    row.createCell(1).setCellValue(DATE_FORMATTER.format(dto.getThoiGian()));
+                }
+                row.createCell(2).setCellValue(dto.getTrangThai());
+                row.createCell(3).setCellValue(dto.getNoiDung());
+
+                // Ghi số liệu tài chính đã tính
+                setNumericCell(row, 4, netPrice, currencyStyle);
+                setNumericCell(row, 5, calculatedTax, currencyStyle);
+                setNumericCell(row, 6, grossAmount, currencyStyle);
+                setNumericCell(row, 7, fee, currencyStyle);
+                setNumericCell(row, 8, calculatedNet, currencyStyle);
+
+                row.createCell(9).setCellValue(dto.getNguoiThanhToan());
+                row.createCell(10).setCellValue(dto.getEmailKhach());
+                row.createCell(11).setCellValue(dto.getSdtKhach());
+                row.createCell(12).setCellValue(dto.getMaVoucher());
+                if (dto.getHanSuDungVoucher() != null) {
+                    row.createCell(13).setCellValue(DATE_FORMATTER.format(dto.getHanSuDungVoucher()));
+                }
             }
 
-            for (int i = 0; i < columns.length; i++) sheet.autoSizeColumn(i);
+            // --- SUMMARY (Đầu trang - Dòng 0-4) ---
+            Row titleRow = sheet.createRow(0);
+            Cell titleCell = titleRow.createCell(0);
+            titleCell.setCellValue("BÁO CÁO ĐỐI SOÁT THÁNG " + month + "/" + year);
+            titleCell.setCellStyle(titleStyle);
+            sheet.addMergedRegion(new CellRangeAddress(0, 0, 0, 5));
+
+            Row sumRow1 = sheet.createRow(1);
+            sumRow1.createCell(0).setCellValue("Tổng doanh thu (Gross):");
+            sumRow1.getCell(0).setCellStyle(boldStyle);
+            setNumericCell(sumRow1, 1, totalRevenue, currencyStyle);
+
+            Row sumRow2 = sheet.createRow(2);
+            sumRow2.createCell(0).setCellValue("Tổng thuế VAT (10%):");
+            sumRow2.getCell(0).setCellStyle(boldStyle);
+            setNumericCell(sumRow2, 1, totalTax, currencyStyle);
+
+            Row sumRow3 = sheet.createRow(3);
+            sumRow3.createCell(0).setCellValue("Tổng phí sàn:");
+            sumRow3.getCell(0).setCellStyle(boldStyle);
+            setNumericCell(sumRow3, 1, totalFee, currencyStyle);
+
+            Row sumRow4 = sheet.createRow(4);
+            sumRow4.createCell(0).setCellValue("TỔNG THỰC NHẬN (NET):");
+            sumRow4.getCell(0).setCellStyle(boldStyle);
+            setNumericCell(sumRow4, 1, totalNet, currencyStyle);
+
+            // Auto size
+            for(int i=0; i<headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
 
             workbook.write(out);
             return out.toByteArray();
+
+        } catch (Exception e) {
+            log.error("Error exporting excel", e);
+            throw new RuntimeException("Lỗi xuất file báo cáo");
+        }
+    }
+
+    private CellStyle createHeaderStyle(Workbook workbook) {
+        CellStyle style = workbook.createCellStyle();
+        Font font = workbook.createFont();
+        font.setBold(true);
+        style.setFont(font);
+        return style;
+    }
+
+    private void setNumericCell(Row row, int colIndex, BigDecimal value, CellStyle style) {
+        Cell cell = row.createCell(colIndex);
+        if (value != null) {
+            cell.setCellValue(value.doubleValue());
+        } else {
+            cell.setCellValue(0);
+        }
+        if (style != null) {
+            cell.setCellStyle(style);
         }
     }
 

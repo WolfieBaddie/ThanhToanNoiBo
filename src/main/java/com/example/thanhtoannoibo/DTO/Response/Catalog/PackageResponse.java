@@ -17,6 +17,7 @@ public class PackageResponse {
     private String description;
     private BigDecimal price;
     private String packageType;
+    private String comboType;
     private BigDecimal creditValue;
     private CatalogStatus status;
 

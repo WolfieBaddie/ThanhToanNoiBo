@@ -1,41 +1,1 @@
-package com.example.thanhtoannoibo.Util;
-
-import org.springframework.http.ResponseCookie;
-import org.springframework.stereotype.Component;
-
-@Component
-public class CookieUtil {
-
-    // 1. Tạo Access Token Cookie
-    public ResponseCookie createAccessTokenCookie(String token, long minutes) {
-        return ResponseCookie.from("accessToken", token)
-                .httpOnly(true)
-                .secure(false) // Để false nếu chạy localhost (http)
-                .path("/")     // [BẮT BUỘC]: Phải có dòng này để Cookie đi toàn hệ thống
-                .maxAge(minutes * 60)
-                .sameSite("Lax")
-                .build();
-    }
-
-    // 2. Tạo Refresh Token Cookie
-    public ResponseCookie createRefreshTokenCookie(String token, long days) {
-        return ResponseCookie.from("refreshToken", token)
-                .httpOnly(true)
-                .secure(false)
-                .path("/")     // [BẮT BUỘC]
-                .maxAge(days * 24 * 60 * 60)
-                .sameSite("Lax")
-                .build();
-    }
-
-    // 3. Xóa Cookie
-    public ResponseCookie clearCookie(String name) {
-        return ResponseCookie.from(name, "")
-                .httpOnly(true)
-                .secure(false)
-                .path("/")      // [BẮT BUỘC]: Path phải KHỚP với lúc tạo thì mới xóa được
-                .maxAge(0)      // Set tuổi thọ = 0 để trình duyệt xóa ngay lập tức
-                .sameSite("Lax")
-                .build();
-    }
-}
+package com.example.thanhtoannoibo.Util;import org.springframework.http.ResponseCookie;import org.springframework.stereotype.Component;@Componentpublic class CookieUtil {    // 1. Tạo Access Token Cookie    public ResponseCookie createAccessTokenCookie(String token, long minutes) {        return ResponseCookie.from("accessToken", token)                .httpOnly(true)                .secure(false) // Để false nếu chạy localhost (http)                .path("/")     // [BẮT BUỘC]: Phải có dòng này để Cookie đi toàn hệ thống                .maxAge(minutes * 60)                .sameSite("Lax")                .build();    }    // 2. Tạo Refresh Token Cookie    public ResponseCookie createRefreshTokenCookie(String token, long days) {        return ResponseCookie.from("refreshToken", token)                .httpOnly(true)                .secure(false)                .path("/")     // [BẮT BUỘC]                .maxAge(days * 24 * 60 * 60)                .sameSite("Lax")                .build();    }    // 3. Xóa Cookie    public ResponseCookie clearCookie(String name) {        return ResponseCookie.from(name, "")                .httpOnly(true)                .secure(false)                .path("/")      // [BẮT BUỘC]: Path phải KHỚP với lúc tạo thì mới xóa được                .maxAge(0)      // Set tuổi thọ = 0 để trình duyệt xóa ngay lập tức                .sameSite("Lax")                .build();    }}

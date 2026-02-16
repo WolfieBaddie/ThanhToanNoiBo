@@ -38,20 +38,23 @@ const TopUpPage: React.FC = () => {
         });
     };
 
+    // --- [LOGIC MỚI] XỬ LÝ SỐ TIỀN GỢI Ý ---
     useEffect(() => {
         if (location.state && location.state.suggestedAmount) {
-            const suggested = location.state.suggestedAmount;
+            const rawAmount = Number(location.state.suggestedAmount);
 
-            // Logic làm tròn (Tuỳ chọn): Ví dụ thiếu 13.000 -> Gợi ý nạp 20.000
-            // Hoặc để nguyên số tiền thiếu
-            let fillAmount = suggested;
+            // 1. Logic làm tròn lên hàng nghìn (VD: 20,400 -> 21,000)
+            let roundedAmount = Math.ceil(rawAmount / 1000) * 1000;
 
-            // Ví dụ: Làm tròn lên hàng chục nghìn gần nhất nếu < 100k
-            if (fillAmount < 10000) fillAmount = 10000;
+            // 2. Đảm bảo tối thiểu 10k nếu số thiếu quá nhỏ
+            if (roundedAmount < 10000) {
+                roundedAmount = 10000;
+            }
 
-            setAmount(fillAmount.toString());
+            setAmount(roundedAmount.toString());
         }
     }, [location.state]);
+    // ---------------------------------------
 
     const currentBalance = creditInfo?.balance || 0;
     const depositAmount = parseInt(amount) || 0;
@@ -100,7 +103,7 @@ const TopUpPage: React.FC = () => {
                                 <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xl">đ</span>
                             </div>
 
-                            {/* --- [UPDATED UI] PHẦN HIỂN THỊ QUY ĐỔI XU --- */}
+                            {/* --- PHẦN HIỂN THỊ QUY ĐỔI XU --- */}
                             {depositAmount > 0 && (
                                 <div className="mt-4 flex items-center gap-4 bg-indigo-600 text-white px-5 py-4 rounded-2xl shadow-lg shadow-indigo-200 dark:shadow-none transition-all animate-in fade-in slide-in-from-top-2 duration-300">
                                     <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0 backdrop-blur-sm">
@@ -118,7 +121,6 @@ const TopUpPage: React.FC = () => {
                                     </div>
                                 </div>
                             )}
-                            {/* ----------------------------------------------- */}
 
                             <div className="flex flex-wrap gap-3 mt-6">
                                 {quickAmounts.map((val) => (
@@ -144,33 +146,35 @@ const TopUpPage: React.FC = () => {
                             </label>
 
                             <div
-                                className={`cursor-pointer relative overflow-hidden border-2 rounded-2xl p-5 flex items-center justify-between transition-all group ${
+                                className={`cursor-pointer relative overflow-hidden border-2 rounded-2xl p-5 flex items-center justify-center transition-all group ${
                                     selectedMethod === 'VNPAY'
                                         ? 'border-indigo-500 bg-indigo-50/30 dark:bg-indigo-900/10'
                                         : 'border-slate-100 dark:border-slate-700 hover:border-slate-300'
                                 }`}
                                 onClick={() => setSelectedMethod('VNPAY')}
                             >
-                                <div className="flex items-center gap-4 z-10">
-                                    <div className="w-14 h-14 bg-white rounded-xl border border-slate-100 flex items-center justify-center p-1 shadow-sm">
-                                        <img
-                                            src="https://vnpay.vn/s1/statics.vnpay.vn/2023/6/0oxhzjmxbksr1686814746087.png"
-                                            alt="VNPay"
-                                            className="w-full h-full object-contain"
-                                        />
+                                <div className="flex items-center gap-4 z-10 w-full justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-14 h-14 bg-white rounded-xl border border-slate-100 flex items-center justify-center p-1 shadow-sm">
+                                            <img
+                                                src="https://vnpay.vn/s1/statics.vnpay.vn/2023/6/0oxhzjmxbksr1686814746087.png"
+                                                alt="VNPay"
+                                                className="w-full h-full object-contain"
+                                            />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-slate-800 dark:text-white text-lg">Cổng VNPAY</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Quét QR, ATM, Visa/Mastercard</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="font-bold text-slate-800 dark:text-white text-lg">Cổng VNPAY</p>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">Quét QR, ATM, Visa/Mastercard</p>
-                                    </div>
+                                    {selectedMethod === 'VNPAY' ? (
+                                        <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center z-10">
+                                            <CheckCircle2 size={14} className="text-white" />
+                                        </div>
+                                    ) : (
+                                        <div className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>
+                                    )}
                                 </div>
-                                {selectedMethod === 'VNPAY' ? (
-                                    <div className="w-6 h-6 bg-indigo-600 rounded-full flex items-center justify-center z-10">
-                                        <CheckCircle2 size={14} className="text-white" />
-                                    </div>
-                                ) : (
-                                    <div className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-600"></div>
-                                )}
                             </div>
                         </div>
                     </div>
@@ -178,7 +182,6 @@ const TopUpPage: React.FC = () => {
 
                 {/* --- RIGHT COLUMN --- */}
                 <div className="space-y-6">
-                    {/* Giữ nguyên logic: WalletCard chỉ nhận currentBalance */}
                     <WalletCard
                         balance={currentBalance}
                         studentName={user?.fullName || "Học sinh"}

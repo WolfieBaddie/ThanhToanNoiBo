@@ -51,6 +51,9 @@ public class UserVoucher {
     @Column(name = "quantity")
     private Integer quantity;
 
+    @Column(name = "total_remaining_usage")
+    private Integer totalRemainingUsage;
+
     @Column(name = "status")
     @Enumerated(EnumType.STRING)
     private UserVoucherStatus status;

@@ -29,6 +29,14 @@ public class UserVoucherResponse {
     private Integer quantity; // Số lượng gói (VD: mua 2 gói)
     private String qrContent;
 
+    private Integer totalRemainingUsage; // Tổng lượt còn lại của voucher
+
+    // [CẬP NHẬT MỚI]: Thông tin Gói & Quầy
+    private String comboType;       // "ALL_INCLUSIVE" hoặc "SELECT_ONE"
+    private Integer usageLimit;     // Giới hạn (nếu là gói chọn 1)
+    private String counterName;     // Tên quầy quản lý gói này
+    private String counterLocation; // Vị trí quầy
+
     // [CẬP NHẬT MỚI] Danh sách các món trong voucher này
     private List<UserVoucherDetailResponse> items;
 }

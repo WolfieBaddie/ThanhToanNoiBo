@@ -140,20 +140,19 @@ public class AdminUserManager {
         User admin = validateAdmin();
 
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
+            throw new AppException(ErrorCode.INVALID_REQUEST); // ErrorCode.USERNAME_EXISTED
         }
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new AppException(ErrorCode.INVALID_REQUEST);
+            throw new AppException(ErrorCode.INVALID_REQUEST); // ErrorCode.EMAIL_EXISTED
         }
 
-        Set<Role> roles = new HashSet<>();
-        if (request.getRoles() != null) {
-            for (String roleName : request.getRoles()) {
-                Role role = roleRepository.findByRoleCode(roleName)
-                        .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST));
-                roles.add(role);
-            }
-        }
+        Role selectedRole = roleRepository.findByRoleCode(request.getRole())
+                .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
+        UserType derivedUserType = mapRoleToUserType(selectedRole.getRoleCode());
+
+        // [FIX] Sử dụng new HashSet<>(...) để tạo Mutable Set
+        Set<Role> roles = new HashSet<>(Collections.singleton(selectedRole));
 
         User user = User.builder()
                 .username(request.getUsername())
@@ -161,33 +160,18 @@ public class AdminUserManager {
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .phoneNumber(request.getPhoneNumber())
-                .userType(request.getUserType())
                 .status(UserStatus.ACTIVE)
-                .roles(roles)
+                .userType(derivedUserType)
+                .roles(roles) // <-- Đã fix
                 .build();
 
         User savedUser = userRepository.save(user);
+        createDefaultWallet(savedUser);
 
-        // Tạo ví
-        UserCredit credit = UserCredit.builder()
-                .user(savedUser)
-                .balance(BigDecimal.ZERO)
-                .totalDeposited(BigDecimal.ZERO)
-                .currentDaySpending(BigDecimal.ZERO)
-                .lastSpendingDate(LocalDate.now())
-                .status(CreditStatus.ACTIVE)
-                .build();
-        userCreditRepository.save(credit);
-
-        // [AUDIT LOG] Ghi log tạo mới
         saveAuditLog(admin, "CREATE_USER", savedUser.getUserId(),
-                "Tạo người dùng mới: " + savedUser.getUsername() + " (" + savedUser.getUserType() + ")");
+                "Tạo user: " + savedUser.getUsername() + " - Role: " + selectedRole.getRoleCode());
 
-        // Notification
-        notifyUser(admin, "Tạo người dùng thành công",
-                "Đã tạo tài khoản " + savedUser.getUsername());
-        notifyUser(savedUser, "Chào mừng",
-                "Tài khoản của bạn đã được tạo bởi quản trị viên.");
+        notifyUser(admin, "Tạo thành công", "Đã tạo User: " + savedUser.getUsername());
 
         return mapToFullUserResponse(savedUser);
     }
@@ -201,69 +185,79 @@ public class AdminUserManager {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
 
-        // StringBuilder để ghi lại chi tiết thay đổi cho AuditLog
         StringBuilder changeDetails = new StringBuilder();
         boolean statusChangedToInactive = false;
 
-        // 1. Update Basic Info
-        if (StringUtils.hasText(request.getFullName()) && !request.getFullName().equals(user.getFullName())) {
-            changeDetails.append(String.format("Tên: '%s' -> '%s'. ", user.getFullName(), request.getFullName()));
-            user.setFullName(request.getFullName());
-        }
-        if (StringUtils.hasText(request.getPhoneNumber()) && !request.getPhoneNumber().equals(user.getPhoneNumber())) {
-            changeDetails.append(String.format("SĐT: '%s' -> '%s'. ", user.getPhoneNumber(), request.getPhoneNumber()));
-            user.setPhoneNumber(request.getPhoneNumber());
-        }
-        if (StringUtils.hasText(request.getImageUrl())) {
-            user.setImageUrl(request.getImageUrl());
+        if (StringUtils.hasText(request.getFullName())) user.setFullName(request.getFullName());
+        if (StringUtils.hasText(request.getPhoneNumber())) user.setPhoneNumber(request.getPhoneNumber());
+        if (StringUtils.hasText(request.getImageUrl())) user.setImageUrl(request.getImageUrl());
+
+        if (StringUtils.hasText(request.getNewPassword())) {
+            user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+            changeDetails.append("Reset mật khẩu. ");
         }
 
-        // 2. Update Status
         if (request.getStatus() != null && request.getStatus() != user.getStatus()) {
-            changeDetails.append(String.format("Trạng thái: %s -> %s. ", user.getStatus(), request.getStatus()));
+            changeDetails.append("Status: ").append(user.getStatus()).append(" -> ").append(request.getStatus()).append(". ");
             user.setStatus(request.getStatus());
-
-            if (request.getStatus() == UserStatus.LOCKED ||
-                    request.getStatus() == UserStatus.SUSPENDED ||
-                    request.getStatus() == UserStatus.DELETED) {
-                statusChangedToInactive = true;
-            }
+            if (isInactiveStatus(request.getStatus())) statusChangedToInactive = true;
         }
 
-        // 3. Update Roles
-        if (request.getRoles() != null) {
-            Set<Role> newRoles = new HashSet<>();
-            for (String roleName : request.getRoles()) {
-                Role role = roleRepository.findByRoleCode(roleName)
-                        .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST));
-                newRoles.add(role);
+        // [FIX] Update Role -> Tự động update UserType & Dùng Mutable Set
+        if (StringUtils.hasText(request.getRole())) {
+            Role newRole = roleRepository.findByRoleCode(request.getRole())
+                    .orElseThrow(() -> new AppException(ErrorCode.ROLE_NOT_FOUND));
+
+            String currentRoleCode = user.getRoles().stream().findFirst().map(Role::getRoleCode).orElse("");
+
+            if (!currentRoleCode.equals(newRole.getRoleCode())) {
+                // [QUAN TRỌNG] Tạo HashSet mới thay vì dùng Collections.singleton
+                user.setRoles(new HashSet<>(Collections.singleton(newRole)));
+
+                user.setUserType(mapRoleToUserType(newRole.getRoleCode()));
+                changeDetails.append("Role: ").append(currentRoleCode).append(" -> ").append(newRole.getRoleCode());
             }
-            user.setRoles(newRoles);
-            changeDetails.append("Cập nhật danh sách quyền hạn. ");
         }
 
         User savedUser = userRepository.save(user);
 
-        // 4. Handle Deactivation Logic
         if (statusChangedToInactive) {
             deactivateUserAssets(savedUser);
-
-            // [AUDIT LOG] Ghi log khóa/xóa riêng biệt để dễ tracking
-            String actionType = (request.getStatus() == UserStatus.DELETED) ? "DELETE_USER" : "DEACTIVATE_USER";
-            saveAuditLog(admin, actionType, savedUser.getUserId(),
-                    "Vô hiệu hóa tài khoản và tài sản liên quan. Lý do: " + changeDetails.toString());
-        } else {
-            // [AUDIT LOG] Ghi log cập nhật thông thường nếu có thay đổi
-            if (changeDetails.length() > 0) {
-                saveAuditLog(admin, "UPDATE_USER", savedUser.getUserId(), changeDetails.toString());
-            }
+            saveAuditLog(admin, "DEACTIVATE_USER", savedUser.getUserId(), changeDetails.toString());
+        } else if (changeDetails.length() > 0) {
+            saveAuditLog(admin, "UPDATE_USER", savedUser.getUserId(), changeDetails.toString());
         }
 
-        // Notification
-        notifyUser(admin, "Cập nhật người dùng", "Đã cập nhật thông tin user " + savedUser.getUsername());
-        notifyUser(savedUser, "Tài khoản cập nhật", "Thông tin tài khoản của bạn vừa được cập nhật bởi QTV.");
-
         return mapToFullUserResponse(savedUser);
+    }
+
+    private UserType mapRoleToUserType(String roleCode) {
+        if (roleCode == null) return UserType.USER;
+
+        // Logic mapping cứng dựa trên quy ước đặt tên
+        String upperRole = roleCode.toUpperCase();
+
+        if (upperRole.contains("ADMIN")) return UserType.ADMIN;
+        if (upperRole.contains("MERCHANT")) return UserType.MERCHANT;
+        if (upperRole.contains("ACCOUNTANT")) return UserType.ACCOUNTANT;
+
+        return UserType.USER; // Mặc định là Student/User thường
+    }
+
+    private void createDefaultWallet(User user) {
+        UserCredit credit = UserCredit.builder()
+                .user(user)
+                .balance(BigDecimal.ZERO)
+                .totalDeposited(BigDecimal.ZERO)
+                .currentDaySpending(BigDecimal.ZERO)
+                .lastSpendingDate(LocalDate.now())
+                // .status(CreditStatus.ACTIVE) // Nếu Entity có field status
+                .build();
+        userCreditRepository.save(credit);
+    }
+
+    private boolean isInactiveStatus(UserStatus status) {
+        return status == UserStatus.LOCKED || status == UserStatus.SUSPENDED || status == UserStatus.DELETED;
     }
 
     // =========================================================================

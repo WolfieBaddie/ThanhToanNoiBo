@@ -3,6 +3,36 @@ version: "3.9"
 name: springboot-infra
 
 services:
+  # --- THÊM ĐOẠN NÀY VÀO ---
+  backend:
+    build: .                      # Dấu chấm nghĩa là build Dockerfile tại thư mục hiện tại
+    container_name: my-api-server
+    restart: always
+    ports:
+      - "8080:8080"               # Mở cổng 8080 ra ngoài
+    environment:
+      # CẤU HÌNH GHI ĐÈ APPLICATION.PROPERTIES TẠI ĐÂY
+      # Kết nối Database (Thay localhost bằng tên service 'postgres')
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-app_db}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-app_user}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-app_password}
+
+      # Kết nối Redis (Thay localhost bằng tên service 'redis')
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379 # Port nội bộ docker là 6379
+
+      # Kết nối RabbitMQ (Thay localhost bằng tên service 'rabbitmq')
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - backend
+  # -------------------------
+
   postgres:
     image: postgres:16-alpine
     container_name: infra-postgres
@@ -17,8 +47,6 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      # (Tuỳ chọn) Mount script init DB:
-      # - ./db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
@@ -72,8 +100,8 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-rabbit123}
       TZ: ${TZ:-Asia/Bangkok}
     ports:
-      - "${RABBITMQ_PORT:-5672}:5672"       # AMQP
-      - "${RABBITMQ_MGMT_PORT:-15672}:15672" # Management UI
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:

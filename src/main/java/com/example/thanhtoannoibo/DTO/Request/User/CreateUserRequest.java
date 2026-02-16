@@ -27,8 +27,10 @@ public class CreateUserRequest {
 
     private String phoneNumber;
 
-    @NotNull(message = "Loại người dùng không được để trống")
-    private UserType userType; // STUDENT, TEACHER, MERCHANT, ADMIN
+    private String imageUrl;
 
-    private Set<String> roles; // Danh sách mã quyền (VD: ["ADMIN", "MERCHANT"])
+    // [THAY ĐỔI] Chỉ nhận 1 Role Code duy nhất (VD: "MERCHANT", "ADMIN")
+    // UserType sẽ được tự động suy diễn từ Role này
+    @NotBlank(message = "Vui lòng chọn vai trò")
+    private String role;
 }

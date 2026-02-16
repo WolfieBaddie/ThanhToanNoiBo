@@ -27,7 +27,7 @@ public class MerchantRequest {
 
     @Column(name = "request_type", length = 50)
     @Builder.Default
-    private String requestType = "UPDATE_INFO";
+    private String requestType = "WITHDRAWAL";
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "request_data")

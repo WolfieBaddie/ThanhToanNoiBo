@@ -16,4 +16,5 @@ public class BuyVoucherResponse {
     private int quantity;
     private List<String> voucherCodes; // Trả danh sách mã vé để hiển thị ngay
     private LocalDateTime purchasedAt;
+    private Integer totalUsage;
 }

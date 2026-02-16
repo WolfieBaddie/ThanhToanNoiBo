@@ -31,7 +31,10 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
     const [packageName, setPackageName] = useState('');
     const [price, setPrice] = useState<number | string>('');
     const [description, setDescription] = useState('');
-    const [packageType, setPackageType] = useState('ITEM_QUANTITY'); // Default type
+
+    // [CẬP NHẬT] Thay packageType bằng comboType
+    const [comboType, setComboType] = useState('ALL_INCLUSIVE');
+
     const [creditValue, setCreditValue] = useState<number | string>('0');
     const [status, setStatus] = useState<CatalogStatus>(CatalogStatus.ACTIVE);
 
@@ -43,7 +46,7 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
     const typeRef = useRef<HTMLDivElement>(null);
     const statusRef = useRef<HTMLDivElement>(null);
 
-    // --- STATE SERVICE SELECTION (Thay vì Merchant) ---
+    // --- STATE SERVICE SELECTION ---
     const [availableServices, setAvailableServices] = useState<AdminServiceResponse[]>([]);
     const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
     const [serviceSearch, setServiceSearch] = useState('');
@@ -69,7 +72,6 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
             const fetchServices = async () => {
                 setIsLoadingServices(true);
                 try {
-                    // Lấy danh sách Master Service để add vào gói
                     const res = await adminCatalogService.getMasterServices({
                         page: 0, size: 100, status: CatalogStatus.ACTIVE
                     });
@@ -91,11 +93,13 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
             setPackageName(initialData.packageName);
             setPrice(initialData.price);
             setDescription(initialData.description || '');
-            setPackageType(initialData.packageType || 'ITEM_QUANTITY');
+
+            // [CẬP NHẬT] Load comboType
+            setComboType((initialData as any).comboType || 'ALL_INCLUSIVE');
+
             setCreditValue(initialData.creditValue || 0);
             setStatus(initialData.status || CatalogStatus.ACTIVE);
 
-            // Map danh sách items có sẵn trong gói sang mảng ID
             if (initialData.items) {
                 const existingIds = initialData.items.map(item => item.serviceId);
                 setSelectedServiceIds(existingIds);
@@ -105,7 +109,7 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
             setPackageName('');
             setPrice('');
             setDescription('');
-            setPackageType('ITEM_QUANTITY');
+            setComboType('ALL_INCLUSIVE'); // Default
             setCreditValue(0);
             setStatus(CatalogStatus.ACTIVE);
             setSelectedServiceIds([]);
@@ -119,10 +123,10 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
             packageName,
             price: Number(price),
             description,
-            packageType,
+            comboType, // [CẬP NHẬT] Gửi comboType thay vì packageType
             creditValue: Number(creditValue),
             status,
-            serviceIds: selectedServiceIds // Gửi list Service ID
+            serviceIds: selectedServiceIds
         });
     };
 
@@ -146,13 +150,13 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
         s.serviceCode.toLowerCase().includes(serviceSearch.toLowerCase())
     );
 
-    const packageTypes = [
-        { value: 'ITEM_QUANTITY', label: 'Item Bundle (Combo món)' },
-        { value: 'CREDIT_VALUE', label: 'Credit Pack (Gói tiền)' },
-        { value: 'MIXED', label: 'Mixed (Hỗn hợp)' }
+    // [CẬP NHẬT] Danh sách tùy chọn Combo Type
+    const comboTypes = [
+        { value: 'ALL_INCLUSIVE', label: 'All Inclusive (Trọn gói)' },
+        { value: 'SELECT_ONE', label: 'Select One (Chọn 1 món)' }
     ];
 
-    const currentTypeLabel = packageTypes.find(t => t.value === packageType)?.label || packageType;
+    const currentTypeLabel = comboTypes.find(t => t.value === comboType)?.label || comboType;
 
     if (!isOpen) return null;
 
@@ -231,9 +235,9 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
                                 </div>
                             </div>
 
-                            {/* Package Type Dropdown */}
+                            {/* [CẬP NHẬT] Combo Type Dropdown */}
                             <div ref={typeRef} className="relative">
-                                <label className="block text-[11px] font-bold text-white/40 mb-1.5 uppercase tracking-wider">Package Type <span className="text-red-400">*</span></label>
+                                <label className="block text-[11px] font-bold text-white/40 mb-1.5 uppercase tracking-wider">Combo Type <span className="text-red-400">*</span></label>
                                 <button
                                     type="button"
                                     onClick={() => setIsTypeOpen(!isTypeOpen)}
@@ -247,16 +251,16 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
 
                                 {isTypeOpen && (
                                     <div className="absolute top-full mt-1 left-0 w-full bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 p-1">
-                                        {packageTypes.map((t) => (
+                                        {comboTypes.map((t) => (
                                             <div
                                                 key={t.value}
-                                                onClick={() => { setPackageType(t.value); setIsTypeOpen(false); }}
+                                                onClick={() => { setComboType(t.value); setIsTypeOpen(false); }}
                                                 className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between hover:bg-white/5 transition-colors rounded
-                                                    ${packageType === t.value ? 'text-blue-400 bg-blue-500/10' : 'text-white/70'}
+                                                    ${comboType === t.value ? 'text-blue-400 bg-blue-500/10' : 'text-white/70'}
                                                 `}
                                             >
                                                 <span>{t.label}</span>
-                                                {packageType === t.value && <Check size={14} />}
+                                                {comboType === t.value && <Check size={14} />}
                                             </div>
                                         ))}
                                     </div>
@@ -264,7 +268,7 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
                             </div>
                         </div>
 
-                        {/* Row 3: Credit Value (Nếu cần) */}
+                        {/* Row 3: Credit Value */}
                         <div>
                             <label className="block text-[11px] font-bold text-white/40 mb-1.5 uppercase tracking-wider">Credit Value (Points)</label>
                             <div className="relative">
@@ -332,7 +336,7 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
                         </div>
                     </div>
 
-                    {/* RIGHT: SERVICE ASSIGNMENT (Thay thế cho Merchant) */}
+                    {/* RIGHT: SERVICE ASSIGNMENT */}
                     <div className="w-full md:w-[320px] bg-black/20 flex flex-col border-l border-white/5">
                         <div className="p-4 border-b border-white/5">
                             <h3 className="text-sm font-bold text-white flex items-center gap-2 mb-1">
@@ -366,18 +370,8 @@ export const AdminPackageForm: React.FC<AdminPackageFormProps> = ({
                             ) : (
                                 <div className="space-y-1">
                                     {filteredServices.map(service => {
-                                        const isSelected = selectedServiceIds.includes(service.serviceCode); // Lưu ý: Backend có thể dùng ServiceCode hoặc ServiceId, kiểm tra lại DTO. Ở đây giả sử dùng ServiceCode làm ID định danh hoặc ServiceId nếu có.
-                                        // *Lưu ý*: DTO CreatePackageRequest dùng Set<UUID> serviceIds. Vì vậy ở đây nên dùng service.serviceCode nếu nó là UUID, hoặc serviceId ẩn trong response.
-                                        // Giả sử serviceCode là định danh duy nhất của MasterService mà ta muốn add.
-                                        // Tuy nhiên, CreatePackageRequest đòi UUID, nên ta cần một trường ID thực sự.
-                                        // Trong AdminServiceResponse, ta không thấy masterId, chỉ có serviceCode.
-                                        // Tạm thời tôi dùng serviceCode làm key, nhưng bạn cần đảm bảo backend nhận đúng.
-
-                                        // FIX: Dựa vào logic AdminServiceManager, masterServiceRepository.findByServiceCode.
-                                        // Nhưng CreatePackageRequest cần Set<UUID>. Có thể cần sửa AdminServiceResponse trả về thêm masterId.
-                                        // Để an toàn, tôi sẽ giả định serviceCode ở đây map được, hoặc bạn cần bổ sung masterId vào AdminServiceResponse.
-
-                                        const keyId = service.serviceCode; // Hoặc service.masterId nếu có
+                                        const keyId = service.serviceCode;
+                                        const isSelected = selectedServiceIds.includes(keyId);
 
                                         return (
                                             <div

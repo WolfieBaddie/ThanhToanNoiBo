@@ -1,9 +1,38 @@
 export type CatalogStatus = 'ACTIVE' | 'INACTIVE' | 'DELETED' | 'PENDING';
 
-// 1. Định nghĩa Type discriminator
 export type CatalogItemType = 'SERVICE' | 'PACKAGE';
 
-// 2. Định nghĩa chi tiết Service trong Package
+// Định nghĩa chi tiết các tùy chọn (Option) của Service
+// Tương ứng với class ServiceOption trong UserServiceResponse.java
+export interface ServiceOption {
+    serviceId: string;
+    unitPrice: number;
+    counterId: string | null;
+    counterName: string;
+    location: string;
+    merchantName: string;
+    status: CatalogStatus;
+    remainingQuantity: number;
+}
+
+// Cập nhật ServiceResponse theo cấu trúc mới
+export interface ServiceResponse {
+    type: 'SERVICE'; // Frontend tự thêm để phân biệt
+
+    masterServiceCode: string; // Key gom nhóm
+    serviceName: string;
+    categoryName: string;
+    imageUrl: string | null;
+    description?: string;
+
+    // Thống kê giá
+    minPrice: number;
+    maxPrice: number;
+
+    // Danh sách các quầy bán (ServiceOption)
+    options: ServiceOption[];
+}
+
 export interface PackageServiceItem {
     serviceId: string;
     serviceName: string;
@@ -11,25 +40,6 @@ export interface PackageServiceItem {
     originalPrice: number;
 }
 
-// 3. Update ServiceResponse: Thay 'active' bằng 'status'
-export interface ServiceResponse {
-    type: 'SERVICE';
-    serviceId: string;
-    serviceCode: string;
-    serviceName: string;
-    unitPrice: number;
-    categoryName: string;
-    imageUrl: string | null;
-    description?: string;
-
-    status: CatalogStatus;
-    masterServiceCode?: string;
-
-    detailId?: string;
-    remainingQuantity?: number;
-}
-
-// 4. Update PackageResponse: Thay 'isActive' bằng 'status'
 export interface PackageResponse {
     type: 'PACKAGE';
     packageId: string;
@@ -37,18 +47,23 @@ export interface PackageResponse {
     packageName: string;
     description?: string;
     price: number;
-    packageType: string; // 'CREDIT_VALUE', 'ITEM_QUANTITY', 'MIXED'
+    packageType: string;
+    comboType?: 'ALL_INCLUSIVE' | 'SELECT_ONE';
     creditValue: number;
-    imageUrl?:string;
+    imageUrl?: string;
     status: CatalogStatus;
-
     items: PackageServiceItem[];
+    // Info merchant nếu cần
+    merchantInfo?: {
+        counterId: string;
+        counterName: string;
+        location: string;
+        merchantId: string;
+        merchantName: string;
+    };
 }
 
-// 5. Union Type để dùng chung trong list hiển thị
 export type CatalogItem = ServiceResponse | PackageResponse;
-
-// --- CÁC PHẦN DƯỚI GIỮ NGUYÊN ---
 
 export interface ServiceCategory {
     categoryId: string;
@@ -68,9 +83,9 @@ export interface CatalogFilterParams {
 }
 
 export interface PageResponse<T> {
-    items: T[];
     page: number;
     size: number;
     totalItems: number;
     totalPages: number;
+    items: T[];
 }

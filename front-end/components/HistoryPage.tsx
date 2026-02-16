@@ -41,6 +41,7 @@ const HistoryPage: React.FC = () => {
         setDateFilter,
         refetch
     } = useTransactions({ page: 0, size: 10 });
+
     const handleClearFilters = () => { setFilters({ page: 0, size: 10 }); };
     const handleViewDetail = (id: string) => { setSelectedTxId(id); };
 
@@ -54,7 +55,6 @@ const HistoryPage: React.FC = () => {
         const currentPage = (filters.page || 0) + 1;
         const range: (number | string)[] = [];
 
-        // Thuật toán hiển thị: Luôn hiện trang đầu, trang cuối, và các trang quanh current
         if (totalPages <= 7) {
             for (let i = 1; i <= totalPages; i++) range.push(i);
         } else {
@@ -89,15 +89,15 @@ const HistoryPage: React.FC = () => {
         ));
     };
 
-    console.log(data);
-
+    // [CẬP NHẬT] MAP DATA CHO UI
     const uiTransactions: UiTransaction[] = data.map((t: any) => {
         let displayTitle = "Giao dịch hệ thống";
         let displayImage = undefined;
         let subTitle = t.description;
 
+        // 1. Xử lý Title & Image
         if (t.transactionType === 'BUY_VOUCHER') {
-            displayTitle = t.description;
+            displayTitle = t.description; // Giữ nguyên tên gói mua
             subTitle = 'Mua Gói dịch vụ/Voucher';
         }
         else if (t.partnerInfo) {
@@ -116,19 +116,26 @@ const HistoryPage: React.FC = () => {
 
         const isRedemption = t.transactionType === 'REDEMPTION';
         const isPositive = t.direction === 'IN';
-        let displayAmountStr = "";
+        let finalDisplayAmount = "";
 
+        // 2. [FIX] Xử lý hiển thị cho Redemption theo yêu cầu mới
         if (isRedemption) {
-            if (!t.partnerInfo) subTitle = 'Đổi Voucher/Quà tặng';
-            const quantity = t.quantity || 1;
-            displayAmountStr = `${quantity} Vé`;
-        } else {
-            const xuValue = Math.abs(t.amount);
-            displayAmountStr = new Intl.NumberFormat('vi-VN').format(xuValue) + "đ";
-        }
+            subTitle = t.description;
 
-        const prefix = isPositive ? '+' : '-';
-        const finalDisplayAmount = `${prefix}${displayAmountStr}`;
+            // Lấy description đè vào chỗ hiển thị tiền
+            const rawDesc = t.description || "";
+            // Cắt chuỗi nếu quá dài (ví dụ > 25 ký tự) để giữ layout đẹp
+            const maxLength = 25;
+            finalDisplayAmount = rawDesc.length > maxLength
+                ? rawDesc.substring(0, maxLength) + "..."
+                : rawDesc;
+        } else {
+            // Các giao dịch tiền tệ bình thường
+            const xuValue = Math.abs(t.amount);
+            const displayAmountStr = new Intl.NumberFormat('vi-VN').format(xuValue) + "đ";
+            const prefix = isPositive ? '+' : '-';
+            finalDisplayAmount = `${prefix}${displayAmountStr}`;
+        }
 
         return {
             id: t.transactionId,

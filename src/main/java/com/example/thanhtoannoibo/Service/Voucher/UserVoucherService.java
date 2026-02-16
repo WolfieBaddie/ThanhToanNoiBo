@@ -47,8 +47,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -69,6 +71,7 @@ public class UserVoucherService {
     private final AppPackageRepository packageRepository;
     private final OtpService otpService;
     private final UserVoucherDetailRepository  userVoucherDetailRepository;
+    private static final BigDecimal VAT_RATE = new BigDecimal("0.10");
 
     @Transactional(rollbackFor = Exception.class)
     public BuyVoucherResponse buyVoucher(BuyVoucherRequest request) {
@@ -87,23 +90,34 @@ public class UserVoucherService {
 
         otpService.validateOtp(user.getEmail(), request.getOtpCode(), "TRANSACTION");
 
-        // 3. Tính tiền & 4. Trừ tiền (Giữ nguyên)
+        // =========================================================================
+        // [CẬP NHẬT] 3. Tính tiền (GỐC + THUẾ)
+        // =========================================================================
         BigDecimal unitPrice = appService.getUnitPrice();
-        BigDecimal totalAmount = unitPrice.multiply(BigDecimal.valueOf(request.getAmount()));
 
+        // Tiền gốc = Giá vé * Số lượng
+        BigDecimal originalAmount = unitPrice.multiply(BigDecimal.valueOf(request.getAmount()));
+
+        // Tiền thuế = Tiền gốc * 10%
+        BigDecimal taxAmount = originalAmount.multiply(VAT_RATE);
+
+        // Tổng tiền thanh toán = Gốc + Thuế
+        BigDecimal totalAmount = originalAmount.add(taxAmount);
+
+        // 4. Kiểm tra số dư & Trừ tiền (Trừ tổng tiền Total)
         UserCredit currentCredit = userCreditService.getUserCredit(user.getUserId());
         if (currentCredit.getBalance().compareTo(totalAmount) < 0) {
             throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
         }
         UserCredit updatedCredit = userCreditService.deductBalance(user.getUserId(), totalAmount);
 
-        // 5. Tạo Order (Giữ nguyên)
+        // 5. Tạo Order
         String orderRef = "ORD-" + System.currentTimeMillis() + "-" + RandomStringUtils.randomAlphanumeric(4).toUpperCase();
         Order order = Order.builder()
                 .user(user)
                 .serviceEntity(null)
                 .orderRef(orderRef)
-                .amountPaid(totalAmount)
+                .amountPaid(totalAmount) // Lưu tổng tiền
                 .paymentMethod(OrderMethod.CREDIT)
                 .paymentStatus(PaymentStatus.PAID)
                 .createdAt(LocalDateTime.now())
@@ -111,7 +125,7 @@ public class UserVoucherService {
                 .build();
         orderRepository.save(order);
 
-        // 6. Tạo Transaction (Giữ nguyên)
+        // 6. Tạo Transaction (Lưu rõ breakdown Gốc & Thuế)
         String txnRef = "TXN-" + System.currentTimeMillis();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("orderId", order.getOrderId().toString());
@@ -121,22 +135,24 @@ public class UserVoucherService {
         Transaction transaction = Transaction.builder()
                 .credit(updatedCredit)
                 .transactionRef(txnRef)
-                .amount(totalAmount.negate())
+                .amount(totalAmount.negate()) // Trừ tổng tiền
+                .amountOriginal(originalAmount) // [MỚI] Lưu tiền gốc
+                .taxAmount(taxAmount)           // [MỚI] Lưu tiền thuế
                 .balanceAfter(updatedCredit.getBalance())
                 .transactionType(TransactionType.BUY_VOUCHER)
                 .status(TransactionStatus.COMPLETED)
-                .description("Mua " + request.getAmount() + " x " + appService.getServiceName())
+                .description("Mua " + request.getAmount() + " x " + appService.getServiceName() + " (VAT 10%)")
                 .metadata(metadata)
                 .createdAt(LocalDateTime.now())
                 .build();
         transactionRepository.save(transaction);
 
-        // 7. PaymentDetail (Giữ nguyên)
+        // 7. Tạo PaymentDetail (Lưu TỔNG TIỀN để khớp với Transaction Amount)
         PaymentDetail paymentDetail = PaymentDetail.builder()
                 .transaction(transaction)
                 .service(null)
                 .quantity(BigDecimal.valueOf(request.getAmount()))
-                .amount(totalAmount)
+                .amount(totalAmount) // [QUAN TRỌNG] PaymentDetail lưu tổng tiền (bao gồm thuế)
                 .build();
         paymentDetailRepository.save(paymentDetail);
 
@@ -151,24 +167,22 @@ public class UserVoucherService {
                 transaction,
                 now,
                 expiresAt,
-                request.getAmount() // Lưu tổng số lượng vào bảng cha để tham khảo
+                request.getAmount()
         );
         userVoucherRepository.save(voucher);
 
-        // --- [MỚI] 8.5. TẠO VOUCHER DETAIL (BẢNG CON) ---
-        // Lưu thông tin chi tiết: Voucher này dùng cho Service nào, số lượng bao nhiêu
+        // --- 8.5. TẠO VOUCHER DETAIL (BẢNG CON) ---
         UserVoucherDetail voucherDetail = UserVoucherDetail.builder()
-                .userVoucher(voucher)       // Link tới bảng cha
-                .service(appService)        // Link tới Service thực tế
+                .userVoucher(voucher)
+                .service(appService)
                 .initialQuantity(request.getAmount())
-                .remainingQuantity(request.getAmount()) // Mới mua thì còn nguyên
-                .allocatedPrice(unitPrice)  // Giá mua lẻ (không discount)
+                .remainingQuantity(request.getAmount())
+                .allocatedPrice(unitPrice)
                 .build();
 
         userVoucherDetailRepository.save(voucherDetail);
-        // ------------------------------------------------
 
-        // 9. Notification (Giữ nguyên)
+        // 9. Notification
         notificationService.createNotification(
                 user,
                 "Mua vé thành công",
@@ -177,7 +191,7 @@ public class UserVoucherService {
                 "/vouchers/" + voucher.getVoucherId()
         );
 
-        // 10. Audit Log (Giữ nguyên theo yêu cầu)
+        // 10. Audit Log
         saveAuditLog(user, order, voucher, totalAmount);
 
         // 11. Return Response
@@ -221,57 +235,77 @@ public class UserVoucherService {
     }
 
     // --- Helper Mapping (Đọc trực tiếp từ Voucher, không query AppService) ---
-    private UserVoucherResponse mapToResponse(UserVoucher entity) {
-        boolean isExpired = entity.getExpiresAt() != null && entity.getExpiresAt().isBefore(LocalDateTime.now());
+    private UserVoucherResponse mapToResponse(UserVoucher voucher) {
+        // 1. Lấy danh sách chi tiết món ăn (Items)
+        List<UserVoucherDetail> details = userVoucherDetailRepository.findByUserVoucher(voucher);
+        List<UserVoucherDetailResponse> detailResponses = details.stream()
+                .map(d -> UserVoucherDetailResponse.builder()
+                        .serviceName(d.getService().getServiceName())
+                        .remainingQuantity(d.getRemainingQuantity())
+                        .imageUrl(d.getService().getImageUrl())
+                        .allocatedPrice(d.getAllocatedPrice())
+                        .build())
+                .collect(Collectors.toList());
 
-        // 1. [QUAN TRỌNG] Truy vấn bảng Detail để lấy danh sách món ăn
-        List<UserVoucherDetail> details = userVoucherDetailRepository.findByUserVoucher(entity);
+        // 2. Khởi tạo giá trị mặc định cho Package & Counter
+        String comboType = "ALL_INCLUSIVE";
+        Integer usageLimit = null;
+        String counterName = null;
+        String counterLocation = null;
 
-        // 2. Map sang DTO Detail
-        List<UserVoucherDetailResponse> detailResponses = new ArrayList<>();
+        // 3. Truy vấn ngược lại AppPackage để lấy thông tin Combo & Quầy
+        // (Vì UserVoucher chỉ lưu packageId UUID)
+        if (voucher.getPackageId() != null) {
+            AppPackage appPackage = packageRepository.findById(voucher.getPackageId()).orElse(null);
 
-        if (details != null && !details.isEmpty()) {
-            detailResponses = details.stream()
-                    .map(d -> UserVoucherDetailResponse.builder()
-                            .detailId(d.getDetailId())
-                            .serviceId(d.getService().getServiceId())
-                            .serviceName(d.getService().getServiceName())
-                            .imageUrl(d.getService().getImageUrl())
-                            .initialQuantity(d.getInitialQuantity())
-                            .remainingQuantity(d.getRemainingQuantity()) // Quan trọng: Số lượng còn lại
-                            .build())
-                    .collect(Collectors.toList());
+            if (appPackage != null) {
+                // Lấy loại combo
+                comboType = appPackage.getComboType() != null ? appPackage.getComboType() : "ALL_INCLUSIVE";
+                usageLimit = appPackage.getUsageLimit();
+
+                // Lấy thông tin Quầy
+                if (appPackage.getCounter() != null) {
+                    counterName = appPackage.getCounter().getCounterName();
+                    counterLocation = appPackage.getCounter().getLocation();
+                }
+            }
         }
 
-        // 3. Xử lý logic hiển thị tên & ảnh cho Voucher Cha
-        String displayName = entity.getServiceName();
-        String displayImage = entity.getImageUrl();
+        // 4. Build Response hoàn chỉnh
+        boolean isExpired = voucher.getExpiresAt() != null && voucher.getExpiresAt().isBefore(LocalDateTime.now());
 
-
-        // 4. Build Response
         return UserVoucherResponse.builder()
-                .voucherId(entity.getVoucherId())
-                .voucherCode(entity.getVoucherCode())
-                .status(entity.getStatus().name())
+                .voucherId(voucher.getVoucherId())
+                .voucherCode(voucher.getVoucherCode())
+                .status(voucher.getStatus().toString())
 
-                .serviceId(entity.getServiceId())
-                .packageId(entity.getPackageId())
+                // Basic Info
+                .serviceId(voucher.getServiceId())
+                .packageId(voucher.getPackageId())
+                .serviceName(voucher.getServiceName())
+                .imageUrl(voucher.getImageUrl())
+                .categoryName(voucher.getCategoryName())
 
-                .serviceName(displayName)
-                .imageUrl(displayImage)
-                .categoryName(entity.getCategoryName())
-
-                .priceAtPurchase(entity.getPriceAtPurchase())
-                .createdAt(entity.getCreatedAt())
-                .expiresAt(entity.getExpiresAt())
-                .usedAt(entity.getUsedAt())
-
+                // Purchase Info
+                .priceAtPurchase(voucher.getPriceAtPurchase())
+                .createdAt(voucher.getCreatedAt())
+                .expiresAt(voucher.getExpiresAt())
+                .usedAt(voucher.getUsedAt())
                 .isExpired(isExpired)
-                .quantity(entity.getQuantity())
-                .qrContent(entity.getVoucherCode())
 
-                // [MỚI] Gán danh sách món ăn vào đây
+                // Usage Info
+                .quantity(voucher.getQuantity())
+                .totalRemainingUsage(voucher.getTotalRemainingUsage())
+
+                // [NEW] Package & Counter Info
+                .comboType(comboType)
+                .usageLimit(usageLimit)
+                .counterName(counterName)
+                .counterLocation(counterLocation)
+
+                // Details
                 .items(detailResponses)
+                .qrContent(voucher.getVoucherCode())
                 .build();
     }
 
@@ -476,31 +510,50 @@ public class UserVoucherService {
     @Transactional(rollbackFor = Exception.class)
     public BuyVoucherResponse buyPackage(BuyPackageRequest request) {
         // 1. Validate Input
-        if (request == null || request.getPackageId() == null || request.getQuantity() <= 0) {
+        if (request == null || request.getPackageId() == null) {
+            throw new AppException(ErrorCode.INVALID_REQUEST);
+        }
+        if (request.getQuantity() <= 0) {
             throw new AppException(ErrorCode.INVALID_REQUEST);
         }
 
-        // 2. Lấy User hiện tại
+        // 2. Lấy User
         User user = authService.getCurrentUser(httpRequest);
+        if (user == null) {
+            throw new AppException(ErrorCode.USER_NOT_FOUND);
+        }
 
-        // 3. Lấy thông tin Package (Fetch EAGER services để lấy list món ăn)
+        // 3. Lấy thông tin Package
         AppPackage appPackage = packageRepository.findById(request.getPackageId())
                 .orElseThrow(() -> new AppException(ErrorCode.PACKAGE_NOT_FOUND));
 
-        if(!appPackage.getStatus().toString().equalsIgnoreCase(CatalogStatus.ACTIVE.toString()))
-            throw new AppException(ErrorCode.SERVICE_INACTIVE);
+        // [SỬA LỖI 1]: Check Active đúng logic
+        // Nếu status KHÁC Active -> Thì báo lỗi
+        if (!CatalogStatus.ACTIVE.toString().equalsIgnoreCase(appPackage.getStatus().toString())) {
+            throw new AppException(ErrorCode.PACKAGE_INACTIVE);
+        }
 
+        // Validate OTP
         otpService.validateOtp(user.getEmail(), request.getOtpCode(), "TRANSACTION");
 
-        // 4. Tính toán tài chính
+        // =========================================================================
+        // 4. TÍNH TOÁN TÀI CHÍNH
+        // =========================================================================
         BigDecimal packagePrice = appPackage.getPrice();
-        BigDecimal totalAmount = packagePrice.multiply(BigDecimal.valueOf(request.getQuantity()));
+        BigDecimal originalAmount = packagePrice.multiply(BigDecimal.valueOf(request.getQuantity()));
+        BigDecimal taxAmount = originalAmount.multiply(new BigDecimal("0.1")); // VAT 10%
+        BigDecimal totalAmount = originalAmount.add(taxAmount);
 
         // 5. Kiểm tra số dư & Trừ tiền
         UserCredit currentCredit = userCreditService.getUserCredit(user.getUserId());
+        if (currentCredit == null) {
+            throw new AppException(ErrorCode.CREDIT_NOT_FOUND);
+        }
+
         if (currentCredit.getBalance().compareTo(totalAmount) < 0) {
             throw new AppException(ErrorCode.INSUFFICIENT_BALANCE);
         }
+
         UserCredit updatedCredit = userCreditService.deductBalance(user.getUserId(), totalAmount);
 
         // 6. Tạo Order
@@ -529,10 +582,12 @@ public class UserVoucherService {
                 .credit(updatedCredit)
                 .transactionRef(txnRef)
                 .amount(totalAmount.negate())
+                .amountOriginal(originalAmount)
+                .taxAmount(taxAmount)
                 .balanceAfter(updatedCredit.getBalance())
                 .transactionType(TransactionType.BUY_VOUCHER)
                 .status(TransactionStatus.COMPLETED)
-                .description("Mua " + request.getQuantity() + " combo: " + appPackage.getPackageName())
+                .description("Mua " + request.getQuantity() + " gói: " + appPackage.getPackageName())
                 .metadata(metadata)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -541,70 +596,90 @@ public class UserVoucherService {
         // 8. Tạo PaymentDetail
         PaymentDetail paymentDetail = PaymentDetail.builder()
                 .transaction(transaction)
-                .service(null)
                 .quantity(BigDecimal.valueOf(request.getQuantity()))
                 .amount(totalAmount)
                 .build();
         paymentDetailRepository.save(paymentDetail);
 
-        // 9. SINH VOUCHER MASTER (Bảng Cha - UserVoucher)
-        // Đại diện cho "Quyền sử dụng gói"
+        // =========================================================================
+        // 9. TÍNH TOÁN TOTAL_REMAINING_USAGE
+        // =========================================================================
+        Set<AppService> servicesInPackage = appPackage.getServices();
+        int calculatedTotalUsage = 0;
+
+        String type = appPackage.getComboType() == null ? "ALL_INCLUSIVE" : appPackage.getComboType();
+
+        // Bước 9.1: Tính usage cho 1 gói
+        int usagePerPackage = 0;
+        if ("SELECT_ONE".equals(type)) {
+            usagePerPackage = appPackage.getUsageLimit() != null ? appPackage.getUsageLimit() : 1;
+        } else {
+            // Gói Ăn Hết
+            usagePerPackage = servicesInPackage != null ? servicesInPackage.size() : 0;
+        }
+
+        // Bước 9.2: Nhân với số lượng User mua
+        calculatedTotalUsage = usagePerPackage * request.getQuantity();
+
+        // 10. SINH VOUCHER MASTER
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiresAt = now.plusDays(30);
 
-        UserVoucher voucher = createPackageVoucherEntity(
-                user,
-                appPackage,
-                packagePrice,
-                transaction,
-                now,
-                expiresAt,
-                request.getQuantity()
-        );
+        // [SỬA LỖI 2]: Mapping đúng trường packageId và bổ sung thông tin hiển thị
+        UserVoucher voucher = UserVoucher.builder()
+                .owner(user)
+                .packageId(appPackage.getPackageId()) // Sửa: Dùng packageId (UUID) thay vì object AppPackage
+                .voucherCode(generateVoucherCode(appPackage.getPackageName()))
+                .status(UserVoucherStatus.ACTIVE) // Sửa: Dùng Enum UserVoucherStatus nếu có, hoặc String "ACTIVE"
+                .purchaseTransaction(transaction)
+                .priceAtPurchase(totalAmount)
+                .createdAt(now)
+                .expiresAt(expiresAt)
+                .totalRemainingUsage(calculatedTotalUsage)
+
+                // [BỔ SUNG]: Các trường mới bạn thêm vào UserVoucher.java để hiển thị đẹp hơn
+                .serviceName(appPackage.getPackageName()) // Lưu tên gói vào serviceName
+                .categoryName("PACKAGE") // Đánh dấu đây là gói
+                .quantity(request.getQuantity()) // Lưu số lượng gói đã mua
+                .build();
+
         userVoucherRepository.save(voucher);
 
-        // 10. [QUAN TRỌNG] BUNG GÓI RA CHI TIẾT (UserVoucherDetail)
-        // Dựa vào bảng trung gian package_services (Many-to-Many)
-        // appPackage.getServices() sẽ trả về List<AppService>
-        if (appPackage.getServices() != null && !appPackage.getServices().isEmpty()) {
+        // 11. BUNG GÓI RA CHI TIẾT
+        if (servicesInPackage != null && !servicesInPackage.isEmpty()) {
+            BigDecimal totalItemsCount = BigDecimal.valueOf((long) servicesInPackage.size() * request.getQuantity());
+            BigDecimal allocatedPrice = totalItemsCount.compareTo(BigDecimal.ZERO) > 0
+                    ? totalAmount.divide(totalItemsCount, 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
 
-            for (AppService service : appPackage.getServices()) {
-                // Logic số lượng:
-                // Vì bảng trung gian không có cột quantity, ta ngầm định mỗi Service xuất hiện 1 lần trong gói.
-                // Nếu User mua N gói -> Tổng số lượng Service này là N.
-                int totalItemQuantity = request.getQuantity();
-
-                // Tính giá phân bổ (Optional - để báo cáo doanh thu từng món)
-                // Ở đây lấy giá gốc của món (unitPrice) để lưu tham chiếu
-                BigDecimal allocatedPrice = service.getUnitPrice();
+            for (AppService service : servicesInPackage) {
+                int itemQuantity = 1 * request.getQuantity();
 
                 UserVoucherDetail detail = UserVoucherDetail.builder()
-                        .userVoucher(voucher)       // Link về bảng cha
-                        .service(service)           // Link về món ăn cụ thể
-                        .initialQuantity(totalItemQuantity)
-                        .remainingQuantity(totalItemQuantity) // Mới mua còn nguyên
+                        .userVoucher(voucher)
+                        .service(service)
+                        .initialQuantity(itemQuantity)
+                        .remainingQuantity(itemQuantity)
                         .allocatedPrice(allocatedPrice)
                         .build();
 
                 userVoucherDetailRepository.save(detail);
             }
         } else {
-            // Trường hợp gói rỗng (không có service nào), có thể log warning
             log.warn("Package {} has no services configured!", appPackage.getPackageCode());
         }
 
-        // 11. Notification & Log
+        // 12. Notification & Log
         notificationService.createNotification(
                 user,
                 "Mua Combo thành công",
-                "Bạn đã mua gói " + appPackage.getPackageName(),
+                "Bạn đã mua " + request.getQuantity() + " gói " + appPackage.getPackageName(),
                 "SUCCESS",
-                "/vouchers/" + voucher.getVoucherId()
+                "/vouchers/" + voucher.getVoucherCode()
         );
 
         saveAuditLogPackage(user, order, appPackage, totalAmount, request.getQuantity());
 
-        // 12. Response
         return BuyVoucherResponse.builder()
                 .orderId(order.getOrderId())
                 .transactionId(transaction.getTransactionId())
@@ -612,6 +687,7 @@ public class UserVoucherService {
                 .quantity(request.getQuantity())
                 .voucherCodes(Collections.singletonList(voucher.getVoucherCode()))
                 .purchasedAt(now)
+                .totalUsage(calculatedTotalUsage)
                 .build();
     }
 
@@ -717,5 +793,29 @@ public class UserVoucherService {
         } catch (Exception e) {
             log.error("Failed to save audit log: {}", e.getMessage());
         }
+    }
+
+    private String generateVoucherCode(String packageName) {
+        if (packageName == null) {
+            packageName = "VOUCHER";
+        }
+
+        // 1. Chuẩn hóa tiếng Việt (Bỏ dấu)
+        String temp = Normalizer.normalize(packageName, Normalizer.Form.NFD);
+        Pattern pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+        String normalized = pattern.matcher(temp).replaceAll("");
+
+        // 2. Chỉ giữ lại chữ cái và số, viết hoa
+        String prefix = normalized.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
+
+        // 3. Cắt ngắn nếu tên quá dài (lấy 10 ký tự đầu thôi cho gọn)
+        if (prefix.length() > 10) {
+            prefix = prefix.substring(0, 10);
+        }
+
+        // 4. Thêm chuỗi ngẫu nhiên (6 ký tự)
+        String suffix = RandomStringUtils.randomAlphanumeric(6).toUpperCase();
+
+        return prefix + "-" + suffix;
     }
 }

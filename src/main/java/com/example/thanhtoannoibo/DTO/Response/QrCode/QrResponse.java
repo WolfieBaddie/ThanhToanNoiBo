@@ -28,6 +28,8 @@ public class QrResponse {
     private String userType;
     private String email;
     private String imageUrl;
-
+    private Integer totalRemainingUsage;
+    private String comboType;
+    private String packageName;
     private List<ServiceResponse> includedServices;
 }

@@ -34,7 +34,7 @@ public interface UserVoucherDetailRepository extends JpaRepository<UserVoucherDe
             "AND d.service.serviceId = :serviceId")
     Optional<UserVoucherDetail> findDetailByVoucherAndService(
             @Param("voucherId") UUID voucherId,
-            @Param("serviceId") String serviceId
+            @Param("serviceId") UUID serviceId
     );
 
     /**

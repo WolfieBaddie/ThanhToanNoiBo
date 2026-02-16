@@ -1,20 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, Save, Search, CheckSquare, Square, Layers, Edit3 } from 'lucide-react';
+import { X, Save, Search, CheckSquare, Square, Layers, Edit3, CheckCircle2, ListChecks } from 'lucide-react';
 import { ServiceItem } from '@/types/merchant.types';
-import { PackageResponse } from '@/types/catalog.type'; // Import PackageResponse để lấy dữ liệu cũ
+import { PackageResponse } from '@/types/catalog.type';
 import { formatCurrency } from '@/utils/format';
 
 interface MerchantPackageFormProps {
     isOpen: boolean;
     onClose: () => void;
-    // onSubmit nhận data linh hoạt (Create hoặc Update request)
     onSubmit: (data: any) => void;
     availableServices: ServiceItem[];
     isSubmitting?: boolean;
-
-    // [MỚI] Thêm các props cho Edit
     mode: 'CREATE' | 'EDIT';
-    initialData?: PackageResponse | null; // Dữ liệu gói cũ (nếu Edit)
+    initialData?: PackageResponse | null;
 }
 
 export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
@@ -33,8 +30,8 @@ export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
     const [description, setDescription] = useState('');
     const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE' | 'DELETED'>('ACTIVE');
 
-    // Mặc định luôn là ITEM_QUANTITY
-    const [packageType] = useState('ITEM_QUANTITY');
+    // [MỚI] Thay packageType thành comboType
+    const [comboType, setComboType] = useState<'ALL_INCLUSIVE' | 'SELECT_ONE'>('ALL_INCLUSIVE');
 
     const [creditValue, setCreditValue] = useState<number | string>('');
     const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -51,9 +48,11 @@ export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
                 setPackageName(initialData.packageName);
                 setPrice(initialData.price);
                 setDescription(initialData.description || '');
-                setStatus(initialData.status as any); // Gán trạng thái
+                setStatus(initialData.status as any);
 
-                // Quan trọng: Map danh sách món ăn từ initialData.items (PackageServiceItem) sang mảng ID
+                // [MỚI] Fill comboType (nếu data cũ chưa có thì mặc định ALL_INCLUSIVE)
+                setComboType(initialData.comboType || 'ALL_INCLUSIVE');
+
                 const existingIds = initialData.items?.map(item => String(item.serviceId)) || [];
                 setSelectedServiceIds(existingIds);
             } else {
@@ -63,10 +62,11 @@ export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
                 setPrice('');
                 setDescription('');
                 setStatus('ACTIVE');
+                setComboType('ALL_INCLUSIVE'); // Mặc định là Trọn gói
                 setCreditValue('');
                 setSelectedServiceIds([]);
             }
-            setSearchTerm(''); // Reset search
+            setSearchTerm('');
         }
     }, [isOpen, mode, initialData]);
 
@@ -87,34 +87,26 @@ export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
     };
 
     const handleSubmit = () => {
-        // Prepare Payload dựa trên Mode
+        // Prepare Payload
+        const payload: any = {
+            packageName,
+            price: Number(price),
+            description,
+            comboType, // [MỚI] Gửi comboType
+            creditValue: creditValue ? Number(creditValue) : null,
+            serviceIds: selectedServiceIds
+        };
+
         if (mode === 'CREATE') {
-            const payload = {
-                packageCode,
-                packageName,
-                price: Number(price),
-                description,
-                packageType,
-                creditValue: creditValue ? Number(creditValue) : null,
-                serviceIds: selectedServiceIds
-            };
-            onSubmit(payload);
+            payload.packageCode = packageCode;
+            // packageType Backend tự xử, ko cần gửi hoặc gửi default
         } else {
-            // Mode EDIT: Không gửi packageCode
-            const payload = {
-                packageName,
-                price: Number(price),
-                description,
-                packageType,
-                creditValue: creditValue ? Number(creditValue) : null,
-                status, // Cho phép cập nhật trạng thái khi sửa
-                serviceIds: selectedServiceIds
-            };
-            onSubmit(payload);
+            payload.status = status;
         }
+
+        onSubmit(payload);
     };
 
-    // Filter danh sách món ăn
     const filteredServices = useMemo(() => {
         return availableServices.filter(s =>
             s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -142,12 +134,51 @@ export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
                     </button>
                 </div>
 
-                {/* 2. BODY (Scrollable) */}
+                {/* 2. BODY */}
                 <div className="p-6 overflow-y-auto space-y-6 flex-1">
 
-                    {/* --- Phần A: Thông tin chung --- */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* --- [MỚI] CHỌN LOẠI COMBO --- */}
+                    <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">
+                            Loại hình Combo <span className="text-red-500">*</span>
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Option 1: Trọn gói */}
+                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${comboType === 'ALL_INCLUSIVE' ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800 ring-1 ring-indigo-500' : 'bg-white dark:bg-slate-800 border-slate-200 hover:border-indigo-300'}`}>
+                                <div className="mt-0.5">
+                                    <input type="radio" name="comboType" className="sr-only" checked={comboType === 'ALL_INCLUSIVE'} onChange={() => setComboType('ALL_INCLUSIVE')} />
+                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${comboType === 'ALL_INCLUSIVE' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-400'}`}>
+                                        {comboType === 'ALL_INCLUSIVE' && <div className="w-2 h-2 rounded-full bg-white" />}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-white">
+                                        <CheckCircle2 size={16} className="text-indigo-500" /> Trọn gói
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">Khách nhận được tất cả các món đã chọn bên dưới.</p>
+                                </div>
+                            </label>
 
+                            {/* Option 2: Chọn 1 */}
+                            <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${comboType === 'SELECT_ONE' ? 'bg-orange-50 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800 ring-1 ring-orange-500' : 'bg-white dark:bg-slate-800 border-slate-200 hover:border-orange-300'}`}>
+                                <div className="mt-0.5">
+                                    <input type="radio" name="comboType" className="sr-only" checked={comboType === 'SELECT_ONE'} onChange={() => setComboType('SELECT_ONE')} />
+                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${comboType === 'SELECT_ONE' ? 'border-orange-600 bg-orange-600' : 'border-slate-400'}`}>
+                                        {comboType === 'SELECT_ONE' && <div className="w-2 h-2 rounded-full bg-white" />}
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-white">
+                                        <ListChecks size={16} className="text-orange-500" /> Chọn 1 món
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1">Khách được chọn 1 trong các món (Đồng giá).</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    {/* --- Thông tin chung (Giữ nguyên) --- */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Mã Gói */}
                         <div className="md:col-span-1">
                             <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
@@ -159,22 +190,11 @@ export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
                                     value={packageCode}
                                     onChange={(e) => setPackageCode(e.target.value.toUpperCase())}
                                     placeholder="VD: COMBO_TET"
-                                    // [QUAN TRỌNG] Disable khi đang Edit
                                     disabled={mode === 'EDIT'}
-                                    className={`w-full p-3 border rounded-xl font-mono uppercase outline-none
-                                        ${mode === 'EDIT'
-                                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 cursor-not-allowed'
-                                        : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500'
-                                    }
-                                    `}
+                                    className={`w-full p-3 border rounded-xl font-mono uppercase outline-none ${mode === 'EDIT' ? 'bg-slate-100 cursor-not-allowed' : 'bg-slate-50 focus:ring-2 focus:ring-indigo-500'}`}
                                 />
                                 {mode === 'CREATE' && (
-                                    <button
-                                        onClick={handleGenerateCode}
-                                        className="absolute right-2 top-2 text-xs bg-white dark:bg-slate-700 px-2 py-1.5 rounded border shadow-sm hover:bg-slate-100"
-                                    >
-                                        Auto
-                                    </button>
+                                    <button onClick={handleGenerateCode} className="absolute right-2 top-2 text-xs bg-white px-2 py-1.5 rounded border shadow-sm hover:bg-slate-100">Auto</button>
                                 )}
                             </div>
                         </div>
@@ -195,52 +215,27 @@ export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
 
                         {/* Tên Gói */}
                         <div className="md:col-span-2">
-                            <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">
-                                Tên gói hiển thị <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={packageName}
-                                onChange={(e) => setPackageName(e.target.value)}
-                                placeholder="VD: Combo Sáng Vui Vẻ"
-                                className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                            />
+                            <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">Tên gói hiển thị <span className="text-red-500">*</span></label>
+                            <input type="text" value={packageName} onChange={(e) => setPackageName(e.target.value)} placeholder="VD: Combo Sáng Vui Vẻ" className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none" />
                         </div>
 
                         {/* Mô tả */}
                         <div className="md:col-span-2">
                             <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">Mô tả chi tiết</label>
-                            <textarea
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl h-20 resize-none focus:ring-2 focus:ring-indigo-500 outline-none"
-                                placeholder="VD: Bao gồm 1 Bánh mỳ + 1 Sữa đậu nành..."
-                            ></textarea>
+                            <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl h-20 resize-none focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="VD: Bao gồm 1 Bánh mỳ + 1 Sữa đậu nành..."></textarea>
                         </div>
 
-                        {/* [MỚI] Trạng thái (Chỉ hiện khi Edit) */}
+                        {/* Status Toggle (Edit only) */}
                         {mode === 'EDIT' && (
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium mb-1 text-slate-700 dark:text-slate-300">Trạng thái kinh doanh</label>
                                 <div className="flex gap-4 mt-1">
                                     <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="status"
-                                            checked={status === 'ACTIVE'}
-                                            onChange={() => setStatus('ACTIVE')}
-                                            className="w-4 h-4 text-indigo-600 focus:ring-indigo-500"
-                                        />
+                                        <input type="radio" name="status" checked={status === 'ACTIVE'} onChange={() => setStatus('ACTIVE')} className="w-4 h-4 text-indigo-600 focus:ring-indigo-500" />
                                         <span className="text-sm font-medium text-green-600">Đang bán (Active)</span>
                                     </label>
                                     <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="status"
-                                            checked={status === 'INACTIVE'}
-                                            onChange={() => setStatus('INACTIVE')}
-                                            className="w-4 h-4 text-slate-400 focus:ring-slate-500"
-                                        />
+                                        <input type="radio" name="status" checked={status === 'INACTIVE'} onChange={() => setStatus('INACTIVE')} className="w-4 h-4 text-slate-400 focus:ring-slate-500" />
                                         <span className="text-sm font-medium text-slate-500">Tạm ngưng (Inactive)</span>
                                     </label>
                                 </div>
@@ -248,61 +243,37 @@ export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
                         )}
                     </div>
 
-                    {/* --- Phần B: Chọn món ăn (Service Selection) --- */}
+                    {/* --- Chọn món ăn (Service Selection) --- */}
                     <div className="border-t border-slate-100 dark:border-slate-700 pt-4">
                         <div className="flex justify-between items-center mb-3">
                             <label className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                Chọn món trong gói
+                                Danh sách món ăn
                                 <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-xs border border-indigo-100">
-                                    {selectedServiceIds.length} đã chọn
+                                    {selectedServiceIds.length} món
                                 </span>
                             </label>
-
                             <div className="relative w-48">
                                 <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Tìm món..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-indigo-500 transition-colors"
-                                />
+                                <input type="text" placeholder="Tìm món..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-8 pr-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 rounded-lg outline-none focus:border-indigo-500" />
                             </div>
                         </div>
 
-                        {/* List món ăn scrollable */}
                         <div className="border border-slate-200 dark:border-slate-700 rounded-xl h-60 overflow-y-auto bg-slate-50/50 dark:bg-slate-900/50">
                             {filteredServices.length > 0 ? (
                                 <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-800">
                                     {filteredServices.map((service) => {
                                         const isSelected = selectedServiceIds.includes(String(service.id));
                                         return (
-                                            <div
-                                                key={service.id}
-                                                onClick={() => toggleServiceSelection(String(service.id))}
-                                                className={`flex items-center gap-3 p-3 cursor-pointer transition-all hover:bg-white dark:hover:bg-slate-800
-                                                    ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}
-                                                `}
-                                            >
+                                            <div key={service.id} onClick={() => toggleServiceSelection(String(service.id))} className={`flex items-center gap-3 p-3 cursor-pointer transition-all hover:bg-white dark:hover:bg-slate-800 ${isSelected ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}>
                                                 <div className={`shrink-0 transition-colors ${isSelected ? 'text-indigo-600' : 'text-slate-300'}`}>
                                                     {isSelected ? <CheckSquare size={20} /> : <Square size={20} />}
                                                 </div>
-
                                                 <div className="w-10 h-10 rounded-lg bg-slate-200 overflow-hidden shrink-0">
-                                                    {service.image ? (
-                                                        <img src={service.image} alt="" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-xs font-bold text-slate-400">IMG</div>
-                                                    )}
+                                                    {service.image ? <img src={service.image} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-xs font-bold text-slate-400">IMG</div>}
                                                 </div>
-
                                                 <div className="flex-1 min-w-0">
-                                                    <p className={`text-sm font-medium truncate ${isSelected ? 'text-indigo-700 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-200'}`}>
-                                                        {service.name}
-                                                    </p>
-                                                    <p className="text-xs text-slate-500">
-                                                        {formatCurrency(service.price)}
-                                                    </p>
+                                                    <p className={`text-sm font-medium truncate ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>{service.name}</p>
+                                                    <p className="text-xs text-slate-500">{formatCurrency(service.price)}</p>
                                                 </div>
                                             </div>
                                         );
@@ -314,36 +285,17 @@ export const MerchantPackageForm: React.FC<MerchantPackageFormProps> = ({
                                 </div>
                             )}
                         </div>
-                        {selectedServiceIds.length === 0 && (
-                            <p className="text-xs text-red-500 mt-2">* Vui lòng chọn ít nhất 1 món ăn.</p>
-                        )}
+                        {selectedServiceIds.length === 0 && <p className="text-xs text-red-500 mt-2">* Vui lòng chọn ít nhất 1 món ăn.</p>}
                     </div>
-
                 </div>
 
                 {/* 3. FOOTER */}
                 <div className="p-6 border-t border-slate-100 dark:border-slate-700 flex gap-3 justify-end bg-white dark:bg-slate-800 rounded-b-2xl">
-                    <button
-                        onClick={onClose}
-                        className="px-5 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                    >
-                        Hủy bỏ
-                    </button>
-                    <button
-                        onClick={handleSubmit}
-                        // Validate: Code, Tên, Giá, Items
-                        disabled={isSubmitting || !packageCode || !packageName || !price || selectedServiceIds.length === 0}
-                        className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-600/20 flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transition-all active:scale-95"
-                    >
-                        {isSubmitting ? <span className="animate-spin">⌛</span> : (
-                            <>
-                                <Save size={18} />
-                                {mode === 'CREATE' ? 'Tạo Gói Combo' : 'Lưu Thay Đổi'}
-                            </>
-                        )}
+                    <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100 transition-colors">Hủy bỏ</button>
+                    <button onClick={handleSubmit} disabled={isSubmitting || !packageCode || !packageName || !price || selectedServiceIds.length === 0} className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-lg flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed transition-all active:scale-95">
+                        {isSubmitting ? <span className="animate-spin">⌛</span> : <><Save size={18} /> {mode === 'CREATE' ? 'Tạo Gói Combo' : 'Lưu Thay Đổi'}</>}
                     </button>
                 </div>
-
             </div>
         </div>
     );

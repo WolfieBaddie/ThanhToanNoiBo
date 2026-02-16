@@ -48,6 +48,7 @@ export interface CreatePackageRequest {
     price: number;
     description: string;
     packageType: string; // 'ITEM_QUANTITY'
+    comboType: 'ALL_INCLUSIVE' | 'SELECT_ONE';
     creditValue?: number | null;
     serviceIds: string[];
 }
@@ -59,5 +60,6 @@ export interface UpdatePackageRequest {
     packageType?: string;
     creditValue?: number | null;
     status?: 'ACTIVE' | 'INACTIVE' | 'DELETED';
+    comboType?: 'ALL_INCLUSIVE' | 'SELECT_ONE';
     serviceIds?: string[];
 }

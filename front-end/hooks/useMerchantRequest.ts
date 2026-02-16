@@ -49,13 +49,16 @@ export const useMerchant = () => {
         queryClient.invalidateQueries({ queryKey: MERCHANT_KEYS.REQUESTS });
     };
 
-    const exportExcel = () => {
+    const exportExcel = async (month: number, year: number) => {
         try {
-            const url = merchantService.getExportReconciliationUrl();
-            window.location.href = url;
-            toast.success("Đang bắt đầu tải file đối soát...");
+            const promise = merchantService.exportReconciliationExcel(month, year);
+            await toast.promise(promise, {
+                loading: 'Đang tải báo cáo...',
+                success: 'Tải xuống thành công!',
+                error: 'Lỗi khi xuất file báo cáo'
+            });
         } catch (error) {
-            toast.error("Không thể tải file đối soát lúc này.");
+            console.error("Export Error:", error);
         }
     };
 

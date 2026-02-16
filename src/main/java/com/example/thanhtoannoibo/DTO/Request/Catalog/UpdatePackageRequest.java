@@ -13,6 +13,7 @@ public class UpdatePackageRequest {
     private BigDecimal price;
     private String description;
     private String packageType;
+    private String comboType;
     private BigDecimal creditValue;
     private CatalogStatus status;
     private Set<UUID> serviceIds; // Nếu muốn cập nhật lại danh sách món

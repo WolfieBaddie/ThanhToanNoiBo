@@ -1,61 +1,62 @@
-
 import React, { useState } from 'react';
-import { QRScannerModal } from './dashboard/QRScannerModal';
+import { useNavigate } from 'react-router-dom'; // [MỚI]
 import { Notification } from './ui/Notification';
 import { DashboardHeader } from './dashboard/DashboardHeader';
 import { StatsGrid } from './dashboard/StatsGrid';
-
 import { RecentTransactionsTable } from './dashboard/RecentTransactionsTable';
 import { SpendingChart } from './dashboard/SpendingChart';
 import { QuickActionPanel } from './dashboard/QuickActionsPanel';
 
+// [SỬA] Bỏ onNavigate khỏi props vì App.tsx không truyền vào
 interface DashboardPageProps {
-  onNavigate: (tab: string) => void;
-  onViewTransaction?: (id: number) => void;
+    onViewTransaction?: (id: number) => void;
 }
 
-const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onViewTransaction }) => {
-  const [showQR, setShowQR] = useState(false);
-  const [notification, setNotification] = useState<{isOpen: boolean, message: string}>({ isOpen: false, message: '' });
+const DashboardPage: React.FC<DashboardPageProps> = ({ onViewTransaction }) => {
+    const navigate = useNavigate(); // [MỚI] Khởi tạo hook điều hướng
+    const [notification, setNotification] = useState<{isOpen: boolean, message: string}>({ isOpen: false, message: '' });
 
-  const handleQRScanComplete = (data: string) => {
-    setShowQR(false);
-    setNotification({ isOpen: true, message: 'Thanh toán thành công: -35.000đ' });
-  };
+    // Hàm wrapper để truyền cho các component con cũ (StatsGrid, RecentTransactionsTable)
+    // giúp chúng không bị lỗi khi gọi onNavigate
+    const handleNavigate = (path: string) => {
+        navigate(path);
+    };
 
-  return (
-    <div className="space-y-6">
-      <Notification
-        type="success"
-        isOpen={notification.isOpen}
-        onClose={() => setNotification({ ...notification, isOpen: false })}
-        message={notification.message}
-      />
+    return (
+        <div className="space-y-6">
+            <Notification
+                type="success"
+                isOpen={notification.isOpen}
+                onClose={() => setNotification({ ...notification, isOpen: false })}
+                message={notification.message}
+            />
 
-      {/* 1. Header Section - Navigate to Voucher instead of opening Scanner */}
-      <DashboardHeader onScanClick={() => onNavigate('/voucher')} />
+            {/* 1. Header Section */}
+            <DashboardHeader onScanClick={() => navigate('/voucher')} />
 
-      {/* 2. Main Grid Layout */}
-      <div className="flex flex-col gap-6">
-          
-          {/* Row 1: Wallet & Quick Stats */}
-          <StatsGrid onNavigate={onNavigate} />
+            {/* 2. Main Grid Layout */}
+            <div className="flex flex-col gap-6">
 
-          {/* Row 2: Charts & Actions (Split 2/3 and 1/3) */}
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-              <div className="xl:col-span-2">
-                  <SpendingChart />
-              </div>
-              <div className="xl:col-span-1">
-                  <QuickActionPanel onNavigate={onNavigate} />
-              </div>
-          </div>
+                {/* Row 1: Wallet & Quick Stats */}
+                {/* Vẫn truyền handleNavigate nếu StatsGrid cần dùng */}
+                <StatsGrid onNavigate={handleNavigate} />
 
-          {/* Row 3: Transactions (Full Width) */}
-          <RecentTransactionsTable onNavigate={onNavigate} onViewDetail={onViewTransaction} />
-      </div>
-    </div>
-  );
+                {/* Row 2: Charts & Actions */}
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    <div className="xl:col-span-2">
+                        <SpendingChart />
+                    </div>
+                    <div className="xl:col-span-1">
+                        {/* QuickActionPanel đã sửa để tự dùng useNavigate, không cần truyền props nữa */}
+                        <QuickActionPanel />
+                    </div>
+                </div>
+
+                {/* Row 3: Transactions */}
+                <RecentTransactionsTable onNavigate={handleNavigate} onViewDetail={onViewTransaction} />
+            </div>
+        </div>
+    );
 };
 
 export default DashboardPage;

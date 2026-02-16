@@ -6,29 +6,33 @@ import {
     ServiceCategory,
     CatalogFilterParams,
     CatalogItem,
-    CatalogItemType
+    CatalogItemType,
+    PageResponse
 } from '@/types/catalog.type';
 
-const DEFAULT_PAGE_SIZE = 10;
+// Mặc định hiển thị 12 sản phẩm (để chia hết cho 2, 3, 4 cột)
+const DEFAULT_PAGE_SIZE = 12;
 
 export const useCatalog = () => {
-    // --- STATE DỮ LIỆU GỐC ---
+    // --- STATE DỮ LIỆU ---
     const [services, setServices] = useState<ServiceResponse[]>([]);
-    const [packages, setPackages] = useState<PackageResponse[]>([]); // Thêm state Packages
+    const [packages, setPackages] = useState<PackageResponse[]>([]);
     const [categories, setCategories] = useState<ServiceCategory[]>([]);
 
-    // --- STATE QUẢN LÝ ---
+    // --- STATE UI ---
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [isServicesLoading, setIsServicesLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
 
-    // --- STATE PHÂN TRANG (Cho Services) ---
+    // --- STATE PHÂN TRANG ---
     const [pagination, setPagination] = useState({
         pageNumber: 0,
         totalPages: 0,
         totalItems: 0,
+        size: DEFAULT_PAGE_SIZE // [MỚI] Lưu size hiện tại để UI hiển thị
     });
 
-    // --- STATE FILTER SERVER (Gửi lên BE) ---
+    // --- STATE FILTER GỬI API ---
     const [filters, setFilters] = useState<CatalogFilterParams>({
         page: 0,
         size: DEFAULT_PAGE_SIZE,
@@ -38,119 +42,103 @@ export const useCatalog = () => {
         sortDir: 'desc'
     });
 
-    // --- STATE FILTER CLIENT (Lọc hiển thị tại UI) ---
-    // 'ALL': Hiện Package ở trên, Service ở dưới
-    // 'PACKAGE': Chỉ hiện Package
-    // 'SERVICE': Chỉ hiện Service
+    // --- STATE LOCAL FILTER (TAB) ---
     const [viewFilter, setViewFilter] = useState<CatalogItemType | 'ALL'>('ALL');
 
-    // 1. Fetch Static Data (Categories & Packages) - Chạy 1 lần
-    useEffect(() => {
-        const fetchStaticData = async () => {
-            try {
-                // Gọi song song 2 API để tiết kiệm thời gian
-                // Lưu ý: Bạn cần đảm bảo catalogService.getPackages() đã được định nghĩa
-                const [catsData, pkgsData] = await Promise.all([
-                    catalogService.getCategories(),
-                    catalogService.getPackages()
-                ]);
-
-                if (Array.isArray(catsData)) setCategories(catsData);
-
-                if (Array.isArray(pkgsData)) {
-                    // Map thêm type='PACKAGE' nếu BE chưa trả về, hoặc typescript tự hiểu nhờ interface
-                    const mappedPkgs = pkgsData.map(p => ({ ...p, type: 'PACKAGE' } as PackageResponse));
-                    setPackages(mappedPkgs);
-                }
-
-            } catch (err) {
-                console.error("Failed to load static catalog data", err);
-            }
-        };
-        fetchStaticData();
+    // =========================================================================
+    // 1. FETCH DATA TĨNH (Packages & Categories)
+    // =========================================================================
+    const fetchStaticData = useCallback(async () => {
+        try {
+            const [pkgs, cats] = await Promise.all([
+                catalogService.getPackages(),
+                catalogService.getCategories()
+            ]);
+            setPackages(pkgs);
+            setCategories(cats);
+        } catch (err: any) {
+            console.error("Failed to load static catalog data", err);
+        }
     }, []);
 
-    // 2. Fetch Services (Chạy mỗi khi filters thay đổi)
+    // =========================================================================
+    // 2. FETCH SERVICES (Gọi lại khi filter/page/size thay đổi)
+    // =========================================================================
     const fetchServices = useCallback(async () => {
-        setIsLoading(true);
+        setIsServicesLoading(true);
         setError(null);
         try {
-            const data = await catalogService.getServices(filters);
+            const data: PageResponse<ServiceResponse> = await catalogService.getServices(filters);
 
-            if (data && Array.isArray(data.items)) {
-                // Map thêm type='SERVICE' để an toàn
-                const mappedServices = data.items.map(s => ({ ...s, type: 'SERVICE' } as ServiceResponse));
-
-                setServices(mappedServices);
-                setPagination({
-                    pageNumber: data.page,
-                    totalPages: data.totalPages,
-                    totalItems: data.totalItems
-                });
-            } else {
-                setServices([]);
-                setPagination({ pageNumber: 0, totalPages: 0, totalItems: 0 });
-            }
-
+            setServices(data.items);
+            setPagination({
+                pageNumber: data.page,
+                totalPages: data.totalPages,
+                totalItems: data.totalItems,
+                size: filters.size // Cập nhật size theo filter hiện tại
+            });
         } catch (err: any) {
-            console.error("Error fetching services:", err);
-            setError(err.response?.data?.message || "Không thể tải danh sách dịch vụ.");
-            setServices([]);
+            console.error(err);
+            setError(err.message || 'Không thể tải danh sách dịch vụ');
         } finally {
+            setIsServicesLoading(false);
             setIsLoading(false);
         }
     }, [filters]);
+
+    // --- EFFECTS ---
+    useEffect(() => {
+        fetchStaticData();
+    }, [fetchStaticData]);
 
     useEffect(() => {
         fetchServices();
     }, [fetchServices]);
 
-    // --- COMPUTED DATA (Dữ liệu hiển thị cuối cùng) ---
-    // Logic:
-    // - Nếu đang ở trang 0 và viewFilter là 'ALL' hoặc 'PACKAGE' -> Hiển thị Packages lên đầu.
-    // - Nếu có keyword tìm kiếm -> Tùy logic, thường chỉ tìm Service (vì Package ít),
-    //   nhưng ở đây ta tạm hiển thị Package luôn nếu khớp keyword (client filter).
+    // =========================================================================
+    // 3. LOGIC MERGE & DISPLAY DATA
+    // =========================================================================
+    const displayedItems = useMemo(() => {
+        let items: CatalogItem[] = [];
 
-    const displayedItems = useMemo<CatalogItem[]>(() => {
-        let result: CatalogItem[] = [];
+        // Logic: Nếu đang search hoặc filter category -> chỉ hiện Service (Package thường ko có category con)
+        const isFiltering = !!filters.categoryId || !!filters.keyword;
 
-        // 1. Xử lý Packages (Lọc client-side)
-        let visiblePackages = packages;
-
-        // Nếu có keyword, lọc sơ bộ Package theo tên (Optional)
-        if (filters.keyword) {
-            const k = filters.keyword.toLowerCase();
-            visiblePackages = packages.filter(p => p.packageName.toLowerCase().includes(k));
+        if (viewFilter === 'ALL') {
+            if (!isFiltering) {
+                // Mặc định: hiện Package trước, Service sau
+                items = [...packages, ...services];
+            } else {
+                items = [...services];
+            }
+        } else if (viewFilter === 'PACKAGE') {
+            items = [...packages];
+        } else if (viewFilter === 'SERVICE') {
+            items = [...services];
         }
 
-        // 2. Logic Gộp
-        if (viewFilter === 'PACKAGE') {
-            return visiblePackages;
-        }
+        return items;
+    }, [services, packages, viewFilter, filters.categoryId, filters.keyword]);
 
-        if (viewFilter === 'SERVICE') {
-            return services;
-        }
-
-        // Case 'ALL':
-        // Chỉ hiện Package nếu đang ở trang đầu tiên (page 0) của Services
-        // để tránh Package lặp lại ở mọi trang
-        if (filters.page === 0) {
-            result = [...visiblePackages, ...services];
-        } else {
-            result = [...services];
-        }
-
-        return result;
-    }, [services, packages, viewFilter, filters.page, filters.keyword]);
-
-
-    // --- ACTIONS ---
+    // =========================================================================
+    // 4. ACTIONS (Public functions)
+    // =========================================================================
 
     const changePage = (newPage: number) => {
         if (newPage >= 0 && newPage < pagination.totalPages) {
             setFilters(prev => ({ ...prev, page: newPage }));
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
+    };
+
+    // [MỚI] Đổi số lượng sản phẩm trên trang
+    const changePageSize = (newSize: number) => {
+        setFilters(prev => ({
+            ...prev,
+            size: newSize,
+            page: 0 // Reset về trang đầu khi đổi size để tránh lỗi out of range
+        }));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleSearch = (keyword: string) => {
@@ -161,38 +149,40 @@ export const useCatalog = () => {
         setFilters(prev => ({ ...prev, categoryId, page: 0 }));
     };
 
-    // Action mới: Cho phép UI chuyển đổi chế độ xem (Tất cả / Combo / Dịch vụ)
     const filterByType = (type: CatalogItemType | 'ALL') => {
         setViewFilter(type);
-        setFilters(prev => ({ ...prev, page: 0 })); // Reset về trang 1 khi đổi loại view
+        // Nếu chuyển sang tab SERVICE thì reset page về 0
+        if (type === 'SERVICE' || type === 'ALL') {
+            setFilters(prev => ({ ...prev, page: 0 }));
+        }
     };
 
     const refresh = () => {
-        fetchServices();
-        // Có thể gọi lại fetchStaticData nếu cần cập nhật cả package
+        setIsLoading(true);
+        Promise.all([fetchStaticData(), fetchServices()]).finally(() => setIsLoading(false));
     };
 
     return {
-        // Raw Data (nếu cần truy cập riêng)
-        services,
-        packages,
-        categories,
-
-        // Merged Data (Dùng cái này để map ra View)
-        displayedItems,
+        // Data
+        displayedItems, // List đã merge để render
+        categories,     // List danh mục để filter
 
         // Metadata
-        pagination,
+        pagination,     // { pageNumber, totalPages, totalItems, size }
         isLoading,
+        isServicesLoading,
         error,
-        viewFilter, // Để UI biết đang highlight tab nào
 
-        // Filter actions
-        filters,
+        // Filters State
+        currentFilters: filters,
+        viewFilter,     // 'ALL' | 'PACKAGE' | 'SERVICE'
+
+        // Actions
         changePage,
+        changePageSize, // [MỚI]
         handleSearch,
         filterByCategory,
-        filterByType, // Expose hàm này ra ngoài
+        filterByType,
         refresh
     };
 };

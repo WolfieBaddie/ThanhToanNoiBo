@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     RefreshCw, ArrowLeft, Download, Clock,
     CheckCircle2, XCircle, Eye, FileText, Search, Plus, X,
-    UploadCloud, Trash2, ImageIcon
+    UploadCloud, Trash2, ImageIcon, AlertTriangle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,11 +10,11 @@ import { useNavigate } from 'react-router-dom';
 import { useMerchant } from '@/hooks/useMerchantRequest';
 import { useAuth } from '@/hooks/useAuth';
 import { Notification } from "@/components/ui/Notification";
-import { MerchantRequestDetailModal } from "@/components/merchant/MerchantRequestDetailModal"; // Component modal chi tiết
-//
+import { MerchantRequestDetailModal } from "@/components/merchant/MerchantRequestDetailModal";
+
 const MerchantRequestHistoryPage: React.FC = () => {
     const navigate = useNavigate();
-    const { user } = useAuth(); // Lấy thông tin user hiện tại
+    const { user } = useAuth();
 
     // Lấy logic từ Hook useMerchantRequest
     const {
@@ -26,7 +26,7 @@ const MerchantRequestHistoryPage: React.FC = () => {
         // Actions
         refreshRequests,
         submitRequest,
-        exportExcel,
+        exportExcel, // Hàm này nhận vào (month, year)
 
         // Image Logic
         imageFile,
@@ -37,9 +37,9 @@ const MerchantRequestHistoryPage: React.FC = () => {
     } = useMerchant();
 
     // --- STATE UI LOCAL ---
-    const [isFormOpen, setIsFormOpen] = useState(false); // Modal Tạo/Sửa
-    const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null); // Modal Chi tiết
-    const [fullName, setFullName] = useState(''); // State tên trong form
+    const [isFormOpen, setIsFormOpen] = useState(false);
+    const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+    const [fullName, setFullName] = useState('');
 
     const [notiState, setNotiState] = useState<{ isOpen: boolean; type: 'success' | 'error' | 'info'; message: string }>({
         isOpen: false,
@@ -49,8 +49,22 @@ const MerchantRequestHistoryPage: React.FC = () => {
 
     // --- HANDLERS ---
 
-    // 1. Mở Form Tạo/Cập nhật & Setup dữ liệu cũ
+    // 1. Mở Form (CÓ CHECK NGÀY)
     const handleOpenForm = () => {
+        // [LOGIC KHÓA] Kiểm tra thời gian hiện tại
+        const now = new Date();
+        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+        // Chỉ cho phép mở form vào 2 ngày cuối cùng của tháng (Ví dụ 30 và 31)
+        if (now.getDate() < lastDayOfMonth - 1) {
+            setNotiState({
+                isOpen: true,
+                type: 'error',
+                message: `Chưa đến kỳ kết toán. Hệ thống chỉ mở yêu cầu vào 2 ngày cuối tháng (Ngày ${lastDayOfMonth - 1} và ${lastDayOfMonth}).`
+            });
+            return;
+        }
+
         setFullName(user?.fullName || '');
         if (user?.qrPaymentUrl) {
             setPreviewUrl(user.qrPaymentUrl);
@@ -66,14 +80,26 @@ const MerchantRequestHistoryPage: React.FC = () => {
         try {
             await submitRequest({
                 fullName: fullName,
-                qrPaymentUrl: previewUrl || '', // Fallback link cũ nếu không upload mới
+                qrPaymentUrl: previewUrl || '',
                 phoneNumber: user?.phoneNumber || ''
             });
             setIsFormOpen(false);
-            // Toast success xử lý trong hook
+            setNotiState({
+                isOpen: true,
+                type: 'success',
+                message: 'Đã gửi yêu cầu kết toán thành công.'
+            });
         } catch (error) {
-            // Toast error xử lý trong hook
+            // Error handled in hook
         }
+    };
+
+    // 3. Xử lý click Export theo ngày tạo request
+    const handleExportClick = (createdAtString: string) => {
+        if (!createdAtString) return;
+        const date = new Date(createdAtString);
+        // Gọi hàm exportExcel với Tháng và Năm của request đó
+        exportExcel(date.getMonth() + 1, date.getFullYear());
     };
 
     return (
@@ -85,8 +111,8 @@ const MerchantRequestHistoryPage: React.FC = () => {
                         <ArrowLeft size={20} className="text-slate-600" />
                     </button>
                     <div>
-                        <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Lịch sử Cập nhật</h1>
-                        <p className="text-slate-500 text-sm">Quản lý thông tin hiển thị và mã QR nhận tiền</p>
+                        <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">Lịch sử Kết toán</h1>
+                        <p className="text-slate-500 text-sm">Gửi yêu cầu rút tiền và quản lý đối soát doanh thu</p>
                     </div>
                 </div>
 
@@ -99,20 +125,25 @@ const MerchantRequestHistoryPage: React.FC = () => {
                         Làm mới
                     </button>
 
+                    {/* Nút Export Header: Mặc định xuất tháng hiện tại */}
                     <button
-                        onClick={exportExcel}
+                        onClick={() => {
+                            const now = new Date();
+                            exportExcel(now.getMonth() + 1, now.getFullYear());
+                        }}
                         className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-blue-600 hover:bg-blue-50 font-bold transition-all shadow-sm border-blue-100"
                     >
                         <Download size={18} />
-                        Xuất Excel
+                        Xuất Excel (Tháng này)
                     </button>
 
+                    {/* [ĐÃ SỬA] Nút Gửi Yêu Cầu */}
                     <button
                         onClick={handleOpenForm}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold transition-all shadow-lg shadow-blue-200"
+                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold transition-all shadow-lg shadow-blue-200 active:scale-95"
                     >
                         <Plus size={20} />
-                        Cập nhật thông tin
+                        Gửi yêu cầu kết toán
                     </button>
                 </div>
             </div>
@@ -126,7 +157,7 @@ const MerchantRequestHistoryPage: React.FC = () => {
                             <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Mã Request</th>
                             <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Trạng thái</th>
                             <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Thời gian</th>
-                            <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Thông tin gửi đi</th>
+                            <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Thông tin nhận tiền</th>
                             <th className="px-6 py-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-right">Chi tiết</th>
                         </tr>
                         </thead>
@@ -145,7 +176,7 @@ const MerchantRequestHistoryPage: React.FC = () => {
                                             req.status === 'REJECTED' ? 'bg-red-50 text-red-700 border-red-100' :
                                                 'bg-amber-50 text-amber-700 border-amber-100'}`}>
                                             {req.status === 'APPROVED' ? <CheckCircle2 size={12} /> : req.status === 'REJECTED' ? <XCircle size={12} /> : <Clock size={12} />}
-                                            {req.status === 'APPROVED' ? 'Thành công' : req.status}
+                                            {req.status === 'APPROVED' ? 'Đã thanh toán' : req.status === 'REJECTED' ? 'Từ chối' : 'Chờ duyệt'}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-slate-500 font-medium">
@@ -160,57 +191,74 @@ const MerchantRequestHistoryPage: React.FC = () => {
                                         )}
                                     </td>
 
-                                    {/* CỘT HÀNH ĐỘNG: Nút xem chi tiết */}
+                                    {/* CỘT HÀNH ĐỘNG */}
                                     <td className="px-6 py-4 text-right">
-                                        <button
-                                            onClick={() => setSelectedRequestId(req.requestId)}
-                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                            title="Xem chi tiết"
-                                        >
-                                            <Search size={18} />
-                                        </button>
+                                        <div className="flex items-center justify-end gap-2">
+                                            {/* Nút Chi tiết */}
+                                            <button
+                                                onClick={() => setSelectedRequestId(req.requestId)}
+                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                title="Xem chi tiết"
+                                            >
+                                                <Search size={18} />
+                                            </button>
+
+                                            {/* Nút Xuất Báo Cáo */}
+                                            <button
+                                                onClick={() => handleExportClick(req.createdAt)}
+                                                className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                                title={`Tải báo cáo kỳ ${new Date(req.createdAt).getMonth() + 1}/${new Date(req.createdAt).getFullYear()}`}
+                                            >
+                                                <Download size={18} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
                         ) : (
-                            <tr><td colSpan={5} className="px-6 py-20 text-center text-slate-400 italic font-medium">Chưa có lịch sử cập nhật nào.</td></tr>
+                            <tr><td colSpan={5} className="px-6 py-20 text-center text-slate-400 italic font-medium">Chưa có lịch sử kết toán nào.</td></tr>
                         )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* --- 1. MODAL FORM TẠO/CẬP NHẬT --- */}
+            {/* --- MODAL FORM GỬI YÊU CẦU --- */}
             {isFormOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-200">
                     <div className="bg-white rounded-[32px] w-full max-w-lg shadow-2xl border border-white/20 overflow-hidden flex flex-col max-h-[90vh]">
-                        {/* Header Modal */}
                         <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
                             <div>
-                                <h2 className="text-xl font-black text-slate-800 tracking-tight">Cập nhật thông tin</h2>
-                                <p className="text-xs text-slate-500 font-medium mt-0.5">Thay đổi sẽ được áp dụng ngay lập tức</p>
+                                <h2 className="text-xl font-black text-slate-800 tracking-tight">Yêu cầu kết toán tháng {new Date().getMonth() + 1}</h2>
+                                <p className="text-xs text-slate-500 font-medium mt-0.5">Vui lòng cung cấp thông tin nhận tiền chính xác</p>
                             </div>
                             <button onClick={() => setIsFormOpen(false)} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors">
                                 <X size={20} />
                             </button>
                         </div>
 
-                        {/* Body Modal */}
                         <div className="p-8 overflow-y-auto">
+                            <div className="mb-6 p-4 bg-amber-50 border border-amber-100 rounded-2xl flex gap-3">
+                                <AlertTriangle className="text-amber-500 shrink-0" size={20} />
+                                <p className="text-xs text-amber-700 leading-relaxed font-medium">
+                                    Lưu ý: Thông tin Tên và QR dưới đây sẽ được gửi cho Admin để thực hiện chuyển khoản doanh thu. Vui lòng kiểm tra kỹ trước khi gửi.
+                                </p>
+                            </div>
+
                             <form id="merchant-form" onSubmit={handleSubmit} className="space-y-6">
                                 <div className="space-y-2">
-                                    <label className="text-[13px] font-black text-slate-700 ml-1 uppercase tracking-wider">Tên hiển thị Merchant</label>
+                                    <label className="text-[13px] font-black text-slate-700 ml-1 uppercase tracking-wider">Tên người thụ hưởng (Chủ tài khoản)</label>
                                     <input
                                         type="text" required
                                         className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-sm font-bold text-slate-700 bg-slate-50/50"
-                                        placeholder="Ví dụ: Căn tin A1..."
+                                        placeholder="VD: NGUYEN VAN A..."
                                         value={fullName}
                                         onChange={e => setFullName(e.target.value)}
                                     />
                                 </div>
 
                                 <div className="space-y-3">
-                                    <label className="text-[13px] font-black text-slate-700 ml-1 uppercase tracking-wider">Mã QR Thanh Toán</label>
+                                    <label className="text-[13px] font-black text-slate-700 ml-1 uppercase tracking-wider">Mã QR Ngân Hàng (Nhận tiền)</label>
                                     <div className="relative group">
                                         {previewUrl ? (
                                             <div className="relative w-full h-56 bg-slate-100 rounded-3xl border border-dashed border-slate-300 flex items-center justify-center overflow-hidden">
@@ -238,18 +286,17 @@ const MerchantRequestHistoryPage: React.FC = () => {
                             </form>
                         </div>
 
-                        {/* Footer Modal */}
                         <div className="p-6 border-t border-slate-100 bg-slate-50 flex gap-4 shrink-0">
                             <button type="button" onClick={() => setIsFormOpen(false)} className="flex-1 py-3.5 text-slate-500 rounded-2xl font-bold hover:bg-slate-200/50 transition-all text-sm">Hủy bỏ</button>
                             <button type="submit" form="merchant-form" disabled={isSubmitting} className="flex-[2] py-3.5 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-700 disabled:bg-blue-300 transition-all flex justify-center items-center gap-2 shadow-xl shadow-blue-200 text-sm uppercase tracking-wider">
-                                {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : "Lưu Thay Đổi"}
+                                {isSubmitting ? <RefreshCw size={18} className="animate-spin" /> : "Xác nhận gửi"}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* --- 2. MODAL XEM CHI TIẾT --- */}
+            {/* --- MODAL CHI TIẾT --- */}
             {selectedRequestId && (
                 <MerchantRequestDetailModal
                     requestId={selectedRequestId}
@@ -257,7 +304,6 @@ const MerchantRequestHistoryPage: React.FC = () => {
                 />
             )}
 
-            {/* NOTIFICATION */}
             <Notification
                 isOpen={notiState.isOpen}
                 type={notiState.type}

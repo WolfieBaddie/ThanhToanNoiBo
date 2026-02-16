@@ -41,6 +41,7 @@ import Policy from "@/landing-page/pages/Policy.tsx";
 import MerchantServicePage from "@/pages/merchant/MerchantServicePage.tsx";
 import MerchantHistoryPage from "@/pages/merchant/MerchantHistoryPage.tsx";
 import MerchantRequestHistoryPage from "@/pages/merchant/MerchantRequestHistoryPage.tsx";
+import CatalogDetailPage from "@/components/menu/CatalogDetailPage.tsx";
 
 function App() {
     const { user, logout } = useAuth();
@@ -145,6 +146,7 @@ function App() {
                             <Route path="/payment/topup" element={<TopUpPage />} />
                             <Route path="/payment/result" element={<PaymentResultPage />} />
                             <Route path="/transactions/:id" element={<TransactionDetailPage />} />
+                            <Route path="/menu/:id" element={<CatalogDetailPage />} />
                             <Route path="/settings" element={
                                 <SettingsPage onLogout={logout} isDarkMode={darkMode} onToggleTheme={toggleTheme} user={user} />
                             } />

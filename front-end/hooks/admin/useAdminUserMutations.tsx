@@ -1,16 +1,32 @@
 import { useState } from 'react';
 import { adminUserService } from '@/services/admin/admin.user.service';
-import { CreateUserRequest, UpdateUserRequest, UserResponse } from '@/types/user.type';
-import {toast} from "react-hot-toast";
+import { CreateUserRequest, UpdateUserRequest } from '@/types/user.type';
+import { uploadService } from '@/services/upload.service'; // Import service upload
+import { toast } from "react-hot-toast";
 
-export const useAdminUserActions = (onSuccess?: () => void) => {
+export const useAdminUserMutations = (onSuccess?: () => void) => {
     const [loading, setLoading] = useState(false);
 
-    // 1. Create Action
-    const createUser = async (data: CreateUserRequest) => {
+    // 1. Create Action (Tích hợp Upload)
+    const createUser = async (data: CreateUserRequest, file?: File | null) => {
         setLoading(true);
         try {
-            await adminUserService.createUser(data);
+            // Bước 1: Nếu có file ảnh, upload trước để lấy URL
+            let finalImageUrl = data.imageUrl;
+            if (file) {
+                try {
+                    finalImageUrl = await uploadService.uploadToCloudinary(file);
+                } catch (upErr) {
+                    toast.error("Lỗi upload ảnh, vui lòng thử lại hoặc bỏ qua ảnh.");
+                    setLoading(false);
+                    return false;
+                }
+            }
+
+            // Bước 2: Gọi API tạo user với URL ảnh đã có
+            const payload = { ...data, imageUrl: finalImageUrl };
+            await adminUserService.createUser(payload);
+
             toast.success(`Đã tạo người dùng ${data.username} thành công`);
             if (onSuccess) onSuccess();
             return true;
@@ -22,11 +38,26 @@ export const useAdminUserActions = (onSuccess?: () => void) => {
         }
     };
 
-    // 2. Update Action
-    const updateUser = async (userId: string, data: UpdateUserRequest) => {
+    // 2. Update Action (Tích hợp Upload)
+    const updateUser = async (userId: string, data: UpdateUserRequest, file?: File | null) => {
         setLoading(true);
         try {
-            await adminUserService.updateUser(userId, data);
+            // Bước 1: Upload ảnh nếu có file mới được chọn
+            let finalImageUrl = data.imageUrl;
+            if (file) {
+                try {
+                    finalImageUrl = await uploadService.uploadToCloudinary(file);
+                } catch (upErr) {
+                    toast.error("Lỗi upload ảnh.");
+                    setLoading(false);
+                    return false;
+                }
+            }
+
+            // Bước 2: Gọi API update
+            const payload = { ...data, imageUrl: finalImageUrl };
+            await adminUserService.updateUser(userId, payload);
+
             toast.success("Cập nhật thông tin thành công");
             if (onSuccess) onSuccess();
             return true;
