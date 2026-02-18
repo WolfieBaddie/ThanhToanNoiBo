@@ -1,3 +1,5 @@
+// src/components/ui/VoucherQrModal.tsx
+
 import React, { useEffect, useState, useRef } from 'react';
 import QRCode from 'react-qr-code';
 import { X, RefreshCw, Clock, Loader2, AlertTriangle, Download, Minus, Plus, QrCode } from 'lucide-react';
@@ -11,6 +13,7 @@ interface VoucherQrModalProps {
     voucherName: string;
     unitPrice: number;
     maxQuantity: number;
+    initialQuantity: number; // [MỚI] Nhận số lượng từ trang chi tiết truyền vào
 }
 
 export const VoucherQrModal: React.FC<VoucherQrModalProps> = ({
@@ -19,27 +22,32 @@ export const VoucherQrModal: React.FC<VoucherQrModalProps> = ({
                                                                   voucherId,
                                                                   voucherName,
                                                                   unitPrice,
-                                                                  maxQuantity
+                                                                  maxQuantity,
+                                                                  initialQuantity
                                                               }) => {
+    // Hook xử lý API tạo QR
     const { qrData, isLoading, error, generateQr, resetQr } = useGenerateQr();
 
     const [timeLeft, setTimeLeft] = useState<string>('--:--');
     const [isExpired, setIsExpired] = useState(false);
-    const [quantity, setQuantity] = useState(1);
+
+    // State số lượng nội bộ của Modal (để có thể chỉnh sửa phút chót)
+    const [quantity, setQuantity] = useState(initialQuantity);
 
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const qrRef = useRef<HTMLDivElement>(null);
 
-    // --- 1. RESET KHI ĐÓNG/MỞ MODAL ---
+    // --- 1. ĐỒNG BỘ KHI MỞ MODAL ---
     useEffect(() => {
         if (isOpen) {
-            setQuantity(1); // Mặc định chọn 1
-            // KHÔNG GỌI generateQr() Ở ĐÂY NỮA
+            // Khi mở modal, cập nhật ngay số lượng từ trang chi tiết
+            setQuantity(initialQuantity);
         } else {
+            // Khi đóng, reset lại mọi thứ
             resetQr();
             if (intervalRef.current) clearInterval(intervalRef.current);
         }
-    }, [isOpen, voucherId]); // Bỏ generateQr khỏi dependency
+    }, [isOpen, initialQuantity, voucherId]);
 
     // --- 2. LOGIC ĐẾM NGƯỢC (Chỉ chạy khi đã có QR) ---
     useEffect(() => {
@@ -101,11 +109,12 @@ export const VoucherQrModal: React.FC<VoucherQrModalProps> = ({
 
     if (!isOpen) return null;
 
-    // Check trạng thái: Người dùng đang xem QR hay đang chọn số lượng
+    // Check trạng thái: Người dùng đang xem QR hay đang xác nhận
     const hasQr = !!qrData && !isLoading && !error;
 
     return (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+            {/* Backdrop */}
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
             <div className="relative bg-white dark:bg-slate-800 rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
@@ -123,7 +132,7 @@ export const VoucherQrModal: React.FC<VoucherQrModalProps> = ({
 
                 <div className="p-6 flex flex-col items-center overflow-y-auto w-full">
 
-                    {/* --- TRẠNG THÁI 1: CHƯA CÓ QR (CHỌN SỐ LƯỢNG) --- */}
+                    {/* --- TRẠNG THÁI 1: CHƯA CÓ QR (XÁC NHẬN SỐ LƯỢNG) --- */}
                     {!hasQr && !isLoading && !error && (
                         <div className="w-full flex flex-col items-center space-y-6 py-4">
                             <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/30 rounded-full flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-2">
@@ -131,10 +140,10 @@ export const VoucherQrModal: React.FC<VoucherQrModalProps> = ({
                             </div>
 
                             <p className="text-center text-slate-600 dark:text-slate-300 text-sm px-4">
-                                Bạn đang yêu cầu tạo mã QR để sử dụng dịch vụ. <br/>Vui lòng chọn số lượng vé muốn dùng.
+                                Bạn đang yêu cầu tạo mã QR để sử dụng dịch vụ. <br/>Xác nhận số lượng vé muốn dùng:
                             </p>
 
-                            {/* Bộ chọn số lượng */}
+                            {/* Bộ chọn số lượng (Vẫn giữ để confirm lại lần cuối nếu muốn) */}
                             <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-2xl border border-slate-100 dark:border-slate-600">
                                 <button onClick={() => setQuantity(q => Math.max(1, q - 1))} className="w-10 h-10 rounded-xl bg-white dark:bg-slate-600 shadow-sm border border-slate-200 dark:border-slate-500 flex items-center justify-center hover:bg-slate-50 active:scale-95 transition-all text-slate-600 dark:text-white">
                                     <Minus size={18} />
