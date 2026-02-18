@@ -1,4 +1,4 @@
-// src/pages/voucher/VoucherDetailPage.tsx
+// src/pages/VoucherDetailPage.tsx
 
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -6,18 +6,17 @@ import {
     ArrowLeft,
     Calendar,
     Clock,
-    Copy,
     Ticket,
-    Tag,
     CheckCircle2,
-    XCircle,
     AlertCircle,
     QrCode,
     Layers,
     Utensils,
-    Package,
-    Store, // Thêm icon quầy
-    MapPin  // Thêm icon vị trí
+    Store,
+    MapPin,
+    // [THÊM MỚI] Icon cho nút cộng trừ
+    Minus,
+    Plus
 } from 'lucide-react';
 import { useVoucherDetail } from '@/hooks/useVoucherDetails';
 import { formatCurrency } from '@/utils/format';
@@ -27,12 +26,14 @@ const VoucherDetailPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
 
-    // Hook lấy dữ liệu
+    // Hook lấy dữ liệu (GIỮ NGUYÊN)
     const { voucher, isLoading, error } = useVoucherDetail(id);
     const [showQrModal, setShowQrModal] = useState(false);
-    console.log(voucher);
 
-    // --- Loading State ---
+    // [THÊM MỚI] State quản lý số lượng ngay tại trang này
+    const [quantity, setQuantity] = useState(1);
+
+    // --- Loading State (GIỮ NGUYÊN) ---
     if (isLoading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -55,7 +56,7 @@ const VoucherDetailPage: React.FC = () => {
 
     return (
         <div className="max-w-4xl mx-auto pb-10">
-            {/* Header */}
+            {/* Header (GIỮ NGUYÊN) */}
             <div className="flex items-center gap-4 mb-6">
                 <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                     <ArrowLeft size={20} />
@@ -64,7 +65,7 @@ const VoucherDetailPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Cột trái: Ảnh và thông tin chính */}
+                {/* Cột trái: Ảnh và thông tin chính (GIỮ NGUYÊN LAYOUT) */}
                 <div className="md:col-span-1 space-y-6">
                     <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
                         <div className="h-64 relative">
@@ -89,7 +90,7 @@ const VoucherDetailPage: React.FC = () => {
                                 {voucher.serviceName}
                             </h2>
 
-                            {/* [MỚI] HIỂN THỊ THÔNG TIN LOẠI COMBO */}
+                            {/* Thông tin loại Combo (GIỮ NGUYÊN) */}
                             <div className={`p-4 rounded-2xl border mb-4 ${
                                 voucher.comboType === 'SELECT_ONE'
                                     ? 'bg-orange-50 border-orange-100 text-orange-800'
@@ -108,9 +109,38 @@ const VoucherDetailPage: React.FC = () => {
                                 </p>
                             </div>
 
+                            {/* [THÊM MỚI] BỘ CHỌN SỐ LƯỢNG (CHÈN VÀO TRƯỚC NÚT SỬ DỤNG) */}
+                            {voucher.status === 'ACTIVE' && (
+                                <div className="mb-4 pt-2 border-t border-slate-100">
+                                    <div className="flex justify-between items-end mb-3">
+                                        <span className="text-sm font-bold text-slate-700">Số lượng dùng:</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">Hiện có: {voucher.quantity}</span>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                                            className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 active:scale-95 flex items-center justify-center transition-all"
+                                        >
+                                            <Minus size={20} />
+                                        </button>
+                                        <div className="flex-1 h-12 flex items-center justify-center bg-indigo-50 border border-indigo-100 rounded-xl">
+                                            <span className="text-xl font-bold text-indigo-600">{quantity}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setQuantity(q => Math.min(voucher.quantity, q + 1))}
+                                            className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 active:scale-95 flex items-center justify-center transition-all"
+                                        >
+                                            <Plus size={20} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Nút Sử Dụng (GIỮ NGUYÊN LOGIC, CHỈ CẬP NHẬT GIAO DIỆN NẾU CẦN) */}
                             <button
                                 onClick={() => setShowQrModal(true)}
-                                className="w-full bg-slate-900 hover:bg-black text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-slate-200"
+                                disabled={voucher.status !== 'ACTIVE'}
+                                className="w-full bg-slate-900 hover:bg-black disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-slate-200"
                             >
                                 <QrCode size={20} />
                                 SỬ DỤNG NGAY
@@ -118,7 +148,7 @@ const VoucherDetailPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* [MỚI] THÔNG TIN QUẦY QUẢN LÝ */}
+                    {/* Thông tin quầy (GIỮ NGUYÊN) */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
                         <h4 className="font-bold text-slate-800 text-xs uppercase flex items-center gap-2">
                             <Store size={14} className="text-indigo-500" /> Địa điểm sử dụng
@@ -133,7 +163,7 @@ const VoucherDetailPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Cột phải: Chi tiết và Items */}
+                {/* Cột phải: Chi tiết và Items (GIỮ NGUYÊN TOÀN BỘ) */}
                 <div className="md:col-span-2 space-y-6">
                     <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
                         <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
@@ -190,12 +220,11 @@ const VoucherDetailPage: React.FC = () => {
                                                 ? 'bg-indigo-50 text-indigo-600'
                                                 : 'bg-slate-100 text-slate-400 line-through'
                                         }`}>
-        {/* LOGIC HIỂN THỊ THÔNG MINH */}
                                             {voucher.comboType === 'SELECT_ONE'
                                                 ? (item.remainingQuantity > 0 && voucher.totalRemainingUsage > 0 ? 'KHẢ DỤNG' : 'HẾT LƯỢT')
                                                 : (item.remainingQuantity > 0 ? `CÒN ${item.remainingQuantity}` : 'HẾT')
                                             }
-    </span>
+                                        </span>
                                     </div>
                                 </div>
                             ))}
@@ -217,7 +246,7 @@ const VoucherDetailPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Modal QR Code */}
+            {/* Modal QR Code (TRUYỀN THÊM initialQuantity) */}
             {voucher && (
                 <VoucherQrModal
                     isOpen={showQrModal}
@@ -226,6 +255,7 @@ const VoucherDetailPage: React.FC = () => {
                     voucherName={voucher.serviceName}
                     unitPrice={voucher.priceAtPurchase}
                     maxQuantity={voucher.quantity}
+                    initialQuantity={quantity} // [TRUYỀN SỐ LƯỢNG ĐÃ CHỌN VÀO ĐÂY]
                 />
             )}
         </div>
