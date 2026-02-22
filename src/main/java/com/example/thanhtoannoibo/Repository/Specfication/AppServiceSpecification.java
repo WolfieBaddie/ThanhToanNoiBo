@@ -12,33 +12,35 @@ import java.util.List;
 import java.util.UUID;
 
 public class AppServiceSpecification {
-
-    /**
-     * LOGIC CHÍNH (Core Logic)
-     */
-    public static Specification<AppService> filter(ServiceFilterRequest filter, UUID merchantCounterId) {
+    public static Specification<AppService> buildPostSpecification(ServiceFilterRequest filter, UUID merchantCounterId, boolean isAdmin) {
         return (root, query, criteriaBuilder) -> {
-            query.distinct(true);
             List<Predicate> predicates = new ArrayList<>();
 
-            // 1. LOC THEO NGUỒN (SYSTEM / MERCHANT)
+            // 1. LOGIC LỌC NGUỒN DỮ LIỆU (SYSTEM vs MERCHANT)
             if (Boolean.TRUE.equals(filter.getSystem())) {
-                // System Service: counter IS NULL
+                // Nếu muốn lấy System Services -> Counter phải là NULL
                 predicates.add(criteriaBuilder.isNull(root.get("counter")));
             } else {
-                // Merchant Service: counter_id == merchantCounterId
+                // Nếu muốn lấy Merchant Services -> Counter phải match với Merchant đang login
                 if (merchantCounterId != null) {
                     predicates.add(criteriaBuilder.equal(
-                            root.get("counter").get("counterId"), 
+                            root.get("counter").get("counterId"),
                             merchantCounterId
                     ));
                 }
             }
 
-            // 2. TRẠNG THÁI (Mặc định ẩn DELETED)
-            predicates.add(criteriaBuilder.notEqual(root.get("status"), CatalogStatus.DELETED));
-            if (filter.getStatus() != null) {
-                predicates.add(criteriaBuilder.equal(root.get("status"), filter.getStatus()));
+            // 2. LỌC THEO TRẠNG THÁI
+            if (!Boolean.TRUE.equals(filter.getSystem()) || isAdmin) {
+                // Nếu là của Merchant hoặc Admin xem -> Không lấy DELETED
+                predicates.add(criteriaBuilder.notEqual(root.get("status"), CatalogStatus.DELETED));
+
+                if (filter.getStatus() != null) {
+                    predicates.add(criteriaBuilder.equal(root.get("status"), filter.getStatus()));
+                }
+            } else {
+                // Nếu xem hàng Hệ thống -> Chỉ xem ACTIVE
+                predicates.add(criteriaBuilder.equal(root.get("status"), CatalogStatus.ACTIVE));
             }
 
             // 3. KEYWORD
@@ -49,26 +51,45 @@ public class AppServiceSpecification {
                 predicates.add(criteriaBuilder.or(nameLike, codeLike));
             }
 
+            // 4. CATEGORY
+            if (filter.getCategoryId() != null) {
+                predicates.add(criteriaBuilder.equal(
+                        root.get("category").get("categoryId"),
+                        filter.getCategoryId()
+                ));
+            }
+
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
     }
 
-    /**
-     * [FIX LỖI 1] Overload cho CatalogService (Chỉ truyền request, không có merchantId)
-     * Thường dùng cho Admin hoặc Guest xem catalog chung
-     */
     public static Specification<AppService> filter(ServiceFilterRequest filter) {
-        // Truyền merchantCounterId = null
-        return filter(filter, null);
-    }
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
 
-    /**
-     * [FIX LỖI 2] Overload cho MerchantCatalogService (Tên hàm cũ là buildPostSpecification)
-     * Map sang logic filter mới
-     */
-    public static Specification<AppService> buildPostSpecification(ServiceFilterRequest filter, UUID merchantCounterId, boolean isSystem) {
-        // Cập nhật flag system vào filter request để tái sử dụng logic chính
-        filter.setSystem(isSystem);
-        return filter(filter, merchantCounterId);
+            // 1. BẮT BUỘC: Chỉ lấy Service đang hoạt động (ACTIVE)
+            predicates.add(criteriaBuilder.equal(root.get("status"), CatalogStatus.ACTIVE));
+
+            // 2. KEYWORD (Tìm theo tên hoặc mã)
+            if (StringUtils.hasText(filter.getKeyword())) {
+                String likePattern = "%" + filter.getKeyword().toLowerCase().trim() + "%";
+                Predicate nameLike = criteriaBuilder.like(criteriaBuilder.lower(root.get("serviceName")), likePattern);
+                Predicate codeLike = criteriaBuilder.like(criteriaBuilder.lower(root.get("serviceCode")), likePattern);
+                // Tìm kiếm cả trong tên Master Code để user tìm "Phở" ra hết các loại phở
+                Predicate masterCodeLike = criteriaBuilder.like(criteriaBuilder.lower(root.get("masterServiceCode")), likePattern);
+
+                predicates.add(criteriaBuilder.or(nameLike, codeLike, masterCodeLike));
+            }
+
+            // 3. CATEGORY
+            if (filter.getCategoryId() != null) {
+                predicates.add(criteriaBuilder.equal(
+                        root.get("category").get("categoryId"),
+                        filter.getCategoryId()
+                ));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 }

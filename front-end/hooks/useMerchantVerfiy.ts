@@ -5,6 +5,7 @@ import { useNotification } from '@/context/NotificationContext';
 import { qrService } from '@/services/qr.service';
 import { QrCodeResponse, ProcessQrResponse, ProcessQrRequest, QrItemRequest } from '@/types/qr.type';
 import { ServiceResponse } from "@/types/catalog.type.ts";
+import {uploadService} from "@/services/upload.service.ts";
 
 interface SelectedItemState {
     quantity: number;
@@ -166,14 +167,16 @@ export const useMerchantVerify = (
         }
     };
 
-    // --- SUBMIT TRANSACTION ---
     const submitTransaction = async () => {
         if (!qrData) return;
         setIsSubmitting(true);
 
         try {
-            // ... (Logic upload ảnh giữ nguyên) ...
-            let uploadedUrl = ""; // Giả sử đã upload xong
+            // [CHỈ SỬA Ở ĐÂY] Thực thi up ảnh lên Cloudinary nếu Merchant có đính kèm ảnh
+            let uploadedUrl = "";
+            if (imageFile) {
+                uploadedUrl = await uploadService.uploadToCloudinary(imageFile);
+            }
 
             // CHUẨN BỊ PAYLOAD
             let itemsPayload: QrItemRequest[] | undefined = undefined;

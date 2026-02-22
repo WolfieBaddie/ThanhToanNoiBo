@@ -17,7 +17,6 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
     // --- 1. STATE & EFFECT ĐỂ HANDLE SSR/PORTAL ---
     const [mounted, setMounted] = useState(false);
-
     useEffect(() => {
         setMounted(true);
         return () => setMounted(false);
@@ -41,7 +40,6 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
     const { detail, loading, error } = isUserView ? userHook : merchantHook;
     console.log(detail);
     const formatVND = (val: number) => val.toLocaleString('vi-VN') + 'đ';
-
     // --- LOGIC HELPER ---
     const getUserDisplayTitle = (dt: any) => {
         if (dt.type === 'BUY_VOUCHER') return "Mua Gói dịch vụ";

@@ -18,7 +18,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
     const userHook = useUserTransactionDetail(isUserView ? transactionId : null);
     const merchantHook = useTransactionDetail(!isUserView ? transactionId : null);
     const { detail, loading, error } = isUserView ? userHook : merchantHook;
-
+    console.log(detail);
     const formatVND = (val: number) => val.toLocaleString('vi-VN') + 'đ';
 
     if (!isOpen) return null;

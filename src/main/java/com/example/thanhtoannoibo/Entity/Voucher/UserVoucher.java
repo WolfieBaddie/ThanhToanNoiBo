@@ -51,6 +51,9 @@ public class UserVoucher {
     @Column(name = "quantity")
     private Integer quantity;
 
+    @Column(name = "intital_quantity")
+    private Integer intitalQuantity;
+
     @Column(name = "total_remaining_usage")
     private Integer totalRemainingUsage;
 
