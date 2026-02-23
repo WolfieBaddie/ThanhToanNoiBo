@@ -209,10 +209,15 @@ public class QrCodeService {
     public QrResponse verifyQrContent(String qrCodeString, HttpServletRequest httpRequest) {
         User merchant = authService.getCurrentUser(httpRequest);
 
-        // Validate Merchant
-        counterRepository.findByManagedBy_UserId(merchant.getUserId())
+        // =========================================================================
+        // 1. LẤY QUẦY CỦA MERCHANT
+        // =========================================================================
+        Counter merchantCounter = counterRepository.findByManagedBy_UserId(merchant.getUserId())
                 .orElseThrow(() -> new AppException(ErrorCode.MERCHANT_NO_COUNTER));
 
+        // =========================================================================
+        // 2. TÌM VÀ KIỂM TRA HẠN SỬ DỤNG QR
+        // =========================================================================
         QRCode qr = qrCodeRepository.findByCodeString(qrCodeString)
                 .orElseThrow(() -> new AppException(ErrorCode.QR_CODE_NOT_FOUND));
 
@@ -223,6 +228,47 @@ public class QrCodeService {
             throw new AppException(ErrorCode.QR_CODE_EXPIRED);
         }
 
+        // =========================================================================
+        // 3. VALIDATE QUYỀN PHỤC VỤ (CÓ THUỘC QUẦY KHÔNG)
+        // =========================================================================
+        UserVoucher voucher = qr.getPayerVoucher();
+        boolean isValidForCounter = false;
+
+        if (voucher.getServiceId() != null) {
+            // [TRƯỜNG HỢP VÉ LẺ] - Check trực tiếp service
+            AppService originService = appServiceRepository.findById(voucher.getServiceId())
+                    .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
+
+            if (originService.getCounter() != null &&
+                    originService.getCounter().getCounterId().equals(merchantCounter.getCounterId())) {
+                isValidForCounter = true;
+            } else if (originService.getMasterServiceCode() != null) {
+                Optional<AppService> matchingService = appServiceRepository.findByCounterAndMasterServiceCode(
+                        merchantCounter.getCounterId(),
+                        originService.getMasterServiceCode()
+                );
+                if (matchingService.isPresent()) {
+                    isValidForCounter = true;
+                }
+            }
+        } else if (voucher.getPackageId() != null) {
+            // [TRƯỜNG HỢP COMBO] - Check trực tiếp counter_id của gói Package
+            AppPackage pkg = appPackageRepository.findById(voucher.getPackageId()).orElse(null);
+
+            if (pkg != null && pkg.getCounter() != null &&
+                    pkg.getCounter().getCounterId().equals(merchantCounter.getCounterId())) {
+                isValidForCounter = true;
+            }
+        }
+
+        // Nếu không thuộc quầy quản lý -> Ném lỗi từ chối quét
+        if (!isValidForCounter) {
+            throw new AppException(ErrorCode.SERVICE_NOT_BELONG_TO_COUNTER);
+        }
+
+        // =========================================================================
+        // 4. TRẢ VỀ KẾT QUẢ NẾU HỢP LỆ
+        // =========================================================================
         return mapToQrResponse(qr);
     }
 
