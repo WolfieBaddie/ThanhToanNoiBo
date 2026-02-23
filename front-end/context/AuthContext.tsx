@@ -29,21 +29,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     useEffect(() => {
         const initAuth = async () => {
-            // [FIX QUAN TRỌNG] Kiểm tra xem có phải user vừa bấm Logout không
             const isLogout = localStorage.getItem('IS_LOGOUT');
 
             if (isLogout) {
                 console.log('Phát hiện sự kiện Logout chủ động. Dừng check phiên.');
-                // Xóa cờ để lần sau F5 nó lại check bình thường
                 localStorage.removeItem('IS_LOGOUT');
-
-                // Set user = null và dừng loading ngay lập tức
                 setUser(null);
                 setIsLoading(false);
-                return; // RETURN NGAY TẠI ĐÂY, KHÔNG GỌI fetchUserProfile() NỮA
+                return;
             }
 
-            // Nếu không phải Logout thì mới gọi API check phiên
+            // =======================================================
+            // [FIX LỖI BỊ ĐÁ VĂNG KHỎI TRANG ĐĂNG KÝ]
+            // Chặn không gọi API check session nếu đang ở trang Đăng ký/Quên Mật khẩu.
+            // Tránh trường hợp API trả về 401 làm Axios Interceptor
+            // tự động đá ngược về /login.
+            // =======================================================
+            const path = window.location.pathname.toLowerCase();
+            if (path.includes('/register') || path.includes('/dang-ky') || path.includes('/forgot')) {
+                setUser(null);
+                setIsLoading(false);
+                return;
+            }
+
             try {
                 await fetchUserProfile();
             } finally {
@@ -55,9 +63,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const login = async (credentials: LoginRequest) => {
         try {
-            // [FIX] Xóa cờ logout nếu có để đảm bảo đăng nhập được
             localStorage.removeItem('IS_LOGOUT');
-
             await authService.login(credentials);
             await fetchUserProfile();
         } catch (error) {
@@ -72,7 +78,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } catch (error) {
             console.error("Logout error", error);
         } finally {
-            // Dự phòng cho trường hợp gọi logout từ nơi khác ngoài Sidebar
             localStorage.setItem('IS_LOGOUT', 'true');
             window.location.href = '/login';
         }
