@@ -15,7 +15,9 @@ export default {
             // --- 1. MANG TỪ HTML VÀO: FONT CHỮ ---
             fontFamily: {
                 sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'], // Font mặc định
-                jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],      // Font riêng nếu cần
+                jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],  
+                heading: ['Montserrat', 'sans-serif'],
+                sans: ['Open Sans', 'Roboto', 'sans-serif'],    // Font riêng nếu cần
             },
 
             // --- 2. MANG TỪ HTML VÀO: BO GÓC & BÓNG ---

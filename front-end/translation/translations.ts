@@ -5,18 +5,18 @@ export const translations = {
       about: "Về chúng tôi",
       policy: "Chính sách",
       contact: "Liên hệ",
-      cta: "Trải nghiệm ngay", // Ngắn hơn "Bắt đầu ngay" và chuyên nghiệp hơn
-      client: "Vào Hệ thống" // Thay cho "Truy cập Client" (hơi sượng)
+      cta: "Bắt Đầu", // Ngắn hơn "Bắt đầu ngay" và chuyên nghiệp hơn
+      client: "Truy Cập" // Thay cho "Truy cập Client" (hơi sượng)
     },
     hero: {
-      badge: "20+ Trường học gia nhập tháng này", // Rút gọn
-      title1: "Học đường không tiền mặt,",
-      title2: "Trải nghiệm không giới hạn.",
-      desc: "Giải pháp thanh toán học đường an toàn nhất. Phụ huynh quản lý chi tiêu tức thì qua nền tảng số bảo mật.", // Cô đọng lại
-      stats: "5,000+ Học sinh hoạt động mỗi ngày",
+      badge: "Hệ thống Trường học Thông minh", 
+      title1: "An Toàn Tại Trường Học,",
+      title2: "Dịch Vụ Căng Tin Thông Minh.",
+      desc: "Giải pháp an toàn nhất để học sinh thanh toán suất ăn và dịch vụ. Phụ huynh quản lý mọi thứ tức thì qua nền tảng số bảo mật.", // Cô đọng lại
+      stats: "2,000+   Phụ Huynh, Học Sinh",
       floating: {
-        instant: "Tức thì",
-        topup: "Phụ huynh nạp tiền"
+        instant: "Nhanh Chóng",
+        topup: "Phụ Huynh Nạp Tiền"
       }
     },
     home: {
@@ -25,33 +25,21 @@ export const translations = {
         title: "Hệ sinh thái toàn diện.", // Thay cho "Tất cả những gì bạn cần"
         card1: {
           title: "Nạp tiền Đa nền tảng.", // Thay cho "Nạp tiền tức thì qua mọi Ngân hàng"
-          desc: "Hỗ trợ CK, MoMo, VietQR. Cảnh báo số dư thấp tự động tới phụ huynh."
+          desc: "Hỗ trợ Banking, MoMo, VNPay. Thông Báo số dư thấp tự động tới phụ huynh."
         },
         card2: {
           title: "Thanh toán Một chạm.", // Thay cho "Quét mã & Thưởng thức"
-          desc: "Học sinh quét QR tại quầy. An toàn, tốc độ và hoàn toàn không tiền mặt."
+          desc: "Học sinh quét QR tại quầy. An toàn, tốc độ."
         },
-        card3: {
-          title: "POS & QR Thông minh.",
-          desc: "Biến thiết bị thành điểm bán. Quét QR động, xử lý tức thì."
-        },
-        card4: {
-          title: "Bảo mật Cấp cao.", // Thay cho "An toàn tuyệt đối"
-          desc: "Chuẩn PCI DSS Level 1. Mã hóa dữ liệu người dùng tiên tiến nhất."
-        },
-        card5: {
-          title: "Tốc độ Siêu tốc.", // Thay cho "Tốc độ ánh sáng"
-          desc: "Xử lý 50.000+ giao dịch/giây. Cam kết không nghẽn mạng giờ cao điểm."
-        },
-        ctaTitle: "Sẵn sàng Chuyển đổi số?", // Thay cho "Sẵn sàng để số hóa"
-        ctaDesc: "Kiến tạo tương lai học đường ngay hôm nay. Tương thích mọi thiết bị.",
-        ctaNote: "Không cần cài đặt" // Ngắn hơn "Không cần tải ứng dụng"
+        
+        ctaTitle: "Sẵn sàng Sử Dụng Ngay?", // Thay cho "Sẵn sàng để số hóa"
+        ctaDesc: "Hướng Đến Môi Trường Học Tập An Toàn. Tương thích mọi thiết bị.",
       }
     },
     about: {
       badge: "Về SmartSchool",
-      heroTitle1: "Tái định nghĩa",
-      heroTitle2: "Dịch vụ Học đường.",
+      heroTitle1: "Phương Án Hỗ Trợ ",
+      heroTitle2: "Dịch Vụ Tại Học Đường.",
       heroDesc: "Hệ sinh thái thông minh: Công nghệ vị nhân sinh, Phụ huynh an tâm, Học sinh tiện lợi.", // Câu văn trau chuốt hơn
       missionBadge: "Sứ mệnh",
       missionTitle: "Giá trị cốt lõi",
@@ -76,12 +64,12 @@ export const translations = {
         }
       ],
       team: {
-        badge: "Đội ngũ Tiên phong", // Hay hơn "Những người kiến tạo"
-        title: "Ban Lãnh Đạo"
+        
+        title: "Đội Ngũ Sáng Lập"
       },
       journey: {
         title: "Hành trình phát triển",
-        desc: "Khởi đầu từ 2025, chúng tôi nỗ lực mang giải pháp tài chính tối ưu nhất vào môi trường giáo dục. Chúng tôi tin rằng công nghệ sẽ thay đổi vận hành truyền thống, mang lại sự tiện nghi và minh bạch."
+        desc: "Bắt đầu từ những sự quan tâm đến sức khỏe của học sinh, chúng tôi đã không ngừng nghỉ ngày đêm để nghiên cứu một giải pháp cho vấn đề liên quan đến chất lượng thực phẩm."
       }
     },
     contact: {
@@ -111,16 +99,14 @@ export const translations = {
         phone: "Hotline",
         email: "Email",
         office: "Văn phòng",
-        address: "Tầng 12, Tòa nhà Fintech, Q.1, TP.HCM"
       },
       alert: "Đã gửi thành công! Chúng tôi sẽ phản hồi trong 24h.",
       error: "Lỗi kết nối, vui lòng thử lại."
     },
     footer: {
-      desc: "Giải pháp thanh toán học đường an toàn. Tin dùng bởi 20+ trường đối tác toàn quốc.",
+      desc: "Giải pháp an toàn cho việc thanh toán dịch vụ tại học đường an toàn.",
       navTitle: "Điều hướng",
       contactTitle: "Liên hệ",
-      location: "Q.1, TP. Hồ Chí Minh, Việt Nam"
     },
     policy: {
       header: {
