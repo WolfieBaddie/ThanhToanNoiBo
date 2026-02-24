@@ -140,7 +140,7 @@ const Header: React.FC = () => {
                     </Link>
                   ))}
                 </nav>
-                <div className="mt-auto space-y-6">
+                <Link to="/login" className="mt-auto space-y-6">
                   <button onClick={toggleLanguage} className="flex items-center space-x-2 bg-slate-50 w-full justify-center py-3 rounded-xl text-xs font-bold text-slate-500 border border-slate-100 uppercase tracking-wide">
                     <Globe className="w-4 h-4 text-brand-primary" />
                     <span>{language === 'vi' ? 'Tiếng Việt' : 'English'}</span>
@@ -149,7 +149,7 @@ const Header: React.FC = () => {
                     <span>{t.nav.client}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
-                </div>
+                </Link>
               </div>
             </motion.div>
           </>

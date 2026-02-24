@@ -46,7 +46,7 @@ const Home: React.FC = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-5 pt-4">
-              {/* <Link to="/login"> */}
+              <Link to="/login">
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -55,7 +55,7 @@ const Home: React.FC = () => {
                   <span>{t.nav.cta}</span>
                   <ArrowRight className="w-5 h-5" />
                 </motion.button>
-              {/* </Link> */}
+              </Link>
 
               <div className="flex items-center space-x-4 px-2">
                 <div className="flex -space-x-3">
