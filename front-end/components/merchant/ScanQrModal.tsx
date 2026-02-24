@@ -17,6 +17,7 @@ export const ScanQrModal: React.FC<ScanQrModalProps> = ({ isOpen, onClose }) => 
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // --- HÀM HELPER: ĐỌC QR TỪ FILE ẢNH ---
+// --- HÀM HELPER: ĐỌC QR TỪ FILE ẢNH (ĐÃ FIX LỖI MOBILE) ---
     const scanQrFromImage = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -24,36 +25,71 @@ export const ScanQrModal: React.FC<ScanQrModalProps> = ({ isOpen, onClose }) => 
             reader.onload = (event) => {
                 const image = new Image();
                 image.onload = () => {
-                    // Tạo canvas ảo để vẽ ảnh lên và lấy dữ liệu pixel
                     const canvas = document.createElement('canvas');
-                    const context = canvas.getContext('2d');
+                    const context = canvas.getContext('2d', { willReadFrequently: true }); // Tối ưu cho việc đọc pixel liên tục
 
                     if (!context) {
                         reject("Không thể khởi tạo bộ xử lý ảnh.");
                         return;
                     }
 
-                    canvas.width = image.width;
-                    canvas.height = image.height;
-                    context.drawImage(image, 0, 0);
+                    // [FIX MOBILE] Resize ảnh xuống kích thước vừa phải (max 800px)
+                    // Mobile chụp ảnh rất to (4K), nếu đưa nguyên vào jsQR sẽ bị nhiễu và văng lỗi.
+                    const MAX_SIZE = 800;
+                    let width = image.width;
+                    let height = image.height;
 
-                    // Lấy dữ liệu Pixel (ImageData)
-                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-
-                    // Gọi jsQR để giải mã
-                    const code = jsQR(imageData.data, imageData.width, imageData.height);
-
-                    if (code) {
-                        resolve(code.data); // Trả về chuỗi text trong QR (VD: QR-V-...)
+                    if (width > height) {
+                        if (width > MAX_SIZE) {
+                            height *= MAX_SIZE / width;
+                            width = MAX_SIZE;
+                        }
                     } else {
-                        reject("Không tìm thấy mã QR hợp lệ trong ảnh này.");
+                        if (height > MAX_SIZE) {
+                            width *= MAX_SIZE / height;
+                            height = MAX_SIZE;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+
+                    // Vẽ ảnh đã được thu nhỏ lên canvas
+                    context.drawImage(image, 0, 0, width, height);
+
+                    try {
+                        // Lấy dữ liệu Pixel
+                        const imageData = context.getImageData(0, 0, width, height);
+
+                        // Gọi jsQR để giải mã
+                        const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                            inversionAttempts: "dontInvert", // Giúp quét nhanh hơn trên mobile
+                        });
+
+                        if (code) {
+                            resolve(code.data); // Trả về chuỗi text
+                        } else {
+                            // Cứu cánh lần 2: Đôi khi ảnh bị bóng, bảo jsQR thử đảo ngược màu (invert)
+                            const invertedCode = jsQR(imageData.data, imageData.width, imageData.height, {
+                                inversionAttempts: "attemptBoth",
+                            });
+                            if (invertedCode) {
+                                resolve(invertedCode.data);
+                            } else {
+                                reject("Không tìm thấy mã QR hợp lệ. Hãy thử chụp lại rõ nét hơn.");
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Lỗi xử lý Canvas:", e);
+                        reject("Lỗi trong quá trình phân tích ảnh.");
                     }
                 };
 
-                image.onerror = () => reject("File ảnh bị lỗi hoặc không đọc được.");
+                image.onerror = () => reject("File ảnh bị lỗi hoặc không hỗ trợ.");
                 image.src = event.target?.result as string;
             };
 
+            reader.onerror = () => reject("Không thể đọc file ảnh này.");
             reader.readAsDataURL(file);
         });
     };

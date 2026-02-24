@@ -51,19 +51,19 @@ const MerchantRequestHistoryPage: React.FC = () => {
 
     // 1. Mở Form (CÓ CHECK NGÀY)
     const handleOpenForm = () => {
-        // [LOGIC KHÓA] Kiểm tra thời gian hiện tại
-        const now = new Date();
-        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-
-        // Chỉ cho phép mở form vào 2 ngày cuối cùng của tháng (Ví dụ 30 và 31)
-        if (now.getDate() < lastDayOfMonth - 1) {
-            setNotiState({
-                isOpen: true,
-                type: 'error',
-                message: `Chưa đến kỳ kết toán. Hệ thống chỉ mở yêu cầu vào 2 ngày cuối tháng (Ngày ${lastDayOfMonth - 1} và ${lastDayOfMonth}).`
-            });
-            return;
-        }
+        // // [LOGIC KHÓA] Kiểm tra thời gian hiện tại
+        // const now = new Date();
+        // const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        //
+        // // Chỉ cho phép mở form vào 2 ngày cuối cùng của tháng (Ví dụ 30 và 31)
+        // if (now.getDate() < lastDayOfMonth - 1) {
+        //     setNotiState({
+        //         isOpen: true,
+        //         type: 'error',
+        //         message: `Chưa đến kỳ kết toán. Hệ thống chỉ mở yêu cầu vào 2 ngày cuối tháng (Ngày ${lastDayOfMonth - 1} và ${lastDayOfMonth}).`
+        //     });
+        //     return;
+        // }
 
         setFullName(user?.fullName || '');
         if (user?.qrPaymentUrl) {
