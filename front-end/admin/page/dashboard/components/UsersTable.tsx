@@ -19,8 +19,8 @@ const getStatusConfig = (status: string) => {
             return { label: 'Hoạt động', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', icon: <Check size={14} /> };
         case UserStatus.LOCKED:
             return { label: 'Đã khóa', color: 'text-red-400', bg: 'bg-red-500/10 border-red-500/20', icon: <X size={14} /> };
-        case UserStatus.INACTIVE:
-            return { label: 'Chưa kích hoạt', color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20', icon: <Activity size={14} /> };
+        case UserStatus.DELETED:
+            return { label: 'Đã xóa', color: 'text-slate-400', bg: 'bg-slate-500/10 border-slate-500/20', icon: <Activity size={14} /> };
         default:
             return { label: status, color: 'text-white', bg: 'bg-white/5 border-white/10', icon: null };
     }

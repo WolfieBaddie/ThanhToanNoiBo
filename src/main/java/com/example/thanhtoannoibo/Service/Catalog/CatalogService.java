@@ -135,10 +135,15 @@ public class CatalogService {
                 .orElseThrow(() -> new AppException(ErrorCode.SERVICE_NOT_FOUND));
     }
 
-    public List<PackageResponse> getActivePackagesWithDetails() {
-        // Logic lấy gói đang bán cho khách hàng
+    public List<PackageResponse> getActivePackagesWithDetails(String searchKey) {
+        // Lấy danh sách toàn bộ gói đang bán
         List<AppPackage> packages = packageRepository.findAllWithServicesByStatus(CatalogStatus.ACTIVE);
+
         return packages.stream()
+                // [MỚI] Lọc theo tên gói nếu có truyền từ khóa (Không phân biệt hoa thường)
+                .filter(pkg -> searchKey == null || searchKey.trim().isEmpty() ||
+                        (pkg.getPackageName() != null &&
+                                pkg.getPackageName().toLowerCase().contains(searchKey.trim().toLowerCase())))
                 .map(this::mapToPackageResponse)
                 .collect(Collectors.toList());
     }
