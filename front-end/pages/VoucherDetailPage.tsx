@@ -29,10 +29,9 @@ const VoucherDetailPage: React.FC = () => {
     // Hook lấy dữ liệu (GIỮ NGUYÊN)
     const { voucher, isLoading, error } = useVoucherDetail(id);
     const [showQrModal, setShowQrModal] = useState(false);
-
     // [THÊM MỚI] State quản lý số lượng ngay tại trang này
     const [quantity, setQuantity] = useState(1);
-
+    console.log(voucher)
     // --- Loading State (GIỮ NGUYÊN) ---
     if (isLoading) {
         return (
@@ -69,7 +68,9 @@ const VoucherDetailPage: React.FC = () => {
                 <div className="md:col-span-1 space-y-6">
                     <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
                         <div className="h-64 relative">
-                            <img src={voucher.imageUrl} alt={voucher.serviceName} className="w-full h-full object-cover" />
+                            {/* [ĐÃ SỬA DÒNG NÀY]: Lấy ảnh voucher, nếu null thì lấy ảnh của món đầu tiên trong items */}
+                            <img src={voucher.imageUrl || voucher.items?.[0]?.imageUrl} alt={voucher.serviceName} className="w-full h-full object-cover" />
+
                             <div className="absolute top-4 right-4">
                                 <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                     voucher.status === 'ACTIVE' ? 'bg-emerald-500 text-white' : 'bg-slate-400 text-white'

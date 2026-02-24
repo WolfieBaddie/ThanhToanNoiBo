@@ -641,6 +641,7 @@ public class UserVoucherService {
                 .serviceName(appPackage.getPackageName()) // Lưu tên gói vào serviceName
                 .categoryName("PACKAGE") // Đánh dấu đây là gói
                 .quantity(request.getQuantity()) // Lưu số lượng gói đã mua
+                .intitalQuantity(request.getQuantity())
                 .build();
 
         userVoucherRepository.save(voucher);

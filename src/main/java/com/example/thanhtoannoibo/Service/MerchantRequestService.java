@@ -52,12 +52,12 @@ public class MerchantRequestService {
      */
     @Transactional
     public void submitUpdateInfoRequest(User merchant, MerchantSubmitRequest dto) throws Exception {
-        LocalDate today = LocalDate.now();
-        int lastDayOfMonth = today.lengthOfMonth();
-
-        if (today.getDayOfMonth() < (lastDayOfMonth - 1)) {
-            throw new RuntimeException("Chưa đến kỳ kết toán. Bạn chỉ được gửi yêu cầu vào 2 ngày cuối tháng.");
-        }
+//        LocalDate today = LocalDate.now();
+//        int lastDayOfMonth = today.lengthOfMonth();
+//
+//        if (today.getDayOfMonth() < (lastDayOfMonth - 1)) {
+//            throw new RuntimeException("Chưa đến kỳ kết toán. Bạn chỉ được gửi yêu cầu vào 2 ngày cuối tháng.");
+//        }
 
         // A. Lưu lịch sử request (Log lại việc thay đổi)
         MerchantRequest request = MerchantRequest.builder()
