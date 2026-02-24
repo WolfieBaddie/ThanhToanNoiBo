@@ -69,10 +69,10 @@ public class CatalogController {
     }
 
     @GetMapping("/packages")
-    public ResponseEntity<BaseResponse<List<PackageResponse>>> getAllPackages() {
-        List<PackageResponse> result = catalogService.getActivePackagesWithDetails();
-
-        return ResponseEntity.ok(BaseResponse.success(result));
+    public ResponseEntity<BaseResponse<List<PackageResponse>>> getActivePackages(
+            @RequestParam(required = false) String searchKey
+    ) {
+        return ResponseEntity.ok(BaseResponse.success(catalogService.getActivePackagesWithDetails(searchKey)));
     }
 
     private ServiceResponse mapToResponse(AppService entity) {
@@ -98,7 +98,7 @@ public class CatalogController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        List<PackageResponse> packages = catalogService.getActivePackagesWithDetails();
+        List<PackageResponse> packages = catalogService.getActivePackagesWithDetails(keyword);
 
         // Lấy Services (Gom nhóm)
         ServiceFilterRequest filter = new ServiceFilterRequest();

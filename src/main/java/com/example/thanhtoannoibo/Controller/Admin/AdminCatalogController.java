@@ -58,7 +58,7 @@ public class AdminCatalogController {
         // ... (Logic cũ giữ nguyên 100%)
         if ("PACKAGE".equalsIgnoreCase(type)) {
             // [Phần logic cũ cho PACKAGE - Giữ nguyên]
-            List<PackageResponse> allPackages = catalogService.getActivePackagesWithDetails();
+            List<PackageResponse> allPackages = catalogService.getActivePackagesWithDetails(keyword);
             if (StringUtils.hasText(keyword)) {
                 String key = keyword.toLowerCase().trim();
                 allPackages = allPackages.stream()

@@ -247,16 +247,6 @@ public class AuthService {
                 .build();
         userCreditRepository.save(newCredit);
 
-        // 5. Tạo Voucher chào mừng
-        String uniqueVoucherCode = "V" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0,4).toUpperCase();
-        UserVoucher newVoucher = UserVoucher.builder()
-                .owner(savedUser)
-                .voucherCode(uniqueVoucherCode)
-                .status(UserVoucherStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .build();
-        userVoucherRepository.save(newVoucher);
-
         // 6. Ghi Audit Log
         String ipAddress = (httpRequest != null) ? httpRequest.getRemoteAddr() : "UNKNOWN";
         AuditLog auditLog = AuditLog.builder()
