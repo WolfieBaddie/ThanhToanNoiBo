@@ -155,22 +155,21 @@ export const translations = {
       }
     }
   },
-  en: {
-    // Giữ nguyên phần tiếng Anh (hoặc bạn có muốn tối ưu luôn không?)
+en: {
     nav: {
       home: "Home",
       about: "About Us",
       policy: "Policy",
       contact: "Contact",
       cta: "Get Started",
-      client: "Launch Client"
+      client: "Access"
     },
     hero: {
-      badge: "Over 20 schools joined this month",
-      title1: "Cashless Campus,",
-      title2: "Seamless Experience.",
-      desc: "The safest way for students to pay for meals and services. Parents manage everything instantly via a secure digital platform.",
-      stats: "5,000+ Daily Active Students",
+      badge: "Smart School System",
+      title1: "Safety at Schools,",
+      title2: "Smart Canteen Services.",
+      desc: "The most secure solution for students to pay for meals and services. Parents manage everything instantly via a secure digital platform.",
+      stats: "2,000+   Parents & Students",
       floating: {
         instant: "Instant",
         topup: "Parental Top-up"
@@ -178,149 +177,133 @@ export const translations = {
     },
     home: {
       features: {
-        badge: "Fintech for Schools",
-        title: "Everything you need.",
+        badge: "EdTech Fintech",
+        title: "Comprehensive Ecosystem.",
         card1: {
-          title: "Instant Top-up via any Bank.",
-          desc: "Supports Bank Transfer, MoMo, and VietQR. Students never run out of balance with automated low-balance alerts for parents."
+          title: "Multi-platform Top-up.",
+          desc: "Supports Banking, MoMo, VNPay. Automatic low-balance alerts for parents."
         },
         card2: {
-          title: "Scan & Enjoy.",
-          desc: "Students simply scan QR codes at the counter. Safe, fast, and completely cashless."
+          title: "One-touch Payment.",
+          desc: "Students scan QR at the counter. Safe, fast, and seamless."
         },
-        card3: {
-          title: "Smart POS & QR.",
-          desc: "Turn any device into a point of sale. Dynamic QR scanning, one-touch payment at the counter."
-        },
-        card4: {
-          title: "Absolute Security.",
-          desc: "PCI DSS Level 1 Standard. Protecting customer data with the most advanced encryption technology."
-        },
-        card5: {
-          title: "Lightning Speed.",
-          desc: "System processes 50,000+ transactions/second. No more network congestion during peak hours."
-        },
-        ctaTitle: "Ready to digitize?",
-        ctaDesc: "Join the future of education today. Access the platform from any device.",
-        ctaNote: "No Download Required"
+        ctaTitle: "Ready to Start?",
+        ctaDesc: "Heading towards a safe learning environment. Compatible with all devices.",
       }
     },
     about: {
       badge: "About SmartSchool",
-      heroTitle1: "Redefining",
-      heroTitle2: "School Services.",
-      heroDesc: "We build a smart school ecosystem where technology serves people, providing peace of mind for parents and convenience for students.",
-      missionBadge: "Our Mission",
+      heroTitle1: "Redefining Support ",
+      heroTitle2: "For School Services.",
+      heroDesc: "A smart ecosystem: Human-centric technology, peace of mind for parents, and convenience for students.",
+      missionBadge: "Mission",
       missionTitle: "Core Values",
       stats: [
-        { label: 'Partner Schools', value: '20+' },
-        { label: 'Active Students', value: '5,000+' },
-        { label: 'Daily Transactions', value: '12,000+' },
-        { label: 'Security Level', value: '100%' }
+        { label: 'Partners', value: '20+' },
+        { label: 'Students', value: '5,000+' },
+        { label: 'Daily Trans.', value: '12,000+' },
+        { label: 'Security', value: '100%' }
       ],
       cards: [
         {
-          title: 'Absolute Security',
-          desc: 'Eliminating cash risks and losses for students at school through an intelligent identification system.'
+          title: 'Maximum Safety',
+          desc: 'Eliminating cash risks at school through an intelligent identification system.'
         },
         {
-          title: '100% Transparency',
-          desc: 'Parents monitor every expense in real-time, ensuring nutrition supervision rights.'
+          title: 'Absolute Transparency',
+          desc: 'Parents monitor spending in real-time, ensuring nutritional supervision.'
         },
         {
           title: 'Pioneering Tech',
-          desc: 'Digitizing canteen experiences with one-touch QR Code technology and automated auditing.'
+          desc: 'Digitizing canteens with one-touch QR technology and automated auditing.'
         }
       ],
       team: {
-        badge: "The Creators",
-        title: "Meet our Founding Team"
+        title: "Founding Team"
       },
       journey: {
-        title: "Our Journey",
-        desc: "Starting from a small idea in 2025, we have relentlessly strived to bring the best financial solution to the educational environment. We believe technology can change traditional operations, bringing convenience and transparency to everyone."
+        title: "Development Journey",
+        desc: "Starting from a deep concern for student health, we have worked tirelessly to research solutions for food quality and safety issues."
       }
     },
     contact: {
-      heroTitle: "Connect with",
-      heroDesc: "Always ready to listen and support schools & parents 24/7.",
-      formTitle: "Send a Message",
+      heroTitle: "Contact Us",
+      heroDesc: "24/7 Support for Schools & Parents.",
+      formTitle: "Send Request",
       labels: {
         name: "Full Name",
         email: "Email",
         topic: "Topic",
         message: "Message",
-        submit: "Submit",
-        sending: "Sending..."
+        submit: "Submit Now",
+        sending: "Processing..."
       },
       topics: [
         "Technical Support",
         "School Partnership",
-        "Refund Request",
+        "Refund/Auditing",
         "Other"
       ],
       placeholders: {
         name: "John Doe",
-        email: "name@email.com",
+        email: "email@example.com",
         message: "How can we help you?"
       },
       info: {
         phone: "Hotline",
         email: "Email",
         office: "Office",
-        address: "12th Floor, Fintech Tower, Dist 1, HCMC"
       },
-      alert: "Request sent! We will respond within 24 hours.",
-      error: "An error occurred, please try again later."
+      alert: "Sent successfully! We will respond within 24 hours.",
+      error: "Connection error, please try again."
     },
     footer: {
-      desc: "The safest way for students to pay for school services. Trusted by 20+ partner schools nationwide.",
+      desc: "A secure solution for safe payment of services within the school environment.",
       navTitle: "Navigation",
-      contactTitle: "Contact Info",
-      location: "District 1, Ho Chi Minh City, Vietnam"
+      contactTitle: "Contact",
     },
     policy: {
       header: {
         title: "Project Report — ",
         accent: "Operational Mechanics.",
-        desc: "Transparent cash flow, optimized operations, and absolute safety for the school ecosystem."
+        desc: "Transparent cash flow, optimized operations, and absolute safety for the ecosystem."
       },
       sections: {
         compliance: {
-          label: "Compliance",
-          title: "Legal & Compliance Framework",
-          desc: "To ensure legal operation without a payment intermediary license, the system operates on a Closed-Loop model. All transactions are defined as 'Prepaid service purchases', transferring ownership to the Provider (School) at the point of purchase.",
-          aml: "No Cash-out Policy. Purchased vouchers cannot be converted back to cash or transferred externally.",
-          kyc: "Uses school-verified student profiles for identification. Every transaction is linked to a specific individual."
+          label: "Legal",
+          title: "Legal & Compliance",
+          desc: "Operates on a Closed-Loop model. Transactions are defined as 'Prepaid service purchases', transferring ownership upon purchase.",
+          aml: "No Cash-out: Purchased vouchers cannot be converted back to cash or transferred.",
+          kyc: "Identification via school-verified student profiles. Transactions are linked to individuals."
         },
         limits: {
           label: "Limits",
-          title: "System Scale & Limits",
-          desc: "Optimized for micro-payments serving essential daily needs in education.",
-          avg: "Average value: 10k - 50k VNĐ per meal.",
-          storage: "Max 2,000,000 VNĐ storage. Parents can set daily spending limits.",
-          control: "Restricted item blocking (e.g., carbonated drinks) based on health policy."
+          title: "Scale & Boundaries",
+          desc: "Optimized for essential daily micro-payments.",
+          avg: "Average: 10k - 50k VNĐ per meal.",
+          storage: "Max 2M VNĐ per wallet. Parents can set daily spending limits.",
+          control: "Blocking restricted items (e.g., carbonated drinks) based on policy."
         },
         scope: {
           label: "Scope",
-          title: "Current Implementation Scope",
-          parent: "Parent Module",
-          parentItems: ["E-commerce package purchase", "VNPay/VietQR Integration", "Real-time monitoring"],
-          student: "Student Module",
-          studentItems: ["Card/QR ID Identification", "Fast Redeem at counter"],
-          mgmt: "Management Module",
-          mgmtItems: ["Tablet/Mobile POS", "Automated Reconciliation", "Menu & Rate Management"]
+          title: "Implementation Scope",
+          parent: "Parent App",
+          parentItems: ["Service package purchase", "VNPay/VietQR Payment", "Real-time Monitoring"],
+          student: "Student",
+          studentItems: ["Card/QR ID Identification", "Counter Collection"],
+          mgmt: "Management",
+          mgmtItems: ["Tablet/Mobile POS", "Automated Reconciliation", "Menu Management"]
         },
         roadmap: {
           label: "Roadmap",
-          title: "Impact & Development Roadmap",
+          title: "Impact & Roadmap",
           statTime: "Scan time: 3-5 seconds",
           statLoss: "Cash loss: 0%",
-          quote: "Reducing queue time from 45s to 3-5s, perfect for short breaks.",
+          quote: "Reducing queue time from 45s to 3s.",
           items: [
-            { title: "Pre-order", desc: "Reducing food waste effectively." },
+            { title: "Pre-order", desc: "Effectively reducing food waste." },
             { title: "Health Alert", desc: "Automated allergen warnings." },
-            { title: "Full Ecosystem", desc: "Expansion to transport and library." }
+            { title: "Ecosystem Expansion", desc: "Transport, library, etc." }
           ]
         }
       }

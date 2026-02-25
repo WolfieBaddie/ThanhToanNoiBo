@@ -9,6 +9,7 @@ const Header: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
   const { language, toggleLanguage, t } = useLanguage();
   const location = useLocation();
+  const MotionLink = motion.create(Link);
 
   const navItems = [
     { label: t.nav.home, href: '/' },
@@ -54,7 +55,7 @@ const Header: React.FC = () => {
             </div>
             {/* Logo - Bỏ italic và black */}
             <span className="text-xl font-bold tracking-tight text-brand-dark">
-              SchoolWallet
+              SWallet
             </span>
           </Link>
 
@@ -84,14 +85,15 @@ const Header: React.FC = () => {
             </button>
 
             <div className="hidden sm:block">
-              <motion.button
+              <MotionLink
+                to ="/login"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="bg-brand-primary text-white px-7 py-3 rounded-xl text-sm font-bold shadow-lg shadow-blue-100 flex items-center space-x-2"
               >
                 <span>{t.nav.cta}</span>
                 <ArrowRight className="w-4 h-4" />
-              </motion.button>
+              </MotionLink>
             </div>
             <button
               onClick={() => setIsOpen(true)}
