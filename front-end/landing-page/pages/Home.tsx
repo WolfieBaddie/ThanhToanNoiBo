@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react';
+import { Link } from 'react-router-dom';
 import {
   CreditCard,
   QrCode,
@@ -9,11 +9,15 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { useLanguage } from "@/translation/LanguageContext";
-
+const MotionLink = motion.create(Link);
 const Home: React.FC = () => {
   const { t } = useLanguage();
 
+
+  
+
   return (
+    
     <div className="overflow-hidden font-sans text-slate-900">
 
       {/* Hero Section */}
@@ -46,16 +50,15 @@ const Home: React.FC = () => {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-5 pt-4">
-              <Link to="/login">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="bg-brand-primary text-white px-10 py-5 rounded-3xl font-heading font-bold text-lg shadow-2xl flex items-center justify-center space-x-3"
-                >
-                  <span>{t.nav.cta}</span>
-                  <ArrowRight className="w-5 h-5" />
-                </motion.button>
-              </Link>
+              <MotionLink
+                to="/login"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-brand-primary text-white px-10 py-5 rounded-3xl font-heading font-bold text-lg shadow-2xl flex items-center justify-center space-x-3"
+              >
+                <span>{t.nav.cta}</span>
+                <ArrowRight className="w-5 h-5" />
+              </MotionLink>
 
               <div className="flex items-center space-x-4 px-2">
                 <div className="flex -space-x-3">
@@ -136,13 +139,14 @@ const Home: React.FC = () => {
               {t.home.features.ctaDesc}
             </p>
             <div className="flex justify-center">
-              <motion.button
+              <MotionLink
+                to="/login"
                 whileHover={{ scale: 1.05 }}
                 className="bg-white text-brand-primary px-12 py-5 rounded-3xl font-heading text-xl shadow-xl flex items-center space-x-3"
               >
                 <span>{t.nav.client}</span>
                 <ArrowRight className="w-6 h-6" />
-              </motion.button>
+              </MotionLink>
             </div>
             <p className="text-blue-200 text-xs font-heading font-bold uppercase tracking-[0.2em]">{t.home.features.ctaNote}</p>
           </div>
