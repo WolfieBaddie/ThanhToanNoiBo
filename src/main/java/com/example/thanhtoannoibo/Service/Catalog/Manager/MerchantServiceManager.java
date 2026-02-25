@@ -111,6 +111,7 @@ public class MerchantServiceManager {
                             .serviceName(source.getServiceName())
                             .unitPrice(source.getUnitPrice())
                             .category(source.getCategory()) // Đã check null ở trên
+                            .serviceCategory(source.getCategory().getCategoryName())
                             .imageUrl(source.getImageUrl())
                             .counter(counter) // Gán cho mình
                             .status(CatalogStatus.ACTIVE)
@@ -148,6 +149,7 @@ public class MerchantServiceManager {
                     .serviceName(request.getServiceName())
                     .unitPrice(request.getUnitPrice())
                     .category(category)
+                    .serviceCategory(category.getCategoryCode())
                     .imageUrl(request.getImageUrl())
                     .counter(counter)
                     .status(CatalogStatus.PENDING) // Chờ duyệt

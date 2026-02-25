@@ -128,11 +128,6 @@ export const VoucherQrModal: React.FC<VoucherQrModalProps> = ({
                                 </button>
                             </div>
 
-                            <div className="text-center">
-                                <p className="text-xs text-slate-400 uppercase font-bold mb-1">Tổng giá trị quy đổi</p>
-                                <p className="text-xl font-extrabold text-slate-900 dark:text-white">{formatCurrency(unitPrice * quantity)}</p>
-                            </div>
-
                             <button
                                 onClick={handleGenerate}
                                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-200 dark:shadow-none transition-all active:scale-[0.98] flex items-center justify-center gap-2"
