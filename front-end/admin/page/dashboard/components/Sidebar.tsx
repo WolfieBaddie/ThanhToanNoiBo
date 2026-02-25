@@ -97,10 +97,12 @@ const Sidebar: FC<SidebarProps> = ({ activeTab, onTabChange }) => {
             <div className="p-6 pb-2 relative z-10">
                 <div className="flex items-center gap-3 mb-8">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                        <span className="font-bold text-white text-xl">A</span>
+                        {/* Đổi logo thành S đại diện cho SWallet */}
+                        <span className="font-bold text-white text-xl">S</span>
                     </div>
                     <div>
-                        <h1 className="font-bold text-white text-lg tracking-tight">Admin Portal</h1>
+                        {/* Đổi tên Header Portal thành SWallet */}
+                        <h1 className="font-bold text-white text-lg tracking-tight">SWallet Admin</h1>
                         <p className="text-xs text-white/40 font-medium">System Management</p>
                     </div>
                 </div>
@@ -205,7 +207,8 @@ const Sidebar: FC<SidebarProps> = ({ activeTab, onTabChange }) => {
                             {user?.fullName || 'Admin User'}
                         </h4>
                         <p className="text-xs text-white/50 truncate">
-                            {user?.email || 'admin@galaxypay.edu'}
+                            {/* Đổi fallback email thành swallet */}
+                            {user?.email || 'admin@swallet.vn'}
                         </p>
                     </div>
                 </div>

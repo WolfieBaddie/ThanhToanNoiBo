@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-    darkMode: 'class', // Có thể xóa dòng này nếu muốn diệt tận gốc Dark Mode như đã bàn
+    darkMode: 'class',
     content: [
         "./index.html",
         "./front-end/**/*.{js,ts,jsx,tsx}",
@@ -12,7 +12,7 @@ export default {
 
     theme: {
         extend: {
-            // --- 1. MANG TỪ HTML VÀO: FONT CHỮ ---
+            // --- 1. FONT CHỮ ---
             fontFamily: {
                 sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'], // Font mặc định
                 jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],  
@@ -20,7 +20,7 @@ export default {
                 sans: ['Open Sans', 'Roboto', 'sans-serif'],    // Font riêng nếu cần
             },
 
-            // --- 2. MANG TỪ HTML VÀO: BO GÓC & BÓNG ---
+            // --- 2. BO GÓC & BÓNG ---
             borderRadius: {
                 '3xl': '24px',
                 '4xl': '32px',
@@ -31,34 +31,33 @@ export default {
                 'glow': '0 0 20px rgba(37, 99, 235, 0.2)',
             },
 
-            // --- 3. MÀU SẮC (Đã gộp chuẩn) ---
+            // --- 3. MÀU SẮC ---
             colors: {
-                'app-bg': '#E9EEF5',
+                'app-bg': '#E9EEF5', // Giữ nguyên nền light mode của bạn
 
-                // Bộ màu Brand (Hợp nhất giữa cái cũ và cái trong HTML)
                 brand: {
-                    primary: '#2563EB',   // Electric Blue (Giống HTML)
-                    secondary: '#6366F1', // Indigo (Giống HTML)
-                    accent: '#F43F5E',    // Coral/Rose (Giống HTML)
-                    dark: '#0F172A',      // Slate 900
+                    primary: '#2563EB',
+                    secondary: '#6366F1',
+                    accent: '#F43F5E',
+                    dark: '#0F172A',
                 },
 
-                // Giữ lại mấy cái định nghĩa cũ của mày để đỡ lỗi code cũ
-                'brand-primary': '#2563EB',
-                'brand-secondary': '#1D4ED8',
-                'brand-dark': '#0F172A',
+                // LƯU Ý: Đã gỡ bỏ brand-primary, brand-secondary bị lặp ở ngoài để code sạch hơn.
+                // Khi code bạn nên dùng 'bg-brand-primary' thay vì khai báo lặp.
 
                 primary: {
                     DEFAULT: '#2563EB',
                     glow: 'rgba(37, 99, 235, 0.5)'
                 },
 
-                // Dark Mode Palette
+                // --- BỘ MÀU DARK MODE ĐÃ ĐƯỢC CHUẨN HÓA ---
                 dark: {
-                    base: '#0f172a',
-                    card: '#1e293b',
-                    lighter: '#334155',
-                    border: '#334155',
+                    base: '#0B0F19',     // Nền web: Xanh đen cực sâu
+                    card: '#131C31',     // Nền thẻ: Xanh đen sáng hơn
+                    lighter: '#1E2B4D',  // Hover
+                    border: '#222F43',   // Viền
+                    text: '#F8FAFC',     // Chữ chính
+                    muted: '#94A3B8',    // Chữ phụ
                 },
             },
         },

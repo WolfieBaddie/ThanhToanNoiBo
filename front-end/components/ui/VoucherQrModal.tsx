@@ -50,32 +50,6 @@ export const VoucherQrModal: React.FC<VoucherQrModalProps> = ({
     }, [isOpen, initialQuantity, voucherId]);
 
     // --- 2. LOGIC ĐẾM NGƯỢC (Chỉ chạy khi đã có QR) ---
-    useEffect(() => {
-        if (qrData?.expiresAt) {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            setIsExpired(false);
-
-            const expiresTime = new Date(qrData.expiresAt).getTime();
-
-            intervalRef.current = setInterval(() => {
-                const now = new Date().getTime();
-                const distance = expiresTime - now;
-
-                if (distance < 0) {
-                    if (intervalRef.current) clearInterval(intervalRef.current);
-                    setIsExpired(true);
-                    setTimeLeft("00:00");
-                } else {
-                    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-                    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-                    setTimeLeft(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
-                }
-            }, 1000);
-        }
-        return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        };
-    }, [qrData]);
 
     // --- 3. HÀM XỬ LÝ ---
     const handleGenerate = () => {
@@ -218,11 +192,7 @@ export const VoucherQrModal: React.FC<VoucherQrModalProps> = ({
 
                             {/* Info Section */}
                             <div className="w-full space-y-4">
-                                <div className="flex items-center justify-between gap-4 bg-slate-50 dark:bg-slate-700/30 p-3 rounded-xl">
-                                    <div className={`flex items-center gap-2 font-mono text-xl font-bold tracking-widest ${isExpired ? 'text-red-500' : 'text-indigo-600'}`}>
-                                        <Clock size={20} />
-                                        <span>{timeLeft}</span>
-                                    </div>
+                                <div className="flex items-center justify-center gap-4 bg-slate-50 dark:bg-slate-700/30 p-3 rounded-xl">
                                     <div className="text-right">
                                         <span className="block text-[10px] text-slate-400 uppercase font-bold">Số lượng: {quantity}</span>
                                         <span className="text-slate-900 dark:text-white font-bold text-base leading-none">

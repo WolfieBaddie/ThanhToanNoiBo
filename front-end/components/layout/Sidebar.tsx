@@ -66,7 +66,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             {/* Header Sidebar */}
             <div className="p-8 pb-8 flex items-center justify-between">
 
-                {/* [ĐÃ SỬA] BRANDING SPXWallet - Thay Rocket bằng Wallet */}
+                {/* [ĐÃ SỬA] BRANDING SWallet - Thay Rocket bằng Wallet */}
                 <div className="flex items-center gap-2.5">
                     <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 transform transition-transform hover:scale-110">
                         {/* Thay đổi icon ở đây */}
@@ -74,7 +74,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                     </div>
                     <div className="flex flex-col">
                         <span className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white leading-none">
-                            SPX<span className="text-indigo-600">Wallet</span>
+                            S<span className="text-indigo-600">Wallet</span>
                         </span>
                     </div>
                 </div>

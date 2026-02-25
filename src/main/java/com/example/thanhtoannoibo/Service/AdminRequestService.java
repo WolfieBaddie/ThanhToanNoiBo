@@ -5,11 +5,13 @@ import com.example.thanhtoannoibo.DTO.Request.MerchantSubmitRequest;
 
 import com.example.thanhtoannoibo.DTO.Response.Admin.AdminMerchantRequestDetailResponse;
 import com.example.thanhtoannoibo.DTO.Response.MerchantReconciliationDTO;
+import com.example.thanhtoannoibo.Entity.Credit.UserCredit;
 import com.example.thanhtoannoibo.Entity.Merchant.MerchantRequest;
 import com.example.thanhtoannoibo.Entity.Notification;
 import com.example.thanhtoannoibo.Entity.User;
 import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Common.ErrorCode;
+import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository;
 import com.example.thanhtoannoibo.Repository.Merchant.MerchantRequestRepository;
 import com.example.thanhtoannoibo.Repository.Notification.NotificationRepository;
 
@@ -27,7 +29,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.math.RoundingMode;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -47,6 +49,7 @@ public class AdminRequestService {
     private final TransactionRepository transactionRepository;
     private final NotificationRepository notificationRepository;
     private final ObjectMapper objectMapper;
+    private final UserCreditRepository userCreditRepository;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
             .withZone(ZoneId.of("Asia/Ho_Chi_Minh"));
@@ -139,15 +142,69 @@ public class AdminRequestService {
             // Duyệt thành công -> Lưu ảnh xác thực (Bill chuyển khoản/Biên lai)
             req.setReviewImageUrl(reviewDto.getReviewImageUrl());
 
-            notificationTitle = "Yêu cầu đã được duyệt";
-            notificationMsg = "Admin đã phê duyệt yêu cầu cập nhật/đối soát của bạn.";
+            // =========================================================================
+            // BƯỚC 1: XÁC ĐỊNH THÁNG/NĂM CỦA YÊU CẦU ĐỐI SOÁT
+            // =========================================================================
+            LocalDateTime requestTime = req.getCreatedAt() != null ? req.getCreatedAt() : LocalDateTime.now();
+            int month = requestTime.getMonthValue();
+            int year = requestTime.getYear();
+
+            // =========================================================================
+            // BƯỚC 2: TÍNH TOÁN LẠI TỔNG TIỀN THEO DỮ LIỆU RECONCILIATION
+            // =========================================================================
+            List<MerchantReconciliationDTO> data = transactionRepository.getMerchantReconciliation(merchant.getUserId(), month, year);
+
+            BigDecimal totalGross = BigDecimal.ZERO;
+            BigDecimal totalFee = BigDecimal.ZERO;
+            BigDecimal DIVISOR_TAX = new BigDecimal("1.1");
+
+            for (MerchantReconciliationDTO dto : data) {
+                BigDecimal grossAmount = dto.getTongThanhToan() != null ? dto.getTongThanhToan() : BigDecimal.ZERO;
+                BigDecimal fee = dto.getPhiSan() != null ? dto.getPhiSan() : BigDecimal.ZERO;
+                totalGross = totalGross.add(grossAmount);
+                totalFee = totalFee.add(fee);
+            }
+
+            // Tính Thuế (10%) và Thực nhận (Net)
+            BigDecimal netPrice = totalGross.divide(DIVISOR_TAX, 0, RoundingMode.HALF_UP);
+            BigDecimal totalTax = totalGross.subtract(netPrice);
+            BigDecimal actualNetPayout = totalGross.subtract(totalTax).subtract(totalFee);
+
+            // =========================================================================
+            // BƯỚC 3: TRỪ TIỀN TRONG VÍ CỦA MERCHANT
+            // =========================================================================
+            UserCredit merchantCredit = userCreditRepository.findWithLockByUser_UserId(merchant.getUserId())
+                    .orElseThrow(() -> new RuntimeException("Không tìm thấy ví của Merchant"));
+
+            // Trừ chính xác số tiền Gross của tháng đó (Vì lúc quét QR cộng tiền chưa trừ thuế)
+            // Giữ lại được số tiền Merchant bán được trong những ngày chờ duyệt
+            if (merchantCredit.getBalance().compareTo(totalGross) >= 0) {
+                merchantCredit.setBalance(merchantCredit.getBalance().subtract(totalGross));
+            } else {
+                // Backup an toàn: Nếu ví bị âm hoặc không đủ (do lỗi dữ liệu cũ), set về 0
+                merchantCredit.setBalance(BigDecimal.ZERO);
+            }
+            userCreditRepository.save(merchantCredit);
+
+            // =========================================================================
+            // BƯỚC 4: TẠO THÔNG BÁO MINH BẠCH CHO MERCHANT
+            // =========================================================================
+            notificationTitle = "Yêu cầu đối soát đã được duyệt";
+
+            // Format số đẹp để hiển thị (Bỏ phần thập phân nếu không cần thiết)
+            String grossStr = String.format("%,.0f", totalGross);
+            String taxStr = String.format("%,.0f", totalTax);
+            String netStr = String.format("%,.0f", actualNetPayout);
+
+            notificationMsg = String.format("Admin đã kết toán T%d/%d. Doanh thu: %sđ, Thuế(10%%): %sđ. Thực nhận: %sđ.",
+                    month, year, grossStr, taxStr, netStr);
         } else {
             // Từ chối -> Lưu lý do
             req.setRejectionReason(reviewDto.getReason());
             req.setReviewImageUrl(null);
 
             notificationTitle = "Yêu cầu bị từ chối";
-            notificationMsg = "Yêu cầu của bạn bị từ chối. Lý do: " + reviewDto.getReason();
+            notificationMsg = "Yêu cầu đối soát của bạn bị từ chối. Lý do: " + reviewDto.getReason();
         }
 
         requestRepository.save(req);
@@ -155,7 +212,6 @@ public class AdminRequestService {
         // Gửi Notification
         createNotification(merchant, notificationTitle, notificationMsg);
     }
-
     /**
      * 4. Xuất báo cáo Excel đối soát (Theo Merchant ID được chỉ định)
      */
