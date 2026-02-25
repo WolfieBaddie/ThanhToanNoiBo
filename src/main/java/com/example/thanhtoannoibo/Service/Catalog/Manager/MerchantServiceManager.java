@@ -139,7 +139,7 @@ public class MerchantServiceManager {
 
             ServiceCategory category = categoryRepository.findById(request.getCategoryId())
                     .orElseThrow(() -> new AppException(ErrorCode.INVALID_REQUEST));
-
+            ///
             // Tạo mã dịch vụ custom (Prefix REQ_)
             String customCode = "REQ_" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
 

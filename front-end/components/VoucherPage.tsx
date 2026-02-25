@@ -123,7 +123,6 @@ const VoucherPage: React.FC = () => {
                     <p className="text-slate-500 font-medium">Quản lý vé ăn và dịch vụ của bạn</p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto z-20">
-                    <ExchangeVoucherButton className="w-full sm:w-auto justify-center" />
 
                     {/* Size Selector */}
                     <div className="relative w-full sm:w-48" ref={sizeRef}>

@@ -115,7 +115,6 @@ const VoucherDetailPage: React.FC = () => {
                                 <div className="mb-4 pt-2 border-t border-slate-100">
                                     <div className="flex justify-between items-end mb-3">
                                         <span className="text-sm font-bold text-slate-700">Số lượng dùng:</span>
-                                        <span className="text-[10px] text-slate-400 font-medium">Hiện có: {voucher.quantity}</span>
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <button
