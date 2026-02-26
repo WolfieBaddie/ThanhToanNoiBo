@@ -19,11 +19,11 @@ public interface AppServiceRepository extends JpaRepository<AppService, UUID>, J
     @Query("SELECT a.serviceCode FROM AppService a " +
             "LEFT JOIN a.counter c " +
             "LEFT JOIN c.managedBy u " +
-            "WHERE (:searchKey IS NULL OR " +
+            "WHERE (CAST(:searchKey AS string) IS NULL OR " +
             "       lower(a.serviceName) LIKE :searchKey OR " +
             "       lower(cast(a.serviceCode as string)) LIKE :searchKey OR " +
             "       lower(c.counterName) LIKE :searchKey) " +
-            "AND (:categoryId IS NULL OR a.category.categoryId = :categoryId) " +
+            "AND (CAST(:categoryId AS string) IS NULL OR a.category.categoryId = :categoryId) " +
             "AND (CAST(:status AS string) IS NULL OR a.status = :status) " +
             "GROUP BY a.serviceCode " +
             "ORDER BY MAX(a.createdAt) DESC")

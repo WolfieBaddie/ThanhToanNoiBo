@@ -219,6 +219,7 @@ public class AdminServiceManager {
                 .collect(Collectors.toList());
 
         return AdminServiceResponse.builder()
+                .serviceId(representative.getServiceId())
                 .serviceCode(serviceCode)
                 .serviceName(representative.getServiceName())
                 .imageUrl(representative.getImageUrl())
@@ -227,6 +228,7 @@ public class AdminServiceManager {
                 .status(representative.getStatus())
                 .maxPrice(maxPrice)
                 .merchants(merchantInfos)
+                .masterServiceCode(representative.getMasterServiceCode())
                 .build();
     }
 

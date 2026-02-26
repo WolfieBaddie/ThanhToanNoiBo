@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -21,7 +22,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/admin/transactions")
 @RequiredArgsConstructor
-// @PreAuthorize("hasRole('ADMIN')") // Uncomment khi chạy thật
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminTransactionController {
 
     private final AdminTransactionService adminTransactionService;

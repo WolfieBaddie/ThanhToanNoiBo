@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { ServiceCategory, CatalogStatus, AdminServiceResponse, CatalogStatusMap } from '@/types/admin.catalog.type';
 import { adminUserService } from '@/services/admin/admin.user.service';
-
+import {useAdminCatalogMutations} from "@/hooks/admin/useAdminCatalogMutations.ts";
 interface AdminServiceFormProps {
     isOpen: boolean;
     onClose: () => void;
@@ -34,7 +34,8 @@ export const AdminServiceForm: React.FC<AdminServiceFormProps> = ({
                                                                   }) => {
     // --- [MỚI] STATE & EFFECT CHO PORTAL/UI ---
     const [mounted, setMounted] = useState(false);
-
+    const { approveMerchantService, rejectMerchantService } = useAdminCatalogMutations();
+    console.log(initialData);
     useEffect(() => {
         setMounted(true);
         return () => setMounted(false);
@@ -148,8 +149,39 @@ export const AdminServiceForm: React.FC<AdminServiceFormProps> = ({
         }
     }, [isOpen, initialData, mode, categories]);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // ==========================================================
+        // CASE 2: KHÔNG CÓ masterServiceCode -> Luồng duyệt Merchant
+        // ==========================================================
+        if (mode === 'EDIT' && !initialData?.masterServiceCode) {
+
+            if (!initialData.serviceId) {
+                console.error("Không có serviceId để duyệt!");
+                return;
+            }
+
+            try {
+                if (initialData?.status !== status) {
+                    if (status === CatalogStatus.ACTIVE) {
+                        await approveMerchantService(initialData.serviceId);
+                    } else if (status === CatalogStatus.INACTIVE || status === CatalogStatus.REJECTED) {
+                        await rejectMerchantService(initialData.serviceId);
+                    }
+                }
+
+                onClose();
+                return; // XONG CASE MERCHANT, CÚT LUÔN!
+            } catch (error) {
+                console.error("Lỗi khi gọi API duyệt/khóa:", error);
+                return;
+            }
+        }
+
+        // ==========================================================
+        // CASE 1: CÓ masterServiceCode (Hoặc tạo mới) -> Master Service
+        // ==========================================================
         onSubmit({
             serviceCode,
             serviceName,

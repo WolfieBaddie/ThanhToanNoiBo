@@ -115,8 +115,16 @@ public class QrCodeService {
                 if (linkedVoucher.getTotalRemainingUsage() < quantityToUse)
                     throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
             } else {
-                for (UserVoucherDetail detail : details) {
-                    if (detail.getRemainingQuantity() < quantityToUse) {
+                if (details.isEmpty()) {
+                    if (linkedVoucher.getTotalRemainingUsage() < quantityToUse)
+                        throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+                } else {
+                    // [FIX LỖI SINH QR]: Không bắt lỗi nếu 1 món đã cạn.
+                    // Chỉ cần ÍT NHẤT 1 món bất kỳ trong Combo còn đủ số lượng là được phép sinh QR.
+                    boolean hasEnoughOfAnyItem = details.stream()
+                            .anyMatch(d -> d.getRemainingQuantity() >= quantityToUse);
+
+                    if (!hasEnoughOfAnyItem) {
                         throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
                     }
                 }
@@ -389,35 +397,35 @@ public class QrCodeService {
         List<UserVoucherDetail> affectedDetails = new ArrayList<>();
         List<ProcessQrRequest.QrItemRequest> requestedItems = req.getItems();
 
-        // [LOGIC MỚI - CHỐT CỐ ĐỊNH GIÁ TRỊ GÓI]:
-        // Mặc định khách mua voucher sẽ có priceAtPurchase là giá TỔNG.
-        // Cần tìm ra GIÁ CỦA 1 GÓI NGUYÊN BẢN (Không phụ thuộc vào biến quantity đang bị trừ dần)
+        // [FIX LỖI CHÍ MẠNG 1]: Frontend gửi serviceId và quantity ở ngoài cùng (không dùng mảng items)
+        // Dẫn đến code lầm tưởng là quét Nguyên Gói và trừ sạch bách kho.
+        boolean isSingleServiceRedemption = (requestedItems == null || requestedItems.isEmpty())
+                && actualServiceToProcess != null
+                && voucher.getPackageId() != null;
+
+        // TÌM RA GIÁ CỦA 1 GÓI NGUYÊN BẢN CỐ ĐỊNH
         BigDecimal pricePerPack = BigDecimal.ZERO;
         int originalTotalPackages = 1;
 
         if (voucher.getPackageId() != null) {
-            // Lấy tổng giá trị phân bổ của 1 bộ môn (1 gói)
             BigDecimal sumAllocated = allDetails.stream()
                     .map(d -> d.getAllocatedPrice() != null ? d.getAllocatedPrice() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
 
             if (sumAllocated.compareTo(BigDecimal.ZERO) > 0) {
-                // Nếu DB có lưu giá phân bổ -> Giá 1 gói = Tổng phân bổ
                 pricePerPack = sumAllocated;
                 originalTotalPackages = voucher.getPriceAtPurchase().divide(pricePerPack, 0, RoundingMode.HALF_UP).intValue();
             } else {
-                // Nếu không lưu phân bổ (Data cũ) -> Bắt buộc dùng giá gói từ bảng AppPackage
                 pricePerPack = targetPackage.getPrice();
                 originalTotalPackages = voucher.getPriceAtPurchase().divide(pricePerPack, 0, RoundingMode.HALF_UP).intValue();
             }
         } else {
-            // Nếu là dịch vụ lẻ
             pricePerPack = originService.getUnitPrice() != null ? originService.getUnitPrice() : BigDecimal.ZERO;
             originalTotalPackages = voucher.getPriceAtPurchase().divide(pricePerPack, 0, RoundingMode.HALF_UP).intValue();
         }
 
         // =========================================================================
-        // 5. TRỪ KHO & TÍNH TIỀN (CHỈ CỘNG ĐÚNG SỐ TIỀN CỦA GÓI ĐÃ QUÉT)
+        // 5. TRỪ KHO & TÍNH TIỀN
         // =========================================================================
         if (voucher.getPackageId() == null) {
             // [TRƯỜNG HỢP VÉ LẺ]
@@ -433,7 +441,6 @@ public class QrCodeService {
                 detail.setRemainingQuantity(detail.getRemainingQuantity() - qtyToDeduct);
                 affectedDetails.add(detail);
 
-                // TIỀN VÉ LẺ: Giá vé x Số lượng quét
                 displayTransactionValue = pricePerPack.multiply(BigDecimal.valueOf(qtyToDeduct));
                 actualWalletCredit = displayTransactionValue;
 
@@ -448,9 +455,14 @@ public class QrCodeService {
             String comboType = (targetPackage != null && targetPackage.getComboType() != null) ? targetPackage.getComboType() : "ALL_INCLUSIVE";
 
             if ("SELECT_ONE".equals(comboType)) {
-                int qtyToDeduct = (requestedItems != null && !requestedItems.isEmpty()) ?
-                        requestedItems.stream().mapToInt(ProcessQrRequest.QrItemRequest::getQuantity).sum() :
-                        (req.getQuantity() != null ? req.getQuantity() : 1);
+                int qtyToDeduct = 0;
+                if (requestedItems != null && !requestedItems.isEmpty()) {
+                    qtyToDeduct = requestedItems.stream().mapToInt(ProcessQrRequest.QrItemRequest::getQuantity).sum();
+                } else if (isSingleServiceRedemption) {
+                    qtyToDeduct = req.getQuantity() != null ? req.getQuantity() : 1;
+                } else {
+                    qtyToDeduct = req.getQuantity() != null ? req.getQuantity() : 1;
+                }
 
                 if (voucher.getTotalRemainingUsage() < qtyToDeduct) throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
 
@@ -458,7 +470,6 @@ public class QrCodeService {
                 int currentQty = voucher.getQuantity() != null ? voucher.getQuantity() : 0;
                 voucher.setQuantity(Math.max(0, currentQty - qtyToDeduct));
 
-                // TIỀN CHỌN 1: Giá gói x Số lượng quét
                 displayTransactionValue = pricePerPack.multiply(BigDecimal.valueOf(qtyToDeduct));
                 actualWalletCredit = displayTransactionValue;
 
@@ -485,7 +496,6 @@ public class QrCodeService {
                 }
             } else {
                 // === [LOGIC ALL_INCLUSIVE - BEFORE vs AFTER] ===
-                // Tính số gói trước khi quét
                 int completedBefore = calculateCompletedPacks(originalTotalPackages, allDetails);
                 int packsPaid = 0;
 
@@ -496,14 +506,14 @@ public class QrCodeService {
                                 .findFirst()
                                 .orElseThrow(() -> new AppException(ErrorCode.VOUCHER_NOT_FOUND));
 
-                        if (detail.getRemainingQuantity() < item.getQuantity()) throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
-                        detail.setRemainingQuantity(detail.getRemainingQuantity() - item.getQuantity());
-                        affectedDetails.add(detail);
+                            if (detail.getRemainingQuantity() < item.getQuantity()) throw new AppException(ErrorCode.INSUFFICIENT_VOUCHER_QUANTITY);
+                            detail.setRemainingQuantity(detail.getRemainingQuantity() - item.getQuantity());
+                            affectedDetails.add(detail);
 
-                        AppService s = detail.getService();
-                        BigDecimal unitPrice = s.getUnitPrice() != null ? s.getUnitPrice() : BigDecimal.ZERO;
-                        BigDecimal itemNominalValue = unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
-                        displayTransactionValue = displayTransactionValue.add(itemNominalValue);
+                            AppService s = detail.getService();
+                            BigDecimal unitPrice = s.getUnitPrice() != null ? s.getUnitPrice() : BigDecimal.ZERO;
+                            BigDecimal itemNominalValue = unitPrice.multiply(BigDecimal.valueOf(item.getQuantity()));
+                            displayTransactionValue = displayTransactionValue.add(itemNominalValue);
 
                         paymentDetailsToSave.add(PaymentDetail.builder()
                                 .service(s)
@@ -518,6 +528,7 @@ public class QrCodeService {
                     packsPaid = completedAfter - completedBefore;
 
                 } else {
+                    // NẾU THỰC SỰ MUỐN QUÉT CẢ GÓI (Items rỗng VÀ không truyền serviceId)
                     packsPaid = (req.getQuantity() != null) ? req.getQuantity() : 1;
                     for (UserVoucherDetail d : allDetails) {
                         int initialPerPack = d.getInitialQuantity() / originalTotalPackages;
@@ -540,11 +551,24 @@ public class QrCodeService {
                     }
                 }
 
-                // Cập nhật số lượng Voucher
-                if (packsPaid > 0) {
-                    voucher.setTotalRemainingUsage(Math.max(0, voucher.getTotalRemainingUsage() - packsPaid));
-                    int currentQty = voucher.getQuantity() != null ? voucher.getQuantity() : 0;
-                    voucher.setQuantity(Math.max(0, currentQty - packsPaid));
+                // [FIX CHÍ MẠNG 3]: Đảm bảo totalRemainingUsage CỘNG TỔNG thực tế trên kho
+                if (originalTotalPackages > 0) {
+                    int maxPacksRemaining = 0;
+                    for (UserVoucherDetail d : allDetails) {
+                        int initialPerPack = d.getInitialQuantity() / originalTotalPackages;
+                        if (initialPerPack > 0) {
+                            // Số gói có thể cấu thành từ món này
+                            int packsLeftForThisItem = d.getRemainingQuantity() / initialPerPack;
+                            if (packsLeftForThisItem > maxPacksRemaining) {
+                                maxPacksRemaining = packsLeftForThisItem;
+                            }
+                        }
+                    }
+
+                    // Gán cả 2 trường bằng số dư lớn nhất
+                    // Đảm bảo Frontend luôn cho phép sinh QR với số lượng đủ để vét sạch kho
+                    voucher.setTotalRemainingUsage(maxPacksRemaining);
+                    voucher.setQuantity(maxPacksRemaining);
                 }
 
                 // TIỀN TRỌN GÓI: Chỉ tính bằng "Giá 1 gói" x "Số gói VỪA HOÀN THÀNH"
@@ -669,7 +693,7 @@ public class QrCodeService {
     // =========================================================================
     private int calculateCompletedPacks(int initialPackages, List<UserVoucherDetail> details) {
         if (initialPackages <= 0) return 0;
-        int completedPacks = Integer.MAX_VALUE;
+        int completedPacks = 0; // [FIX]: Bắt đầu từ 0 để tìm Max
 
         for (UserVoucherDetail d : details) {
             int initialPerPack = d.getInitialQuantity() / initialPackages;
@@ -678,46 +702,16 @@ public class QrCodeService {
             // Tính xem khách ĐÃ LẤY bao nhiêu món này
             int taken = d.getInitialQuantity() - d.getRemainingQuantity();
 
-            // Quy đổi ra số "Bộ trọn vẹn" có thể ghép được từ món này
+            // Quy đổi ra số "Bộ" đã kích hoạt từ món này
             int packsForThisItem = taken / initialPerPack;
 
-            // Lấy Minimum (Chỉ khi tất cả các món trong gói đều đã bị lấy thì mới tính là 1 gói hoàn thành)
-            if (packsForThisItem < completedPacks) {
+            // [FIX LOGIC]: Lấy MAXIMUM.
+            // Chỉ cần 1 món (ví dụ Phở) bị quét, hệ thống tự hiểu Merchant đã phục vụ xong gói đó.
+            if (packsForThisItem > completedPacks) {
                 completedPacks = packsForThisItem;
             }
         }
-        return completedPacks == Integer.MAX_VALUE ? 0 : completedPacks;
-    }
-
-    private void processRefund(User owner, BigDecimal refundAmount, String voucherCode) {
-        UserCredit userWallet = userCreditRepository.findWithLockByUser_UserId(owner.getUserId())
-                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
-
-        userWallet.setBalance(userWallet.getBalance().add(refundAmount));
-        userCreditRepository.save(userWallet);
-
-        // Ghi Transaction Refund
-        Transaction refundTxn = Transaction.builder()
-                .credit(userWallet)
-                .transactionRef("TXN-REFUND-" + System.currentTimeMillis())
-                .transactionType(TransactionType.REFUND)
-                .amount(refundAmount)
-                .balanceAfter(userWallet.getBalance())
-                .status(TransactionStatus.COMPLETED)
-                .description("Hoàn tiền thừa từ voucher: " + voucherCode)
-                .createdAt(LocalDateTime.now())
-                .build();
-        transactionRepository.save(refundTxn);
-    }
-
-    private void savePaymentDetail(Transaction txn, int quantity, BigDecimal amount) {
-        PaymentDetail detail = PaymentDetail.builder()
-                .transaction(txn)
-                .quantity(BigDecimal.valueOf(quantity))
-                .amount(amount)
-                .createdAt(LocalDateTime.now())
-                .build();
-        paymentDetailRepository.save(detail);
+        return completedPacks;
     }
 
     private void saveQrScanLog(QRCode qr, User scannedBy, String result, String reason, String imageUrl) {
