@@ -19,6 +19,7 @@ public class RegisterRequest {
     @NotBlank(message = "Email không được để trống")
     private String email;
 
+    @NotBlank(message = "Số điện thoại không được để trống")
     private String phoneNumber;
 
     // --- THÊM TRƯỜNG NÀY ---

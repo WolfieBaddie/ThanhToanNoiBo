@@ -16,8 +16,11 @@ public class CorsConfig {
         CorsConfiguration corsConfiguration = new CorsConfiguration();
 
         // 1. Cho phép Frontend (Thay đổi port nếu FE chạy port khác)
-        corsConfiguration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:5173"));
-
+        corsConfiguration.setAllowedOrigins(List.of(
+                "http://localhost:3000", // Cho lúc dev local
+                "https://swallet.pages.dev",
+                "https://spx-wallet.pages.dev" // Domain Cloudflare của bạn (Thay bằng link thật)
+        ));
         // 2. Cho phép gửi Cookie/Credential (QUAN TRỌNG NHẤT)
         corsConfiguration.setAllowCredentials(true);
 

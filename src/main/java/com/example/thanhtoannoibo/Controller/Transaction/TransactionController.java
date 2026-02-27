@@ -71,7 +71,7 @@ public class TransactionController {
         // Check file TransactionService.java để đảm bảo đúng thứ tự
         return BaseResponse.success(transactionService.getTransactionDetail(transactionId, currentUser.getUserId()));
     }
-
+    //[BE] API Dashboard Tài chính Merchant
     @GetMapping("/user/transactions/{id}")
     public BaseResponse<UserTransactionDetailResponse> getUserTransactionDetail(
             @PathVariable("id") UUID transactionId,

@@ -9,11 +9,9 @@ export const useUserCredit = (userId: string | undefined | null) => {
 
     const fetchCreditInfo = useCallback(async () => {
         // 1. LOG DEBUG: Để xem chính xác Hook nhận được userId là gì
-        console.log(`%c[useUserCredit] Triggered for UserID:`, "color: orange; font-weight: bold;", userId);
 
         // 2. Xử lý trường hợp không có UserID
         if (!userId) {
-            console.warn("[useUserCredit] No UserID provided. Skipping fetch.");
             setCreditInfo(null); // Reset dữ liệu để tránh hiện thông tin cũ
             setIsLoading(false);
             return;
@@ -26,10 +24,8 @@ export const useUserCredit = (userId: string | undefined | null) => {
             // Gọi Service
             const data = await creditService.getUserCredit(userId);
 
-            console.log("[useUserCredit] Data received:", data);
             setCreditInfo(data);
         } catch (err: any) {
-            console.error("[useUserCredit] Error:", err);
             const errorMessage = err.response?.data?.message || err.message || "Không thể tải thông tin ví.";
             setError(errorMessage);
             setCreditInfo(null);

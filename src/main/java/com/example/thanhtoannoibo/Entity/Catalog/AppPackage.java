@@ -1,5 +1,6 @@
 package com.example.thanhtoannoibo.Entity.Catalog;
-import com.example.thanhtoannoibo.Common.PackageType;
+
+import com.example.thanhtoannoibo.Common.CatalogStatus; // Import Enum
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -34,21 +35,34 @@ public class AppPackage {
     @Column(name = "price", nullable = false)
     private BigDecimal price;
 
-    // 'CREDIT_VALUE', 'ITEM_QUANTITY', 'MIXED'
     @Column(name = "package_type", nullable = false)
     private String packageType;
 
     @Column(name = "credit_value")
     private BigDecimal creditValue;
 
-    @Column(name = "is_active")
-    private Boolean isActive;
+    @Column(name = "combo_type")
+    private String comboType;
+
+    @Column(name = "usage_limit")
+    private Integer usageLimit;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20)
+    @Builder.Default
+    private CatalogStatus status = CatalogStatus.ACTIVE;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    // Quan hệ Many-to-Many với AppService thông qua bảng trung gian package_services
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "counter_id")
+    private Counter counter;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "package_services",
@@ -56,7 +70,20 @@ public class AppPackage {
             joinColumns = @JoinColumn(name = "package_id"),
             inverseJoinColumns = @JoinColumn(name = "service_id")
     )
-    @ToString.Exclude // Tránh vòng lặp khi log
+    @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @Builder.Default
     private Set<AppService> services = new HashSet<>();
+
+    @PrePersist
+    protected void onCreate() {
+        if (status == null) {
+            status = CatalogStatus.ACTIVE;
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }

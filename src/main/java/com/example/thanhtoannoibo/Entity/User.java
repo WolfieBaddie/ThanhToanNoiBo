@@ -55,6 +55,9 @@ public class User implements UserDetails {
     @Column(name = "image_url")
     private String imageUrl;
 
+    @Column(name = "qr_payment_url")
+    private String qrPaymentUrl;
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 

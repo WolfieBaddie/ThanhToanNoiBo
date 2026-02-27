@@ -1,9 +1,7 @@
 package com.example.thanhtoannoibo.DTO.Response.Voucher;
 
-import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
 import lombok.Builder;
 import lombok.Data;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -13,26 +11,32 @@ import java.util.UUID;
 @Builder
 public class UserVoucherResponse {
     private UUID voucherId;
-    private String voucherCode; // Mã hiển thị (VD: SVC-BKF-...)
-    private String status;      // ACTIVE, USED...
+    private String voucherCode;
+    private String status;
 
-    // --- THÔNG TIN DỊCH VỤ (Map từ AppService) ---
     private UUID serviceId;
     private UUID packageId;
-    private String serviceName; // Tên món ăn / dịch vụ
-    private String imageUrl;    // Ảnh minh họa
-    private String categoryName;// Bữa sáng, Trưa...
+    private String serviceName;
+    private String imageUrl;
+    private String categoryName;
 
-    // --- THÔNG TIN GIÁ & HẠN DÙNG ---
-    private BigDecimal priceAtPurchase; // Giá trị vé
-    private LocalDateTime createdAt;    // Ngày mua
-    private LocalDateTime expiresAt;    // Hạn sử dụng
-    private LocalDateTime usedAt;       // Ngày sử dụng (nếu đã dùng)
+    private BigDecimal priceAtPurchase;
+    private LocalDateTime createdAt;
+    private LocalDateTime expiresAt;
+    private LocalDateTime usedAt;
 
-    // Cờ kiểm tra nhanh cho Frontend (VD: đổi màu thẻ nếu hết hạn)
     private boolean isExpired;
-    private Integer quantity;
+    private Integer quantity; // Số lượng gói (VD: mua 2 gói)
     private String qrContent;
 
-    private List<ServiceResponse> includedServices;
+    private Integer totalRemainingUsage; // Tổng lượt còn lại của voucher
+
+    // [CẬP NHẬT MỚI]: Thông tin Gói & Quầy
+    private String comboType;       // "ALL_INCLUSIVE" hoặc "SELECT_ONE"
+    private Integer usageLimit;     // Giới hạn (nếu là gói chọn 1)
+    private String counterName;     // Tên quầy quản lý gói này
+    private String counterLocation; // Vị trí quầy
+
+    // [CẬP NHẬT MỚI] Danh sách các món trong voucher này
+    private List<UserVoucherDetailResponse> items;
 }

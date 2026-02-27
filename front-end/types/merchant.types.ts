@@ -1,20 +1,65 @@
 // src/types/merchant.types.ts
 
+// --- CÁC TYPE CŨ (GIỮ NGUYÊN) ---
 export interface ServiceItem {
-    id: number;
+    id: number | string;
     name: string;
     price: number;
-    calories: string;
     image: string;
     category: string;
     isAvailable: boolean;
-    soldCount: number;
+    description: string;
+    masterServiceCode: string | null;
 }
 
-export const SERVICE_CATEGORIES = [
-    { id: 'all', label: 'Tất cả' },
-    { id: 'breakfast', label: 'Bữa sáng' },
-    { id: 'lunch', label: 'Bữa trưa' },
-    { id: 'drink', label: 'Đồ uống' },
-    { id: 'snack', label: 'Ăn vặt' },
-];
+export interface MerchantCatalogFilterParams {
+    page: number;
+    size: number;
+    keyword?: string;
+    categoryId?: string;
+    status?: string;
+    system?: boolean;
+    sortBy?: string;
+    sortDir?: string;
+}
+
+export interface CreateServiceRequest {
+    serviceCode: string;
+    serviceName: string;
+    unitPrice: number;
+    categoryId: string;
+    imageUrl?: string;
+    masterServiceIds?: string[];
+}
+
+export interface UpdateServiceRequest {
+    serviceName?: string;
+    unitPrice?: number;
+    imageUrl?: string;
+    categoryId?: string;
+    status?: 'ACTIVE' | 'INACTIVE';
+}
+
+// --- [BỔ SUNG MỚI] TYPE CHO PACKAGE (COMBO) ---
+
+export interface CreatePackageRequest {
+    packageCode: string;
+    packageName: string;
+    price: number;
+    description: string;
+    packageType: string; // 'ITEM_QUANTITY'
+    comboType: 'ALL_INCLUSIVE' | 'SELECT_ONE';
+    creditValue?: number | null;
+    serviceIds: string[];
+}
+
+export interface UpdatePackageRequest {
+    packageName?: string;
+    price?: number;
+    description?: string;
+    packageType?: string;
+    creditValue?: number | null;
+    status?: 'ACTIVE' | 'INACTIVE' | 'DELETED';
+    comboType?: 'ALL_INCLUSIVE' | 'SELECT_ONE';
+    serviceIds?: string[];
+}

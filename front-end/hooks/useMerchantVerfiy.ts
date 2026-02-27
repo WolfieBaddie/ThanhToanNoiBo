@@ -1,10 +1,11 @@
-// src/hooks/useMerchantVerfiy.ts
+// src/hooks/useMerchantVerify.ts
 
 import { useState, useEffect, useMemo } from 'react';
 import { useNotification } from '@/context/NotificationContext';
 import { qrService } from '@/services/qr.service';
 import { QrCodeResponse, ProcessQrResponse, ProcessQrRequest, QrItemRequest } from '@/types/qr.type';
 import { ServiceResponse } from "@/types/catalog.type.ts";
+import {uploadService} from "@/services/upload.service.ts";
 
 interface SelectedItemState {
     quantity: number;
@@ -18,165 +19,206 @@ export const useMerchantVerify = (
 ) => {
     const notify = useNotification();
 
-    // --- STATE ---
+    // --- 1. PHÂN LOẠI ---
+    const comboType = qrData?.comboType;
+    const isSelectOne = comboType === 'SELECT_ONE';
+    const isAllInclusive = comboType === 'ALL_INCLUSIVE'; // Quan trọng
+    const isSingle = !comboType;
+
+    // --- 2. STATE ---
     const [selectedItems, setSelectedItems] = useState<Record<string, SelectedItemState>>({});
-    const [genericQuantity, setGenericQuantity] = useState(1);
+    const [genericQuantity, setGenericQuantity] = useState(1); // Dùng cho vé lẻ
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Kiểm tra xem đây có phải là Combo/Package không
-    const isPackage = useMemo(() => {
-        return qrData?.includedServices && qrData.includedServices.length > 0;
-    }, [qrData]);
-
-    // --- INIT ---
+    // --- 3. INIT STATE (Áp dụng cho cả COMBO) ---
     useEffect(() => {
-        if (qrData && qrData.includedServices && qrData.includedServices.length > 0) {
-            const initialMap: Record<string, SelectedItemState> = {};
-            qrData.includedServices.forEach(service => {
-                initialMap[service.serviceId] = {
-                    quantity: 0, // Mặc định là 0
-                    isSelected: false,
-                    service: service
+        if ((isSelectOne || isAllInclusive) && qrData?.includedServices) {
+            const initialSelection: Record<string, SelectedItemState> = {};
+            qrData.includedServices.forEach((s) => {
+                initialSelection[s.serviceId] = {
+                    quantity: 1,
+                    isSelected: false, // Mặc định chưa chọn, để Merchant hỏi khách
+                    service: s
                 };
             });
-            setSelectedItems(initialMap);
-        } else {
-            setGenericQuantity(1);
+            setSelectedItems(initialSelection);
         }
-    }, [qrData]);
+    }, [qrData, isSelectOne, isAllInclusive]);
 
-    // --- LOGIC TÍNH TOÁN (ĐÃ SỬA) ---
-
-    // 1. Số lượng vé thực tế sẽ bị trừ (Effective Quantity)
-    // - SỬA ĐỔI: Chuyển từ Math.max() sang SUM() để cộng dồn số lượng các món.
-    // - Ví dụ: 1 Phở + 1 Cafe => Tổng là 2 vé.
-    const effectiveQuantity = useMemo(() => {
-        if (!isPackage) {
-            return genericQuantity;
-        }
-
-        // Lấy tổng số lượng của tất cả các món được chọn
-        const totalQuantity = Object.values(selectedItems)
-            .filter(i => i.isSelected)
+    // --- 4. TÍNH TỔNG SỐ LƯỢNG ĐANG CHỌN ---
+    const currentTotalQuantity = useMemo(() => {
+        if (isSingle) return genericQuantity;
+        return Object.values(selectedItems)
+            .filter(item => item.isSelected)
             .reduce((sum, item) => sum + item.quantity, 0);
+    }, [selectedItems, isSingle, genericQuantity]);
 
-        return totalQuantity;
-    }, [isPackage, genericQuantity, selectedItems]);
+    // Lấy limit của QR (Số gói khách mua)
+    const qrPackageLimit = useMemo(() => qrData?.usageLimit ?? 1, [qrData]);
 
-    // 2. Tổng tiền (Chỉ để hiển thị hoặc tính billAmount)
-    const totalBillAmount = useMemo(() => {
-        if (!qrData) return 0;
-        if (isPackage) {
-            return Object.values(selectedItems)
-                .filter(item => item.isSelected)
-                .reduce((sum, item) => sum + (item.service.unitPrice * item.quantity), 0);
-        }
-        return qrData.creditAmount * genericQuantity;
-    }, [qrData, selectedItems, genericQuantity, isPackage]);
-
-    // 3. Validation Limit
+    // --- 5. LOGIC CHECK LIMIT (QUAN TRỌNG NHẤT) ---
     const isOverLimit = useMemo(() => {
-        if (!qrData) return false;
-        const remaining = qrData.usageLimit - (qrData.usageCount || 0);
-        return effectiveQuantity > remaining;
-    }, [effectiveQuantity, qrData]);
+        if (isSingle) return currentTotalQuantity > (qrData?.totalRemainingUsage ?? 999);
 
-    // --- HANDLERS ---
+        if (isSelectOne) {
+            // Select One: Tổng món chọn KHÔNG ĐƯỢC VƯỢT quá số lượt gói
+            // VD: Mua 1 gói -> Chỉ được chọn 1 Phở HOẶC 1 Cafe (Tổng = 1)
+            return currentTotalQuantity > qrPackageLimit;
+        }
+
+        if (isAllInclusive) {
+            // All Inclusive: Tổng món chọn KHÔNG CẦN check với số gói.
+            // Vì mua 1 gói (Phở + Cafe) -> Tổng item là 2.
+            // Chỉ cần check tồn kho từng món (đã làm ở hàm changeQuantity).
+            // Check sơ bộ: Không được chọn quá tổng số item thực tế đang có
+            // (Logic này check ở toggleItem rồi nên ở đây return false hoặc check lỏng)
+            return false;
+        }
+
+        return false;
+    }, [currentTotalQuantity, qrPackageLimit, isSelectOne, isAllInclusive, isSingle, qrData]);
+
+    // --- 6. ACTIONS ---
     const toggleItem = (serviceId: string) => {
+        // Cho phép cả 2 loại Combo đều được toggle
+        if (isSingle) return;
+
         setSelectedItems(prev => {
             const current = prev[serviceId];
-            const newState = !current.isSelected;
-            return {
-                ...prev,
-                [serviceId]: {
-                    ...current,
-                    isSelected: newState,
-                    // Nếu tick chọn mà đang là 0 thì tự set lên 1
-                    quantity: (newState && current.quantity === 0) ? 1 : current.quantity
+            if (!current) return prev;
+
+            // Nếu tích chọn
+            if (!current.isSelected) {
+                // Check tồn kho riêng của món đó
+                const itemRemaining = current.service.remainingQuantity ?? 999;
+                if (itemRemaining <= 0) {
+                    notify.error("Món này đã hết lượt dùng!");
+                    return prev;
                 }
-            };
+
+                // Check Logic Combo
+                if (isSelectOne) {
+                    // Select One: Cộng dồn không được quá limit gói
+                    if (currentTotalQuantity + current.quantity > qrPackageLimit) {
+                        notify.error(`Gói này chỉ được chọn tối đa ${qrPackageLimit} món.`);
+                        return prev;
+                    }
+                }
+                // All Inclusive: Không cần check tổng, chỉ cần check món đó còn hàng (đã check ở trên)
+            }
+            return { ...prev, [serviceId]: { ...current, isSelected: !current.isSelected } };
         });
     };
 
     const changeQuantity = (serviceId: string, delta: number) => {
+        if (isSingle) return;
+
         setSelectedItems(prev => {
             const current = prev[serviceId];
-            const newQty = Math.max(0, current.quantity + delta);
-            return {
-                ...prev,
-                [serviceId]: {
-                    ...current,
-                    quantity: newQty,
-                    // Tự động bỏ chọn nếu về 0, tự động chọn nếu > 0
-                    isSelected: newQty > 0
+            if (!current) return prev;
+            const newQty = current.quantity + delta;
+
+            if (newQty < 1) return prev; // Không cho giảm dưới 1
+
+            if (delta > 0) {
+                // 1. Luôn check tồn kho món đó
+                const itemMax = current.service.remainingQuantity ?? 999;
+                if (newQty > itemMax) {
+                    notify.error(`Món này chỉ còn ${itemMax} phần.`);
+                    return prev;
                 }
-            };
+
+                // 2. Nếu là Select One -> Check tổng
+                if (isSelectOne) {
+                    if (currentTotalQuantity + delta > qrPackageLimit) {
+                        notify.error(`Vượt quá giới hạn gói.`);
+                        return prev;
+                    }
+                }
+            }
+            return { ...prev, [serviceId]: { ...current, quantity: newQty } };
         });
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const file = e.target.files[0];
-            setImageFile(file);
-            setPreviewUrl(URL.createObjectURL(file));
+    // --- IMAGE HANDLER ---
+    const handleImageUpload = (file: File) => {
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+            notify.error("Kích thước ảnh không được vượt quá 5MB");
+            return;
+        }
+        setImageFile(file);
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        try {
+            const url = URL.createObjectURL(file);
+            setPreviewUrl(url);
+        } catch (e) {
+            console.error("Error creating object URL", e);
         }
     };
 
     const removeImage = () => {
         setImageFile(null);
-        if (previewUrl) URL.revokeObjectURL(previewUrl);
-        setPreviewUrl(null);
+        if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            setPreviewUrl(null);
+        }
     };
 
-    // --- SUBMIT ---
     const submitTransaction = async () => {
         if (!qrData) return;
-
-        if (!imageFile) {
-            notify.error("Vui lòng chụp ảnh xác thực.");
-            return;
-        }
-
-        if (effectiveQuantity <= 0) {
-            notify.error("Vui lòng chọn ít nhất 1 món/vé.");
-            return;
-        }
-
-        if (isOverLimit) {
-            notify.error(`Vượt quá giới hạn sử dụng còn lại.`);
-            return;
-        }
-
         setIsSubmitting(true);
+
         try {
-            const uploadedImageUrl = await qrService.uploadProof(imageFile);
+            // [CHỈ SỬA Ở ĐÂY] Thực thi up ảnh lên Cloudinary nếu Merchant có đính kèm ảnh
+            let uploadedUrl = "";
+            if (imageFile) {
+                uploadedUrl = await uploadService.uploadToCloudinary(imageFile);
+            }
 
-            const selectedItemsList = Object.values(selectedItems).filter(i => i.isSelected && i.quantity > 0);
+            // CHUẨN BỊ PAYLOAD
+            let itemsPayload: QrItemRequest[] | undefined = undefined;
+            let description = "";
 
-            const itemsPayload: QrItemRequest[] = selectedItemsList.map(item => ({
-                serviceId: item.service.serviceId,
-                quantity: item.quantity
-            }));
+            if (isSelectOne || isAllInclusive) {
+                // CẢ 2 LOẠI COMBO ĐỀU GỬI LIST ITEMS
+                itemsPayload = Object.values(selectedItems)
+                    .filter(item => item.isSelected)
+                    .map(item => ({
+                        serviceId: item.service.serviceId,
+                        quantity: item.quantity
+                    }));
 
-            // Tạo description chi tiết hơn
-            const itemDescriptions = selectedItemsList
-                .map(i => `${i.quantity} x ${i.service.serviceName}`)
-                .join(", ");
+                if (itemsPayload.length === 0) {
+                    notify.error("Vui lòng chọn món cần trừ.");
+                    setIsSubmitting(false);
+                    return;
+                }
 
-            const description = isPackage
-                ? `Đổi ${effectiveQuantity} vé: ${itemDescriptions}`
-                : `Sử dụng ${effectiveQuantity} voucher`;
+                const detailText = Object.values(selectedItems)
+                    .filter(i => i.isSelected)
+                    .map(i => `${i.quantity} ${i.service.serviceName}`)
+                    .join(", ");
+                description = `Đổi: ${detailText}`;
 
+            } else {
+                // VÉ LẺ
+                itemsPayload = undefined;
+                description = `Sử dụng ${genericQuantity} vé lẻ`;
+            }
+
+            // Gửi request
             const requestData: ProcessQrRequest = {
                 qrCode: qrData.codeString,
-                billAmount: totalBillAmount,
-                quantity: effectiveQuantity, // Bây giờ là tổng số lượng các món
+                billAmount: 0,
+                // Với Combo: Gửi tổng số món. Backend All Inclusive sẽ dùng list items để trừ.
+                quantity: isSingle ? genericQuantity : currentTotalQuantity,
                 description: description,
-                imageUrl: uploadedImageUrl,
-                items: isPackage ? itemsPayload : undefined,
-                serviceId: (!isPackage && qrData.includedServices?.length === 1)
+                imageUrl: uploadedUrl,
+                items: itemsPayload,
+                serviceId: (isSingle && qrData.includedServices?.length === 1)
                     ? qrData.includedServices[0].serviceId
                     : undefined
             };
@@ -186,9 +228,7 @@ export const useMerchantVerify = (
             if (onSuccess) onSuccess(res);
 
         } catch (error: any) {
-            console.error("Redeem Error:", error);
-            const msg = error.response?.data?.message || "Giao dịch thất bại.";
-            notify.error(msg);
+            // ... Error handling
         } finally {
             setIsSubmitting(false);
         }
@@ -196,18 +236,21 @@ export const useMerchantVerify = (
 
     return {
         selectedItems,
-        effectiveQuantity,
-        totalBillAmount,
+        genericQuantity,
+        setGenericQuantity,
+        effectiveQuantity: isSingle ? genericQuantity : currentTotalQuantity,
+        totalBillAmount: 0,
         previewUrl,
         isSubmitting,
         isOverLimit,
-        isPackage,
+        isSelectOne,
+        isAllInclusive,
+        isSingle,
         toggleItem,
         changeQuantity,
         handleImageUpload,
         removeImage,
         submitTransaction,
-        genericQuantity,
-        setGenericQuantity
+        // ...
     };
 };

@@ -1,5 +1,6 @@
 package com.example.thanhtoannoibo.Entity.Catalog;
 
+import com.example.thanhtoannoibo.Common.CatalogStatus; // Import Enum vừa tạo
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -21,31 +22,36 @@ public class AppService {
     @Column(name = "service_id")
     private UUID serviceId;
 
-    @Column(name = "service_code", nullable = false, unique = true, length = 50)
+    @Column(name = "service_code", nullable = false, length = 50)
     private String serviceCode;
+
+    @Column(name = "master_service_code")
+    private String masterServiceCode;
 
     @Column(name = "service_name", nullable = false)
     private String serviceName;
 
-    // --- THAY ĐỔI TẠI ĐÂY ---
-    // Bỏ trường String serviceCategory cũ, thay bằng quan hệ ManyToOne
-
-    @ManyToOne(fetch = FetchType.EAGER) // Eager để khi query Service lấy luôn tên Category hiển thị
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "category_id", referencedColumnName = "category_id")
     private ServiceCategory category;
+
+    @Column(name = "service_category")
+    private String serviceCategory;
 
     @Column(name = "unit_price", precision = 15, scale = 2)
     private BigDecimal unitPrice;
 
-    @Column(name = "image_url", length = 500) // Độ dài 500 để thoải mái lưu link S3/Firebase
+    @Column(name = "image_url", length = 500)
     private String imageUrl;
 
-    @Column(name = "is_active")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20)
     @Builder.Default
-    private Boolean isActive = true;
+    private CatalogStatus status = CatalogStatus.ACTIVE;
 
-    @Column(name="udpated_at")
-    private LocalDateTime udpatedAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -59,5 +65,13 @@ public class AppService {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }
+        if (status == null) {
+            status = CatalogStatus.ACTIVE;
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }

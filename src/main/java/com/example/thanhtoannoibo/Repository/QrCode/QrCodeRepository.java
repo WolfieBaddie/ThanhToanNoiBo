@@ -7,16 +7,21 @@ import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @Repository
 public interface QrCodeRepository extends JpaRepository<QRCode, UUID> {
+    @Modifying
+    @Query("UPDATE QRCode q SET q.status = :status WHERE q.owner.userId = :userId")
+    void updateStatusByUserId(@Param("userId") UUID userId, @Param("status") QrCodeStatus status);
 
     // FIX 1: Rename findByQrCode -> findByCodeString
     Optional<QRCode> findByCodeString(String codeString);
@@ -47,4 +52,8 @@ public interface QrCodeRepository extends JpaRepository<QRCode, UUID> {
     Optional<QRCode> findActiveQRCodeForUpdate(@Param("codeString") String codeString);
 
     Optional<QRCode> findFirstByPayerVoucherAndExpiresAtBefore(UserVoucher payerVoucher, LocalDateTime now);
+
+    @Modifying
+    @Query("UPDATE QRCode q SET q.status = :status WHERE q.payerVoucher.voucherId IN :voucherIds AND q.status = 'ACTIVE'")
+    void lockQrCodesByVoucherIds(@Param("voucherIds") List<UUID> voucherIds, @Param("status") QrCodeStatus status);
 }

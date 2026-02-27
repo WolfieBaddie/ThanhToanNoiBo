@@ -2,25 +2,20 @@ package com.example.thanhtoannoibo.Controller.Catalog;
 
 import com.example.thanhtoannoibo.DTO.Request.Catalog.ServiceFilterRequest;
 import com.example.thanhtoannoibo.DTO.Response.BaseResponse;
-import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateCategoryRequest;
-import com.example.thanhtoannoibo.DTO.Request.Catalog.CreateServiceRequest;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.CatalogDataResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.PackageResponse;
 import com.example.thanhtoannoibo.DTO.Response.Catalog.ServiceResponse;
+import com.example.thanhtoannoibo.DTO.Response.Catalog.UserServiceResponse;
 import com.example.thanhtoannoibo.DTO.Response.PageResponse;
-import com.example.thanhtoannoibo.Entity.Catalog.AppPackage;
 import com.example.thanhtoannoibo.Entity.Catalog.AppService;
 import com.example.thanhtoannoibo.Entity.Catalog.ServiceCategory;
 import com.example.thanhtoannoibo.Service.Catalog.CatalogService;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,7 +29,7 @@ public class CatalogController {
     private final CatalogService catalogService;
 
     @GetMapping("/services")
-    public BaseResponse<PageResponse<ServiceResponse>> getListServices(
+    public BaseResponse<PageResponse<UserServiceResponse>> getListServices(
             // Filter Params
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) UUID categoryId,
@@ -55,7 +50,7 @@ public class CatalogController {
         Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
 
         // 3. Gọi Service (Service trả về Page<ServiceResponse>)
-        Page<ServiceResponse> pageResult = catalogService.getServices(filterRequest, pageable);
+        Page<UserServiceResponse> pageResult = catalogService.getServices(filterRequest, pageable);
 
         // 4. Convert sang Custom PageResponse và trả về
         return BaseResponse.success(PageResponse.from(pageResult));
@@ -73,42 +68,11 @@ public class CatalogController {
         return BaseResponse.success(mapToResponse(service));
     }
 
-    @PostMapping
-    public BaseResponse<ServiceResponse> createService(@RequestBody @Valid CreateServiceRequest request) {
-        AppService createdService = catalogService.createService(request);
-        return BaseResponse.success(mapToResponse(createdService), "Tạo dịch vụ thành công");
-    }
-
     @GetMapping("/packages")
-    public ResponseEntity<BaseResponse<List<PackageResponse>>> getAllPackages() {
-        List<PackageResponse> result = catalogService.getActivePackagesWithDetails();
-
-        return ResponseEntity.ok(BaseResponse.success(result));
-    }
-
-    // --- ADMIN CREATE API ---
-
-    @PostMapping("/categories")
-    public ResponseEntity<BaseResponse<ServiceCategory>> createCategory(
-            @Valid @RequestBody CreateCategoryRequest request,
-            HttpServletRequest httpRequest
+    public ResponseEntity<BaseResponse<List<PackageResponse>>> getActivePackages(
+            @RequestParam(required = false) String searchKey
     ) {
-        // Tự động set metadata từ BaseRequest (nếu cần dùng cho AuditLog sau này)
-        request.setClientIp(httpRequest.getRemoteAddr());
-
-        ServiceCategory category = catalogService.createCategory(request);
-        return ResponseEntity.ok(BaseResponse.success(category, "Tạo danh mục thành công"));
-    }
-
-    @PostMapping("/services")
-    public ResponseEntity<BaseResponse<AppService>> createService(
-            @Valid @RequestBody CreateServiceRequest request,
-            HttpServletRequest httpRequest
-    ) {
-        request.setClientIp(httpRequest.getRemoteAddr());
-
-        AppService service = catalogService.createService(request);
-        return ResponseEntity.ok(BaseResponse.success(service, "Tạo dịch vụ thành công"));
+        return ResponseEntity.ok(BaseResponse.success(catalogService.getActivePackagesWithDetails(searchKey)));
     }
 
     private ServiceResponse mapToResponse(AppService entity) {
@@ -134,19 +98,19 @@ public class CatalogController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        // 1. Gọi lấy Packages (Thường số lượng ít, lấy hết hoặc lấy top active)
-        List<PackageResponse> packages = catalogService.getActivePackagesWithDetails();
+        List<PackageResponse> packages = catalogService.getActivePackagesWithDetails(keyword);
 
-        // 2. Gọi lấy Services (Có phân trang & filter keyword)
+        // Lấy Services (Gom nhóm)
         ServiceFilterRequest filter = new ServiceFilterRequest();
         filter.setKeyword(keyword);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
-        Page<ServiceResponse> servicesPage = catalogService.getServices(filter, pageable);
 
-        // 3. Gom lại
+        Page<UserServiceResponse> servicesPage = catalogService.getServices(filter, pageable);
+
+        // Map vào CatalogDataResponse
         CatalogDataResponse data = CatalogDataResponse.builder()
                 .packages(packages)
-                .services(PageResponse.from(servicesPage))
+                .services(PageResponse.from(servicesPage)) // Page này giờ chứa UserServiceResponse
                 .build();
 
         return ResponseEntity.ok(BaseResponse.success(data));

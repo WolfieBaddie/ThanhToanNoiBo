@@ -8,25 +8,48 @@ export enum UserVoucherStatusEnum {
     LOCKED = 'LOCKED'
 }
 
-// Cập nhật DTO Response
 export interface UserVoucherResponse {
     voucherId: string;
     voucherCode: string;
-    status: UserVoucherStatusEnum;
-    serviceId: string | null;
-    packageId: string | null;
+    status: string;
+
+    serviceId?: string;
+    packageId?: string;
     serviceName: string;
-    imageUrl?: string | null;
+    imageUrl: string;
     categoryName?: string;
-    quantity: number;
+
     priceAtPurchase: number;
     createdAt: string;
-    expiresAt: string | null;
-    usedAt: string | null;
+    expiresAt: string;
+    usedAt?: string;
 
-    // [MỚI] Danh sách món trong gói
-    includedServices?: ServiceResponse[];
+    isExpired: boolean;
+    quantity: number;
+    qrContent: string;
+
+    totalRemainingUsage?: number;
+
+    comboType?: 'ALL_INCLUSIVE' | 'SELECT_ONE';
+    usageLimit?: number;
+
+    counterName?: string;
+    counterLocation?: string;
+
+    items?: UserVoucherDetail[];
 }
+
+export interface UserVoucherDetail {
+    detailId: string;
+    serviceId: string;
+    serviceName: string;
+    imageUrl: string;
+    initialQuantity: number;
+    remainingQuantity: number;
+    allocatedPrice?: number;
+}
+
+
 export interface PageResponse<T> {
     items: T[];
     page: number;
@@ -63,6 +86,7 @@ export interface BuyVoucherResponse {
     quantity: number;
     voucherCodes: string[];
     purchasedAt: string;
+    totalUsage?: number;
 }
 
 export interface ExchangeVoucherRequest {

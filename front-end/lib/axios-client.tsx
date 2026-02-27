@@ -1,7 +1,6 @@
 import axios, { AxiosError } from 'axios';
 
-const BASE_URL = 'http://localhost:8080/api';
-
+const BASE_URL = 'https://spx-wallet.duckdns.org/api';
 export const axiosClient = axios.create({
     baseURL: BASE_URL,
     headers: {
@@ -26,6 +25,9 @@ const processQueue = (error: any, token: string | null = null) => {
 
 axiosClient.interceptors.response.use(
     (response) => {
+        if (response.data instanceof Blob || response.config.responseType === 'blob') {
+            return response.data;
+        }
         const apiResponse = response.data;
         if (response.status === 200 && apiResponse.code === 200) {
             return apiResponse.data;
@@ -41,16 +43,16 @@ axiosClient.interceptors.response.use(
     async (error: AxiosError) => {
         const originalRequest = error.config as any;
 
-        // Xử lý 401
+        // Log debug (Giữ nguyên để theo dõi)
+        // console.log(`%c[Axios Error] Status: ${error.response?.status} | URL: ${originalRequest?.url}`, 'color: red; font-weight: bold');
+
         if (error.response?.status === 401 && !originalRequest._retry) {
 
-            // [FIX QUAN TRỌNG]: Nếu lỗi 401 xảy ra khi đang check login (/me)
-            // hoặc đang login/refresh -> KHÔNG làm gì cả, trả lỗi về luôn để AuthContext xử lý.
-            // Tránh vòng lặp reload trang vô tận.
+            // Chặn Login/Refresh/Logout để tránh loop
             if (
-                originalRequest.url?.includes('/auth/me') ||
                 originalRequest.url?.includes('/auth/login') ||
-                originalRequest.url?.includes('/auth/refresh')
+                originalRequest.url?.includes('/auth/refresh') ||
+                originalRequest.url?.includes('/auth/logout')
             ) {
                 return Promise.reject(error);
             }
@@ -67,19 +69,26 @@ axiosClient.interceptors.response.use(
             isRefreshing = true;
 
             try {
+                // console.log('%c[Auth] Token expired. Attempting refresh...', 'color: orange');
                 await axios.post(`${BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+                // console.log('%c[Auth] Refresh Success! Retrying original request.', 'color: green');
                 processQueue(null);
                 return axiosClient(originalRequest);
             } catch (refreshError) {
+                // console.error('%c[Auth] Refresh Failed! Session expired.', 'color: red');
                 processQueue(refreshError, null);
-                // Nếu refresh thất bại, điều hướng về login (nhưng không reload nếu không cần thiết)
-                window.location.href = '/login';
+
+                // [FIX QUAN TRỌNG NHẤT Ở ĐÂY]
+                // Nếu đang ở trang login rồi thì KHÔNG redirect nữa để tránh vòng lặp reload vô tận
+                if (window.location.pathname !== '/login') {
+                    window.location.href = '/login';
+                }
+
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;
             }
         }
-
         return Promise.reject(error);
     }
 );

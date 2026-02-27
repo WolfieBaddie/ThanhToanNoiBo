@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard,
-    Wallet,
+    Wallet, // Dùng icon này làm Logo luôn
     UtensilsCrossed,
     History,
     Settings,
@@ -13,7 +13,6 @@ import {
     BarChart3,
     Store
 } from 'lucide-react';
-import { Logo } from '../ui/Logo';
 import { useAuth } from '@/context/AuthContext';
 import { UserRole } from "@/types/common.types";
 
@@ -41,7 +40,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         { id: 'm-dashboard', label: 'Tổng quan Quầy', icon: <LayoutDashboard size={20} />, path: '/merchant/dashboard' },
         { id: 'm-services', label: 'Quản lý Dịch vụ', icon: <Store size={20} />, path: '/merchant/services' },
         { id: 'm-orders', label: 'Lịch sử Đơn', icon: <ClipboardList size={20} />, path: '/merchant/orders' },
-        { id: 'm-reports', label: 'Báo cáo', icon: <BarChart3 size={20} />, path: '/merchant/reports' },
+        { id: 'm-reports', label: 'Báo cáo', icon: <BarChart3 size={20} />, path: '/merchant/request' },
         { id: 'm-settings', label: 'Cài đặt', icon: <Settings size={20} />, path: '/merchant/settings' },
     ];
 
@@ -63,10 +62,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-white dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 transition-colors">
+        <div className="flex flex-col h-full bg-white dark:bg-dark-base border-r border-slate-100 dark:border-dark-border transition-colors">
             {/* Header Sidebar */}
             <div className="p-8 pb-8 flex items-center justify-between">
-                <Logo className="text-slate-900 dark:text-white" />
+
+                {/* [ĐÃ SỬA] BRANDING SWallet - Thay Rocket bằng Wallet */}
+                <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/30 transform transition-transform hover:scale-110">
+                        {/* Thay đổi icon ở đây */}
+                        <Wallet size={24} strokeWidth={2.5} className="mr-0.5 mb-0.5" />
+                    </div>
+                    <div className="flex flex-col">
+                        <span className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white leading-none">
+                            S<span className="text-indigo-600">Wallet</span>
+                        </span>
+                    </div>
+                </div>
 
                 {/* Badge Role cho Merchant */}
                 {isMerchant && (
@@ -94,11 +105,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                             onClick={() => handleNavigation(item.path)}
                             className={`w-full flex items-center justify-start px-5 py-4 rounded-2xl transition-all font-bold text-sm group ${
                                 active
-                                    ? 'bg-primary text-slate-900 shadow-md shadow-lime-200/50'
-                                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800'
+                                    // Style active: Lime background + Dark text
+                                    ? 'bg-brand-primary text-brand-dark shadow-md shadow-brand-primary/30'
+                                    : 'text-slate-500 hover:text-brand-dark hover:bg-slate-50 dark:text-slate-400 dark:hover:text-white dark:hover:bg-dark-card'
                             }`}
                         >
-                            <span className={`mr-3 ${active ? 'text-slate-900' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                            <span className={`mr-3 ${active ? 'text-brand-dark' : 'text-slate-400 group-hover:text-slate-600'}`}>
                                 {item.icon}
                             </span>
                             <span>{item.label}</span>
@@ -108,7 +120,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </div>
 
             {/* Footer Sidebar (Logout) */}
-            <div className="p-6 border-t border-slate-100 dark:border-slate-800">
+            <div className="p-6 border-t border-slate-100 dark:border-dark-border">
                 <button
                     onClick={logout}
                     className="w-full flex items-center gap-3 px-5 py-3 text-slate-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-colors font-bold text-sm"

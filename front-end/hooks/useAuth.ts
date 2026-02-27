@@ -2,8 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { authService } from '../services/auth.service';
+import { userService } from '../services/user.service';
 import { storage } from '../utils/storage';
-import {LoginRequest, RegisterRequest, UserProfile} from '../types/auth.types';
+import {
+    ForgotPasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    UpdateUserProfileRequest,
+    UserProfile
+} from '../types/auth.types';
 
 export const useAuth = () => {
     // Khởi tạo state từ localStorage (nếu có) để giao diện hiển thị ngay lập tức
@@ -71,21 +78,15 @@ export const useAuth = () => {
         }
     };
 
-        const register = async (data: RegisterRequest) => {
+    const sendOtp = async (email: string) => {
+        // Không set isLoading toàn cục để tránh block UI nếu user đang nhập liệu
+        return await authService.sendRegisterOtp(email);
+    };
+
+    const register = async (data: RegisterRequest) => {
         setIsLoading(true);
         try {
-            const response = await authService.register(data);
-
-            // Backend Register trả về LoginResponse (có token).
-            // Ta cần lấy thông tin user để lưu storage.
-            // Cách 1: Nếu LoginResponse có sẵn field 'user' -> dùng luôn.
-            // Cách 2: Gọi getMe() ngay sau đó.
-
-            const userProfile = await authService.getMe(); // Gọi getMe cho chắc chắn lấy full info
-
-            storage.setUser(userProfile);
-            setUser(userProfile);
-            return userProfile;
+            await authService.register(data);
         } catch (err) {
             throw err;
         } finally {
@@ -93,12 +94,62 @@ export const useAuth = () => {
         }
     };
 
-    /**
-     * [MỚI] Hàm Gửi OTP (Wrapper)
-     */
-    const sendOtp = async (email: string) => {
-        return await authService.sendRegisterOtp(email);
+    const requestPasswordResetOtp = async (email: string) => {
+        // Không cần try-catch ở đây để lỗi bắn ra cho UI xử lý hiển thị
+        return await authService.sendForgotPasswordOtp(email);
     };
 
-    return { user, login, logout, register, sendOtp, isLoading };
+    // [MỚI] Xác nhận đổi mật khẩu
+    const submitResetPassword = async (data: ForgotPasswordRequest) => {
+        setIsLoading(true);
+        try {
+            return await authService.resetPassword(data);
+        } catch (err) {
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const updateProfile = async (data: UpdateUserProfileRequest) => {
+        setIsLoading(true);
+        try {
+            // 1. Gọi API cập nhật
+            const updatedUser = await userService.updateProfile(data);
+
+            // 2. Cập nhật lại State và LocalStorage để UI thay đổi ngay lập tức
+            setUser(updatedUser);
+            storage.setUser(updatedUser);
+
+            return updatedUser;
+        } catch (err) {
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // [MỚI] Hàm refresh thông tin user (khi cần lấy dữ liệu mới nhất từ server)
+    const refreshProfile = async () => {
+        try {
+            const userData = await userService.getMyDetail();
+            setUser(userData);
+            storage.setUser(userData);
+        } catch (e) {
+            console.error("Failed to refresh profile", e);
+        }
+    };
+
+    return {
+        user,
+        isLoading,
+        login,
+        logout,
+        register,
+        sendOtp,
+        requestPasswordResetOtp,
+        submitResetPassword,
+        updateProfile,
+        refreshProfile
+    };
 };

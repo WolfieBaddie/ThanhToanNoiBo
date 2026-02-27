@@ -8,5 +8,5 @@ import java.util.List;
 @Builder
 public class CatalogDataResponse {
     private List<PackageResponse> packages;
-    private PageResponse<ServiceResponse> services;
+    private PageResponse<UserServiceResponse> services;
 }

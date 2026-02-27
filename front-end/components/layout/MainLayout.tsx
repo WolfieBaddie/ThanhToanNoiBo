@@ -5,6 +5,8 @@ import {
     Bell,
     Search,
     Check,
+    Wallet,
+    Clock // Thêm icon Clock cho phần chờ kết toán
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/hooks/useNotification';
@@ -12,7 +14,9 @@ import { AppNotification } from '@/types/notification.type';
 import { GlobalNotificationProvider } from "@/context/GlobalNoticationContext";
 import { UserRole } from "@/types/common.types";
 import { Sidebar } from './Sidebar';
-import { NotificationItem } from '../notification/NotificationItem'; // [MỚI] Import NotificationItem
+import { NotificationItem } from '../notification/NotificationItem';
+import { useUserCredit } from '@/hooks/useUserCredit';
+import { formatCurrency } from '@/utils/format';
 
 interface MainLayoutProps {
     children?: React.ReactNode;
@@ -30,6 +34,9 @@ export const MainLayout: React.FC<MainLayoutProps> = () => {
     const notiRef = useRef<HTMLDivElement>(null);
 
     const isMerchant = user?.roles?.includes(UserRole.MERCHANT);
+
+    // Kéo dữ liệu Credit
+    const { creditInfo } = useUserCredit(user?.userId);
 
     const toggleNoti = () => {
         if (!showNotiDropdown) fetchNotifications();
@@ -54,23 +61,52 @@ export const MainLayout: React.FC<MainLayoutProps> = () => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // [CẬP NHẬT] Hàm render số dư hiển thị đầy đủ cho Merchant
+    const renderBalance = () => {
+        // Lấy số dư khả dụng
+        const balance = creditInfo?.balance || 0;
+
+        // Lấy số chờ kết toán (Giả sử field này tên là unsettledBalance, bạn sửa lại theo đúng type của hook useUserCredit)
+        // Nếu chưa có trong type, hãy thêm vào hoặc thay thế bằng biến tương ứng
+        const unsettled = (creditInfo as any)?.unsettledBalance || 0;
+
+        if (isMerchant) {
+            return (
+                <div className="flex flex-col items-end leading-tight">
+
+                    {/* Dòng 2: Chờ kết toán (Màu xám, nhỏ hơn) */}
+                    <div className="flex items-center gap-1 mt-0.5">
+                        <Clock size={10} className="text-slate-400" />
+                        <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                            Chờ kết toán: {balance}
+                        </span>
+                    </div>
+                </div>
+            );
+        }
+
+        // Logic User thường (Giữ nguyên)
+        return (
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                {formatCurrency(balance)}
+            </span>
+        );
+    };
+
     return (
         <div className="min-h-screen bg-app-bg dark:bg-slate-950 text-slate-900 dark:text-white font-sans transition-colors duration-300 flex">
 
-            {/* Desktop Sidebar (z-20) */}
+            {/* Desktop Sidebar */}
             <aside className="hidden lg:block w-[280px] h-screen sticky top-0 z-20">
                 <Sidebar isOpen={true} onClose={() => {}} />
             </aside>
 
-            {/* Mobile Sidebar (z-50) */}
+            {/* Mobile Sidebar */}
             <div className={`fixed inset-0 z-50 lg:hidden transition-all duration-300 ${isMobileMenuOpen ? 'visible' : 'invisible'}`}>
-                {/* Backdrop */}
                 <div
                     className={`absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0'}`}
                     onClick={() => setIsMobileMenuOpen(false)}
                 />
-
-                {/* Drawer */}
                 <div className={`absolute top-0 left-0 w-[280px] h-full bg-white shadow-2xl transition-transform duration-300 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
                     <Sidebar isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
                 </div>
@@ -78,7 +114,7 @@ export const MainLayout: React.FC<MainLayoutProps> = () => {
 
             {/* Main Content Area */}
             <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden relative">
-                {/* Header (z-40) */}
+                {/* Header */}
                 <header className="bg-app-bg/80 dark:bg-slate-900/80 backdrop-blur-xl sticky top-0 z-40 px-6 py-4 flex items-center justify-between transition-colors border-b border-transparent dark:border-slate-800/50">
                     <div className="flex items-center gap-4">
                         <button
@@ -88,14 +124,6 @@ export const MainLayout: React.FC<MainLayoutProps> = () => {
                             <Menu size={24} />
                         </button>
 
-                        <div className="hidden md:flex items-center bg-white dark:bg-slate-800 border-none rounded-2xl px-4 py-2.5 w-80 transition-all focus-within:ring-2 focus-within:ring-primary dark:focus-within:ring-slate-700 shadow-sm">
-                            <Search size={18} className="text-slate-400 mr-2" />
-                            <input
-                                type="text"
-                                placeholder="Tìm kiếm..."
-                                className="bg-transparent border-none outline-none text-sm w-full text-slate-700 dark:text-slate-200 placeholder:text-slate-400 font-medium"
-                            />
-                        </div>
                     </div>
 
                     <div className="flex items-center gap-4 sm:gap-6">
@@ -158,11 +186,17 @@ export const MainLayout: React.FC<MainLayoutProps> = () => {
                         </div>
 
                         {/* User Info Header */}
-                        <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700 h-8">
+                        <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700 h-10">
+                            {/* [CẬP NHẬT] Text Info bên trái Avatar */}
                             <div className="text-right hidden sm:block">
-                                <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight">{user?.fullName || "Khách"}</p>
-                                <p className="text-xs font-semibold text-slate-500 uppercase">{isMerchant ? "Đối tác" : (user?.studentCode || user?.username || "---")}</p>
+                                <p className="text-sm font-bold text-slate-900 dark:text-white leading-tight mb-0.5">{user?.fullName || "Khách"}</p>
+
+                                {/* Gọi hàm renderBalance đã sửa */}
+                                <div className="flex justify-end">
+                                    {renderBalance()}
+                                </div>
                             </div>
+
                             <div className="p-0.5 rounded-full border-2 border-white dark:border-slate-700 shadow-sm cursor-pointer hover:border-indigo-200 transition-colors">
                                 <img
                                     src={user?.avatar || `https://ui-avatars.com/api/?name=${user?.fullName || 'User'}&background=random`}

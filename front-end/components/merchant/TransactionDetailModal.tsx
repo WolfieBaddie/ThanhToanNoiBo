@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Clock, Receipt, Printer, AlertTriangle, Image as ImageIcon, Package } from 'lucide-react';
+import { X, Clock, Receipt, AlertTriangle, Image as ImageIcon, Package } from 'lucide-react'; // Bỏ Printer
 import { useTransactionDetail, useUserTransactionDetail } from '@/hooks/useTransaction';
 import { TransactionPartnerCard } from "@/components/merchant/TransactionPartnerCard";
 import { formatCurrency } from '@/utils/format';
@@ -18,7 +18,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
     const userHook = useUserTransactionDetail(isUserView ? transactionId : null);
     const merchantHook = useTransactionDetail(!isUserView ? transactionId : null);
     const { detail, loading, error } = isUserView ? userHook : merchantHook;
-
+    console.log(detail);
     const formatVND = (val: number) => val.toLocaleString('vi-VN') + 'đ';
 
     if (!isOpen) return null;
@@ -26,27 +26,22 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
     // --- LOGIC TITLE CHO USER ---
     const getUserDisplayTitle = (dt: any) => {
         if (dt.type === 'BUY_VOUCHER') return "Mua Gói dịch vụ";
-        if (dt.type === 'REDEMPTION') return "Sử dụng Voucher";
+        if (dt.type === 'REDEMPTION') return "Chi tiết đổi vé"; // Sửa title cho hợp ngữ cảnh
         return dt.title || "Chi tiết giao dịch";
     };
 
-    // --- LOGIC HIỂN THỊ TỔNG THANH TOÁN (QUAN TRỌNG) ---
+    // --- LOGIC HIỂN THỊ TỔNG TIỀN ---
     const renderUserTotalAmount = (dt: any) => {
-        // 1. Nếu là ĐỔI QUÀ -> Lấy chuỗi "-X Vé" từ backend trả về
-        if (dt.type === 'REDEMPTION') {
-            return dt.amountDisplay;
+        if (dt.type === 'BUY_VOUCHER') {
+            if (dt.categoryName?.toLowerCase().includes("gói")) {
+                return `+${dt.quantity} Gói`;
+            }
+            return formatCurrency(dt.amount, dt.type);
         }
-
-        // 2. Format số tiền sang Xu (Chia 1000)
-        // formatCurrency sẽ tự thêm dấu "-" cho các loại chi tiêu (BUY_VOUCHER, PAYMENT...)
-        const xuString = formatCurrency(dt.amount, dt.type);
-
-        // 3. Nếu là NẠP TIỀN (DEPOSIT) -> Thủ công thêm dấu "+"
         if (dt.type === 'DEPOSIT') {
-            return `+${xuString}`;
+            return `+${formatCurrency(Math.abs(dt.amount), 'DEPOSIT')}`;
         }
-
-        return xuString;
+        return formatCurrency(dt.amount, dt.type);
     };
 
     return (
@@ -93,24 +88,24 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
 
                                     {/* Nội dung chính */}
                                     <div className="relative z-10">
-                                        {/* Trường hợp MUA VOUCHER hoặc ĐỔI QUÀ (Có items) */}
+                                        {/* List items (Nếu có) */}
                                         {detail.items && detail.items.length > 0 ? (
                                             <div className="space-y-4">
                                                 {/* Header Gói/Combo */}
-                                                {(detail.type === 'BUY_VOUCHER' || detail.categoryName?.includes("Gói")) && (
+                                                {(detail.type === 'BUY_VOUCHER' || detail.categoryName?.includes("Gói") || detail.categoryName?.includes("Combo")) && (
                                                     <div className="pb-3 border-b border-slate-100 mb-2">
                                                         <h4 className="font-black text-slate-800 text-lg leading-snug">
                                                             {detail.itemName}
                                                         </h4>
                                                         <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                                                            <Package size={12}/> Chi tiết gói:
+                                                            <Package size={12}/> Chi tiết sử dụng:
                                                         </p>
                                                     </div>
                                                 )}
 
                                                 {/* List items */}
                                                 <div className="space-y-3">
-                                                    {detail.items.map((item, index) => (
+                                                    {detail.items.map((item: any, index: number) => (
                                                         <div key={index} className="flex gap-3 items-start">
                                                             <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
                                                                 {item.itemImage ? (
@@ -125,8 +120,8 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                                                         {item.itemName}
                                                                     </h5>
                                                                     <span className="text-xs font-medium text-slate-500 whitespace-nowrap">
-                                                                        {/* Format Xu cho item */}
-                                                                        {formatCurrency(item.unitPrice)}
+                                                                        {/* Ẩn giá lẻ nếu là Redemption để tránh rối */}
+                                                                        {detail.type !== 'REDEMPTION' && formatCurrency(item.unitPrice)}
                                                                     </span>
                                                                 </div>
                                                                 <p className="text-slate-500 text-xs mt-0.5">
@@ -159,16 +154,33 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                             </div>
                                         )}
 
-                                        {/* Tổng tiền / Vé */}
-                                        <div className="mt-4 pt-4 border-t border-dashed border-slate-200 flex justify-between items-center">
-                                            <span className="text-slate-500 font-medium">
-                                                {(detail as any).type === 'REDEMPTION' ? 'Số lượng trừ' : 'Tổng thanh toán'}
-                                            </span>
-                                            {/* [UPDATED] Gọi hàm render logic mới */}
-                                            <span className={`text-2xl font-black ${(detail as any).type === 'REDEMPTION' ? 'text-orange-600' : 'text-slate-900'}`}>
-                                                {renderUserTotalAmount(detail)}
-                                            </span>
-                                        </div>
+                                        {/* HIỂN THỊ BREAKDOWN THUẾ (Ẩn nếu là REDEMPTION) */}
+                                        {(detail.type !== 'REDEMPTION' && detail.taxAmount && detail.taxAmount > 0) && (
+                                            <div className="mt-4 pt-4 border-t border-dashed border-slate-200 space-y-2">
+                                                <div className="flex justify-between text-sm text-slate-500">
+                                                    <span>Giá niêm yết</span>
+                                                    <span>{formatCurrency(detail.originalAmount || 0)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-sm text-slate-500">
+                                                    <span>Thuế VAT (10%)</span>
+                                                    <span>{formatCurrency(detail.taxAmount)}</span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Tổng tiền / Vé (Ẩn nếu là REDEMPTION theo yêu cầu) */}
+                                        {detail.type !== 'REDEMPTION' && (
+                                            <div className={`flex justify-between items-center ${
+                                                (detail.taxAmount && detail.taxAmount > 0)
+                                                    ? 'mt-2 pt-2 border-t border-slate-100'
+                                                    : 'mt-4 pt-4 border-t border-dashed border-slate-200'
+                                            }`}>
+                                                <span className="text-slate-500 font-medium">Tổng thanh toán</span>
+                                                <span className="text-2xl font-black text-right text-slate-900">
+                                                    {renderUserTotalAmount(detail)}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Decor */}
@@ -177,14 +189,14 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                     </div>
                                 </div>
                             ) : (
-                                // === GIAO DIỆN MERCHANT (Giữ nguyên hiển thị VNĐ) ===
+                                // === GIAO DIỆN MERCHANT (GIỮ NGUYÊN) ===
                                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
                                     {detail.items && detail.items.length > 0 ? (
                                         <div className="space-y-3">
                                             <div className="flex justify-between items-center pb-2 border-b border-slate-200">
                                                 <span className="text-xs font-bold text-slate-500 uppercase">Chi tiết đơn hàng</span>
                                             </div>
-                                            {detail.items.map((item, idx) => (
+                                            {detail.items.map((item: any, idx: number) => (
                                                 <div key={idx} className="flex justify-between items-center">
                                                     <div className="flex items-center gap-2">
                                                         <span className="bg-white border border-slate-200 px-1.5 py-0.5 rounded text-xs font-bold text-slate-600">
@@ -206,7 +218,22 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                             </span>
                                         </div>
                                     )}
+
                                     <div className="space-y-2 mt-3 pt-3 border-t border-slate-200 text-sm">
+                                        {(detail.taxAmount && detail.taxAmount > 0) && (
+                                            <>
+                                                <div className="flex justify-between text-slate-500">
+                                                    <span>Tiền hàng</span>
+                                                    <span>{formatVND(detail.originalAmount || 0)}</span>
+                                                </div>
+                                                <div className="flex justify-between text-slate-500">
+                                                    <span>VAT (10%)</span>
+                                                    <span>{formatVND(detail.taxAmount)}</span>
+                                                </div>
+                                                <div className="my-1 border-b border-slate-100"></div>
+                                            </>
+                                        )}
+
                                         <div className="flex justify-between text-base">
                                             <span className="font-bold text-slate-700">Thành tiền</span>
                                             <span className={`font-bold ${detail.direction === 'IN' ? 'text-emerald-600' : 'text-slate-900'}`}>
@@ -217,7 +244,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                                 </div>
                             )}
 
-                            {/* 3. ẢNH XÁC THỰC (Chung) */}
+                            {/* 3. ẢNH XÁC THỰC */}
                             {detail.evidenceImage && (
                                 <div className="space-y-2">
                                     <p className="text-xs font-bold text-slate-400 uppercase flex items-center gap-1 pl-1">
@@ -261,12 +288,7 @@ export const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                     ) : null}
                 </div>
 
-                {/* --- FOOTER --- */}
-                <div className="p-4 border-t border-slate-100 bg-slate-50">
-                    <button className="w-full py-3 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-white hover:shadow-sm transition-all flex items-center justify-center gap-2">
-                        <Printer size={18} /> In hóa đơn
-                    </button>
-                </div>
+                {/* --- FOOTER: ĐÃ XÓA NÚT IN HÓA ĐƠN --- */}
             </div>
         </div>
     );

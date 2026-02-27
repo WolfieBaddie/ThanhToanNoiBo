@@ -3,46 +3,63 @@ export default {
     darkMode: 'class',
     content: [
         "./index.html",
+        "./front-end/**/*.{js,ts,jsx,tsx}",
         "./components/**/*.{js,ts,jsx,tsx}",
         "./admin/**/*.{js,ts,jsx,tsx}",
         "./*.{js,ts,jsx,tsx}",
         "./landing-page/**/*.{js,ts,jsx,tsx}"
     ],
+
     theme: {
         extend: {
-            colors: {
-                // Cập nhật: Màu nền (App Background) - Xám xanh nhẹ
-                'app-bg': '#E9EEF5',
-
-                // Cập nhật: Màu đen thương hiệu (Brand Black) - Slate 900
-                // Dùng cho văn bản chính hoặc các nút tối màu để tạo tương phản cao
-                'brand-black': '#0F172A',
-
-                // Cập nhật: Màu chủ đạo (Primary) - Lime rực rỡ
-                primary: {
-                    DEFAULT: '#B6F026',
-                    // Cập nhật glow theo hệ màu Lime (RGB: 182, 240, 38)
-                    glow: 'rgba(182, 240, 38, 0.5)'
-                },
-
-                // Giữ nguyên cấu hình Dark Mode (Slate palette)
-                // Lưu ý: dark.base hiện tại trùng mã với brand-black, rất tốt cho tính nhất quán
-                dark: {
-                    base: '#0f172a',    // Nền tổng thể (Slate 950)
-                    card: '#1e293b',    // Nền Card (Slate 800)
-                    lighter: '#334155', // Hover state
-                    border: '#334155',  // Viền (Slate 700)
-                },
-
-                // Các màu nhấn phụ trợ (Giữ nguyên)
-                accent: {
-                    green: '#10b981', // Emerald 500
-                    purple: '#8b5cf6', // Violet 500
-                }
-            },
+            // --- 1. FONT CHỮ ---
             fontFamily: {
-                sans: ['Inter', 'sans-serif'],
-            }
+                sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'], // Font mặc định
+                jakarta: ['"Plus Jakarta Sans"', 'sans-serif'],  
+                heading: ['Montserrat', 'sans-serif'],
+                sans: ['Open Sans', 'Roboto', 'sans-serif'],    // Font riêng nếu cần
+            },
+
+            // --- 2. BO GÓC & BÓNG ---
+            borderRadius: {
+                '3xl': '24px',
+                '4xl': '32px',
+                '5xl': '40px',
+            },
+            boxShadow: {
+                'premium': '0 20px 50px -12px rgba(0, 0, 0, 0.08)',
+                'glow': '0 0 20px rgba(37, 99, 235, 0.2)',
+            },
+
+            // --- 3. MÀU SẮC ---
+            colors: {
+                'app-bg': '#E9EEF5', // Giữ nguyên nền light mode của bạn
+
+                brand: {
+                    primary: '#2563EB',
+                    secondary: '#6366F1',
+                    accent: '#F43F5E',
+                    dark: '#0F172A',
+                },
+
+                // LƯU Ý: Đã gỡ bỏ brand-primary, brand-secondary bị lặp ở ngoài để code sạch hơn.
+                // Khi code bạn nên dùng 'bg-brand-primary' thay vì khai báo lặp.
+
+                primary: {
+                    DEFAULT: '#2563EB',
+                    glow: 'rgba(37, 99, 235, 0.5)'
+                },
+
+                // --- BỘ MÀU DARK MODE ĐÃ ĐƯỢC CHUẨN HÓA ---
+                dark: {
+                    base: '#0B0F19',     // Nền web: Xanh đen cực sâu
+                    card: '#131C31',     // Nền thẻ: Xanh đen sáng hơn
+                    lighter: '#1E2B4D',  // Hover
+                    border: '#222F43',   // Viền
+                    text: '#F8FAFC',     // Chữ chính
+                    muted: '#94A3B8',    // Chữ phụ
+                },
+            },
         },
     },
     plugins: [],

@@ -1,131 +1,281 @@
 import React, { useState } from 'react';
-import { User, Phone, GraduationCap, Lock, CheckCircle2, Mail, ArrowRight } from 'lucide-react';
-import { Input } from '../../components/ui/Input';
-import { Button } from '../../components/ui/Button';
-import { useAuthForm } from '../../hooks/useAuthForm';
-import { AuthMode } from '../../types';
+import { User, X, ArrowRight, RefreshCw } from 'lucide-react';
+
+import { useAuth } from '@/hooks/useAuth';
+import {Input} from "@/components/ui/Input";
+import {Button} from "@/components/ui/Button";
 
 interface RegisterFormProps {
-    onSwitchMode: () => void;
-    onError: (msg: string) => void;
-    onSuccess?: (msg: any) => void; // Callback để hiện thông báo ở Page cha
+    onRegisterSuccess: () => void;
+    onLogin: () => void;
+    showNotification: (type: 'success' | 'error' | 'info', message: React.ReactNode) => void;
 }
 
-export const RegisterForm: React.FC<RegisterFormProps> = ({ onSwitchMode, onError, onSuccess }) => {
-    // Sử dụng hook quản lý form với mode REGISTER
-    const { formData, errors, handleInputChange, validate } = useAuthForm(AuthMode.REGISTER);
-    const [isLoading, setIsLoading] = useState(false);
+export const RegisterForm: React.FC<RegisterFormProps> = ({
+                                                              onRegisterSuccess,
+                                                              onLogin,
+                                                              showNotification
+                                                          }) => {
+    // Hooks từ useAuth (đã có sendOtp và register)
+    const { register, sendOtp } = useAuth();
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    // Form Data
+    const [formData, setFormData] = useState({
+        email: '',
+        password: '',
+        fullName: '',
+        phoneNumber: '',
+        studentId: '', // Có thể mapping vào username nếu muốn
+        confirmPassword: ''
+    });
+
+    // States
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [isLoading, setIsLoading] = useState(false); // Loading cho các nút submit
+
+    // --- OTP STATE & MODAL ---
+    const [showOtpModal, setShowOtpModal] = useState(false); // Bật/tắt modal
+    const [otpCode, setOtpCode] = useState('');              // Lưu mã OTP người dùng nhập
+    const [isResending, setIsResending] = useState(false);   // Loading khi gửi lại mã
+
+    // --- VALIDATION ---
+    const validate = () => {
+        const newErrors: Record<string, string> = {};
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!formData.fullName) newErrors.fullName = 'Vui lòng nhập họ tên';
+
+        if (!formData.phoneNumber) {
+            newErrors.phoneNumber = 'Vui lòng nhập SĐT';
+        } else if (!/^\d{10,11}$/.test(formData.phoneNumber.replace(/\s/g, ''))) {
+            newErrors.phoneNumber = 'Số điện thoại không hợp lệ';
+        }
+
+        if (!formData.email) {
+            newErrors.email = 'Vui lòng nhập email';
+        } else if (!emailRegex.test(formData.email)) {
+            newErrors.email = 'Email không hợp lệ';
+        }
+
+        if (!formData.password) {
+            newErrors.password = 'Vui lòng nhập mật khẩu';
+        } else if (formData.password.length < 6) {
+            newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
+        }
+
+        if (formData.password !== formData.confirmPassword) {
+            newErrors.confirmPassword = 'Mật khẩu xác nhận không khớp';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+        // Clear lỗi khi user bắt đầu nhập lại
+        if (errors[name]) setErrors({ ...errors, [name]: '' });
+    };
+
+    // --- STEP 1: GỬI OTP (Pre-check) ---
+    const handleInitialSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-
-        // 1. Validate Form
         if (!validate()) {
-            onError('Vui lòng kiểm tra lại thông tin nhập liệu');
+            showNotification('error', 'Vui lòng kiểm tra lại thông tin nhập liệu');
             return;
         }
 
         setIsLoading(true);
+        try {
+            // Gọi API gửi OTP (Backend sẽ gửi mail)
+            await sendOtp(formData.email);
 
-        // 2. Giả lập gọi API Register (Sau này sẽ thay bằng authService.register)
-        // Hiện tại Backend AuthController chưa có endpoint public register đầy đủ flow này
-        setTimeout(() => {
+            showNotification('success', 'Mã OTP đã được gửi đến email của bạn!');
+            setShowOtpModal(true); // Mở Modal nhập OTP
+        } catch (err: any) {
+            console.error(err);
+            const msg = err.response?.data?.message || 'Lỗi gửi mã OTP. Email có thể đã tồn tại.';
+            showNotification('error', msg);
+        } finally {
             setIsLoading(false);
+        }
+    };
 
-            // Tạo nội dung thông báo thành công (JSX)
-            const successMessage = (
-                <div className="flex flex-col gap-1">
-                    <span>Chào mừng <span className="font-bold text-slate-800">{formData.fullName}</span>!</span>
-                    <span>Tài khoản liên kết với <span className="font-bold text-indigo-600 font-mono">{formData.studentId}</span>.</span>
-                    <span className="text-xs text-slate-400 mt-1">Vui lòng đăng nhập để bắt đầu.</span>
-                </div>
-            );
+    // --- STEP 2: XÁC NHẬN ĐĂNG KÝ (Final) ---
+    const handleVerifyAndRegister = async () => {
+        if (!otpCode || otpCode.length < 6) {
+            showNotification('error', 'Vui lòng nhập mã OTP 6 số');
+            return;
+        }
 
-            if (onSuccess) onSuccess(successMessage);
+        setIsLoading(true);
+        try {
+            await register({
+                username: formData.email,
+                email: formData.email,
+                password: formData.password,
+                fullName: formData.fullName,
+                phoneNumber: formData.phoneNumber,
+                otp: otpCode
+            });
 
-            // Chuyển về trang đăng nhập
-            onSwitchMode();
-        }, 1500);
+            // [SỬA LẠI THÔNG BÁO]
+            showNotification('success', 'Đăng ký thành công! Vui lòng đăng nhập.');
+
+            setShowOtpModal(false);
+
+            // Gọi callback để AuthPage chuyển mode sang LOGIN
+            onRegisterSuccess();
+        } catch (err: any) {
+            console.error(err);
+            const msg = err.response?.data?.message || 'Mã OTP không đúng hoặc hết hạn.';
+            showNotification('error', msg);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // --- RESEND OTP ---
+    const handleResendOtp = async () => {
+        setIsResending(true);
+        try {
+            await sendOtp(formData.email);
+            showNotification('success', 'Đã gửi lại mã OTP mới!');
+            setOtpCode(''); // Clear input cũ
+        } catch (err) {
+            showNotification('error', 'Không thể gửi lại mã. Vui lòng thử sau.');
+        } finally {
+            setIsResending(false);
+        }
     };
 
     return (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Nhóm thông tin cá nhân */}
-            <Input
-                label="Họ tên Phụ huynh"
-                name="fullName"
-                placeholder="Nguyễn Văn A"
-                icon={<User size={20} />}
-                value={formData.fullName}
-                onChange={handleInputChange}
-                error={errors.fullName}
-            />
+        <div className="max-w-md mx-auto w-full animate-in fade-in slide-in-from-right-4 duration-300 relative">
 
-            <Input
-                label="Mã số học sinh (MSSV)"
-                name="studentId"
-                placeholder="Ví dụ: HS2024001"
-                icon={<GraduationCap size={20} />}
-                value={formData.studentId}
-                onChange={handleInputChange}
-                error={errors.studentId}
-            />
+            {/* --- FORM NHẬP THÔNG TIN (Bước 1) --- */}
+            <div className="mb-8 flex items-center justify-between">
+                <div>
+                    <h2 className="text-3xl font-bold text-slate-900 mb-2">Tạo tài khoản</h2>
+                    <p className="text-slate-500 font-medium">Điền thông tin bên dưới.</p>
+                </div>
+                <div className="w-14 h-14 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+                    <User size={24} className="text-slate-400" />
+                </div>
+            </div>
 
-            <Input
-                label="Số điện thoại liên hệ"
-                name="phoneNumber"
-                type="tel"
-                placeholder="0912 345 678"
-                icon={<Phone size={20} />}
-                value={formData.phoneNumber}
-                onChange={handleInputChange}
-                error={errors.phoneNumber}
-            />
+            <form onSubmit={handleInitialSubmit} className="flex flex-col gap-3">
+                <Input className="!mb-0" label="Họ tên" name="fullName" placeholder="Nguyễn Văn A" value={formData.fullName} onChange={handleChange} error={errors.fullName} />
+                <div className="grid grid-cols-2 gap-3">
+                    <Input className="!mb-0" label="MSSV (Tuỳ chọn)" name="studentId" placeholder="HS2024..." value={formData.studentId} onChange={handleChange} error={errors.studentId} />
+                    <Input className="!mb-0" label="SĐT" name="phoneNumber" placeholder="0912..." value={formData.phoneNumber} onChange={handleChange} error={errors.phoneNumber} />
+                </div>
 
-            {/* Nhóm tài khoản */}
-            <div className="my-4 border-t border-slate-100"></div>
+                <Input
+                    className="!mb-0"
+                    label="Email / Tài khoản"
+                    name="email"
+                    placeholder="example@school.edu.vn"
+                    value={formData.email}
+                    onChange={handleChange}
+                    error={errors.email}
+                />
 
-            <Input
-                label="Email / Tài khoản"
-                name="username"
-                placeholder="phuhuynh@example.com"
-                icon={<Mail size={20} />}
-                value={formData.username}
-                onChange={handleInputChange}
-                error={errors.username}
-            />
+                <Input
+                    className="!mb-0"
+                    label="Mật khẩu"
+                    name="password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={handleChange}
+                    error={errors.password}
+                    showStrength
+                />
 
-            <Input
-                label="Mật khẩu"
-                name="password"
-                type="password"
-                placeholder="Tạo mật khẩu"
-                icon={<Lock size={20} />}
-                value={formData.password}
-                onChange={handleInputChange}
-                error={errors.password}
-                showStrength={true} // Input mới sẽ render thanh sức mạnh đẹp hơn ở đây
-            />
+                <Input
+                    className="!mb-0"
+                    label="Xác nhận mật khẩu"
+                    name="confirmPassword"
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    error={errors.confirmPassword}
+                />
 
-            <Input
-                label="Xác nhận mật khẩu"
-                name="confirmPassword"
-                type="password"
-                placeholder="Nhập lại mật khẩu"
-                icon={<CheckCircle2 size={20} />}
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
-                error={errors.confirmPassword}
-            />
+                <Button type="submit" isLoading={isLoading} fullWidth className="mt-4 shadow-xl shadow-slate-900/10">
+                    Tiếp tục
+                </Button>
+            </form>
 
-            <Button
-                type="submit"
-                isLoading={isLoading}
-                fullWidth
-                className="mt-4 py-3.5 text-lg shadow-xl shadow-indigo-200"
-            >
-                Đăng ký Tài khoản {!isLoading && <ArrowRight size={18} />}
-            </Button>
-        </form>
+            <div className="mt-8 pt-8 border-t border-slate-100 text-center">
+                <span className="text-slate-500 font-medium">Đã có tài khoản?</span>
+                <button
+                    onClick={onLogin}
+                    className="ml-2 font-bold text-slate-900 hover:underline"
+                >
+                    Đăng nhập
+                </button>
+            </div>
+
+            {/* --- MODAL XÁC THỰC OTP (Bước 2) --- */}
+            {showOtpModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative animate-in zoom-in-95 duration-200">
+                        {/* Close Button */}
+                        <button
+                            onClick={() => setShowOtpModal(false)}
+                            className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <div className="text-center mb-6">
+                            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <RefreshCw size={24} />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-900">Xác thực OTP</h3>
+                            <p className="text-sm text-slate-500 mt-1">
+                                Mã xác thực đã được gửi đến <br/> <span className="font-medium text-slate-900">{formData.email}</span>
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <input
+                                    type="text"
+                                    maxLength={6}
+                                    className="w-full text-center text-2xl font-bold tracking-widest py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-0 outline-none text-slate-900 placeholder:text-slate-200"
+                                    placeholder="000000"
+                                    value={otpCode}
+                                    onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <Button
+                                onClick={handleVerifyAndRegister}
+                                isLoading={isLoading}
+                                fullWidth
+                                className="h-12 text-lg"
+                            >
+                                Xác nhận đăng ký <ArrowRight size={18} className="ml-2"/>
+                            </Button>
+
+                            <div className="text-center">
+                                <button
+                                    onClick={handleResendOtp}
+                                    disabled={isResending}
+                                    className="text-sm text-slate-500 hover:text-blue-600 font-medium transition-colors disabled:opacity-50"
+                                >
+                                    {isResending ? 'Đang gửi...' : 'Gửi lại mã?'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };

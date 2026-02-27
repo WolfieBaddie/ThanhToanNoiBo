@@ -1,32 +1,32 @@
 import { useState, useEffect, useCallback } from 'react';
 import { adminUserService } from '@/services/admin/admin.user.service';
-import { UserFilterParams, UserResponse, UserStatus } from '@/types/user.type';
+import { UserFilterParams, UserResponse, UserStatus, UserType } from '@/types/user.type';
 import { useDebounce } from '@/hooks/useDebounce';
 
 export const useAdminUsers = (initialSize = 10) => {
-    // State Data
+    // Data State
     const [data, setData] = useState<UserResponse[]>([]);
     const [totalItems, setTotalItems] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
 
-    // State Loading & Error
+    // UI State
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // State Filter
+    // Filter State
     const [filters, setFilters] = useState<UserFilterParams>({
         page: 0,
         size: initialSize,
         keyword: '',
         status: null,
         role: null,
-        fromDate: undefined, // [MỚI]
-        toDate: undefined    // [MỚI]
+        userType: null, // [MỚI]
+        fromDate: undefined,
+        toDate: undefined
     });
 
     const debouncedKeyword = useDebounce(filters.keyword, 500);
 
-    // --- MAIN FETCH FUNCTION ---
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -41,26 +41,20 @@ export const useAdminUsers = (initialSize = 10) => {
                 setTotalItems(res.totalItems || 0);
                 setTotalPages(res.totalPages || 0);
             } else {
-                console.warn("API response format invalid:", res);
                 setData([]);
                 setTotalItems(0);
-                setTotalPages(0);
             }
         } catch (err: any) {
             console.error("Fetch Users Error:", err);
-            setError(err.response?.data?.message || "Lỗi tải danh sách người dùng");
+            setError(err.message || "Lỗi tải dữ liệu");
             setData([]);
         } finally {
             setLoading(false);
         }
     }, [
-        filters.page,
-        filters.size,
-        filters.status,
-        filters.role,
-        filters.fromDate, // [MỚI] Thêm vào dependency
-        filters.toDate,   // [MỚI] Thêm vào dependency
-        debouncedKeyword
+        filters.page, filters.size, filters.status, filters.role,
+        filters.userType, // [MỚI] Dependency
+        filters.fromDate, filters.toDate, debouncedKeyword
     ]);
 
     useEffect(() => {
@@ -72,23 +66,21 @@ export const useAdminUsers = (initialSize = 10) => {
     const setSearch = (keyword: string) => setFilters(prev => ({ ...prev, keyword, page: 0 }));
     const setStatusFilter = (status: UserStatus | null) => setFilters(prev => ({ ...prev, status, page: 0 }));
     const setRoleFilter = (role: string | null) => setFilters(prev => ({ ...prev, role, page: 0 }));
-    const refresh = () => fetchUsers();
 
-    // [MỚI] Action set Date Filter
-    // Hàm này nhận Date object và convert sang string YYYY-MM-DD
+    // [MỚI] Action lọc UserType
+    const setUserTypeFilter = (type: UserType | null) => setFilters(prev => ({ ...prev, userType: type, page: 0 }));
+
     const setDateFilter = (from: Date | null, to: Date | null) => {
         const formatDate = (date: Date) => {
-            // Lấy YYYY-MM-DD theo local time để tránh lệch múi giờ
             const offset = date.getTimezoneOffset();
             const localDate = new Date(date.getTime() - (offset * 60 * 1000));
             return localDate.toISOString().split('T')[0];
         };
-
         setFilters(prev => ({
             ...prev,
             fromDate: from ? formatDate(from) : undefined,
             toDate: to ? formatDate(to) : undefined,
-            page: 0 // Reset về trang 1 khi lọc
+            page: 0
         }));
     };
 
@@ -103,7 +95,8 @@ export const useAdminUsers = (initialSize = 10) => {
         setSearch,
         setStatusFilter,
         setRoleFilter,
-        setDateFilter, // [MỚI] Export function
-        refresh
+        setUserTypeFilter, // [MỚI] Export
+        setDateFilter,
+        refresh: fetchUsers
     };
 };

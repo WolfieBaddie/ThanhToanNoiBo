@@ -28,6 +28,7 @@ export interface Transaction {
     description: string;
     amount: number;
     direction: 'IN' | 'OUT';
+    quantity?: number;
     status: TransactionStatusEnum;
     transactionType: TransactionTypeEnum;
     createdAt: string;
@@ -46,7 +47,12 @@ export interface TransactionItemDetail {
 export interface TransactionDetail {
     transactionId: string;
     transactionRef: string;
-    amount: number;
+    amount: number;       // Tổng tiền thanh toán (Gốc + Thuế)
+
+    // [MỚI] Thêm trường Breakdown tiền
+    originalAmount?: number; // Tiền gốc
+    taxAmount?: number;      // Tiền thuế VAT
+
     status: TransactionStatusEnum;
     type: TransactionTypeEnum;
     description: string;
@@ -64,7 +70,7 @@ export interface TransactionDetail {
     partnerInfo?: TransactionPartnerInfo;
     evidenceImage?: string;
 
-    // [MỚI] Danh sách chi tiết các món (cho giao dịch Combo/Package)
+    // Danh sách chi tiết các món (cho giao dịch Combo/Package)
     items?: TransactionItemDetail[];
 }
 
@@ -97,7 +103,12 @@ export interface UserTransactionDetail {
     isTicketRedemption: boolean;
 
     // Thông tin chung
-    amount: number;
+    amount: number;          // Tổng tiền
+
+    // [MỚI] Thêm trường Breakdown tiền cho User xem bill
+    originalAmount?: number; // Tiền gốc
+    taxAmount?: number;      // Tiền thuế
+
     status: string;
     type: string;
     description: string;
@@ -113,7 +124,7 @@ export interface UserTransactionDetail {
     serviceId?: string;
     packageId?: string;
 
-    // [MỚI] Danh sách chi tiết các món (cho giao dịch Combo/Package)
+    // Danh sách chi tiết các món (cho giao dịch Combo/Package)
     items?: TransactionItemDetail[];
 
     // Thông tin đối tác & Ảnh bằng chứng

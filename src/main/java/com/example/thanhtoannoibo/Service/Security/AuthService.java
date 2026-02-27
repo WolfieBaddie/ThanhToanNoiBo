@@ -5,6 +5,7 @@ import com.example.thanhtoannoibo.Common.UserStatus;
 import com.example.thanhtoannoibo.Common.UserType;
 import com.example.thanhtoannoibo.Common.UserVoucherStatus;
 import com.example.thanhtoannoibo.Config.JwtProperties;
+import com.example.thanhtoannoibo.DTO.Request.Auth.ForgotPasswordRequest;
 import com.example.thanhtoannoibo.DTO.Request.Auth.LoginRequest;
 import com.example.thanhtoannoibo.DTO.Request.Auth.RefreshTokenRequest;
 import com.example.thanhtoannoibo.DTO.Response.Auth.LoginResponse;
@@ -17,12 +18,10 @@ import com.example.thanhtoannoibo.Entity.Security.AuditLog;
 import com.example.thanhtoannoibo.Entity.Security.UserSession;
 import com.example.thanhtoannoibo.Exception.AppException;
 import com.example.thanhtoannoibo.Repository.Credit.UserCreditRepository;
-import com.example.thanhtoannoibo.Repository.Security.AuditLogRepository;
-import com.example.thanhtoannoibo.Repository.Security.RoleRepository;
-import com.example.thanhtoannoibo.Repository.Security.SessionRepository;
-import com.example.thanhtoannoibo.Repository.Security.UserRepository;
+import com.example.thanhtoannoibo.Repository.Security.*;
 import com.example.thanhtoannoibo.Repository.Voucher.UserVoucherRepository;
 import com.example.thanhtoannoibo.Entity.Voucher.UserVoucher;
+import com.example.thanhtoannoibo.Service.Notification.NotificationService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -57,7 +56,9 @@ public class AuthService {
     private final AuditLogRepository auditLogRepository;
     private final UserCreditRepository userCreditRepository;
     private final JwtProperties jwtProperties;
-    private final com.example.thanhtoannoibo.Service.Security.OtpService otpService;
+    private final OtpService  otpService;
+    private final HttpServletRequest httpRequest;
+    private final NotificationService notificationService;
 
     @Value("${app.jwt.access-ttl-minutes:15}")
     private long accessTtlMinutes;
@@ -180,10 +181,33 @@ public class AuthService {
                 });
     }
 
+    public void logout(HttpServletRequest request) {
+        String refreshToken = null;
+
+        // 1. Tìm Refresh Token trong Cookie
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("refreshToken".equals(cookie.getName())) {
+                    refreshToken = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+        // 2. Nếu tìm thấy thì gọi hàm revoke bên trên
+        if (refreshToken != null) {
+            try {
+                this.logout(refreshToken); // Gọi hàm logout(String) nội bộ
+            } catch (Exception e) {
+                // Log lỗi nhưng không ném exception để Controller vẫn tiếp tục xóa Cookie
+                System.out.println("Logout revoke failed for token: " + refreshToken + ". Error: " + e.getMessage());
+            }
+        }
+    }
+
     @Transactional
     public LoginResponse register(RegisterRequest req) {
-        // 1. [MỚI] Validate OTP trước tiên
-        // "REGISTER" là actionType quy ước giữa BE và FE
+        // 1. Validate OTP
         otpService.validateOtp(req.getEmail(), req.getOtp(), "REGISTER");
 
         // 2. Validate trùng lặp
@@ -201,95 +225,87 @@ public class AuthService {
                 .fullName(req.getFullName())
                 .email(req.getEmail())
                 .phoneNumber(req.getPhoneNumber())
-                .userType(UserType.USER) // Mặc định là User/Student
+                .userType(UserType.USER)
                 .status(UserStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        Role defaultRole = roleRepository.findByRoleCode("STUDENT")
+        Role defaultRole = roleRepository.findByRoleCode("USER")
                 .orElseThrow(() -> new RuntimeException("DEFAULT_ROLE_NOT_FOUND"));
 
         newUser.setRoles(new HashSet<>(Collections.singletonList(defaultRole)));
 
         User savedUser = userRepository.save(newUser);
 
-        // 4. [MỚI] Tự động tạo Ví (UserCredit)
+        // 4. Tạo Ví (UserCredit)
         UserCredit newCredit = UserCredit.builder()
                 .user(savedUser)
-                .balance(BigDecimal.ZERO)          // Số dư ban đầu = 0
+                .balance(BigDecimal.ZERO)
                 .totalDeposited(BigDecimal.ZERO)
                 .currentDaySpending(BigDecimal.ZERO)
-                .dailyLimitAmount(null)            // Không giới hạn
+                .dailyLimitAmount(null)
                 .build();
-
         userCreditRepository.save(newCredit);
 
-        // 5. Tạo Voucher chào mừng (Giữ nguyên logic cũ nếu cần)
-        String uniqueVoucherCode = "V" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0,4).toUpperCase();
-        UserVoucher newVoucher = UserVoucher.builder()
-                .owner(savedUser)
-                .voucherCode(uniqueVoucherCode)
-                .status(UserVoucherStatus.ACTIVE)
-                .createdAt(LocalDateTime.now())
-                .build();
-        userVoucherRepository.save(newVoucher);
-
         // 6. Ghi Audit Log
+        String ipAddress = (httpRequest != null) ? httpRequest.getRemoteAddr() : "UNKNOWN";
         AuditLog auditLog = AuditLog.builder()
                 .user(savedUser)
                 .action("REGISTER_ACCOUNT")
                 .entityType("USER")
                 .entityId(savedUser.getUserId())
                 .details(Map.of("email", savedUser.getEmail(), "creditId", newCredit.getCreditId().toString()))
-                .ipAddress("REGISTER_FLOW")
+                .ipAddress(ipAddress)
                 .createdAt(LocalDateTime.now())
                 .build();
         auditLogRepository.save(auditLog);
 
-        // 7. Tự động đăng nhập (Tạo Token trả về luôn)
-        // Lấy quyền hạn
-        List<String> permissionCodes = savedUser.getRoles().stream()
-                .flatMap(role -> role.getPermissions().stream())
-                .map(Permission::getPermissionCode)
-                .distinct().sorted().collect(Collectors.toList());
-
-        List<String> roleCodes = savedUser.getRoles().stream()
-                .map(Role::getRoleCode).distinct().sorted().collect(Collectors.toList());
-
-        // Sinh Token
-        Instant accessExp = Instant.now().plus(Duration.ofMinutes(accessTtlMinutes));
-        String accessToken = jwtService.generateAccessToken(
-                savedUser.getUsername(),
-                savedUser.getUserId(),
-                savedUser.getUserType(),
-                permissionCodes,
-                roleCodes,
-                accessExp
-        );
-
-        String refreshTokenPlain = UUID.randomUUID().toString() + "." + UUID.randomUUID();
-        String refreshHash = sha256Base64(refreshTokenPlain);
-        Instant refreshExp = Instant.now().plus(Duration.ofDays(refreshTtlDays));
-
-        // Lưu Session
-        UserSession session = UserSession.builder()
-                .user(savedUser)
-                .token(refreshHash)
-                .ipAddress("REGISTER_IP")
-                .expiresAt(LocalDateTime.now().plusDays(refreshTtlDays))
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        sessionRepository.save(session);
-
         return LoginResponse.builder()
                 .userId(savedUser.getUserId())
-                .accessToken(accessToken)
-                .accessExpiresAt(accessExp)
-                .refreshToken(refreshTokenPlain)
-                .refreshExpiresAt(refreshExp)
-                // Có thể trả thêm user info nếu cần
+                .accessToken(null)  // Không trả về token
+                .refreshToken(null) // Không trả về token
+                // Các trường khác null
                 .build();
+    }
+
+    public void sendForgotPasswordOtp(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // Kiểm tra tài khoản bị khóa
+        if (user.getStatus() == UserStatus.LOCKED) {
+            throw new AppException(ErrorCode.USER_LOCKED);
+        }
+
+        otpService.generateAndSendOtp(email, "FORGOT_PASSWORD");
+    }
+
+    @Transactional
+    public void resetPassword(ForgotPasswordRequest request) {
+        // 1. Tìm User
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new AppException(ErrorCode.USER_NOT_FOUND));
+
+        // 2. Kiểm tra trạng thái khóa
+        if (user.getStatus() == UserStatus.LOCKED) {
+            throw new AppException(ErrorCode.USER_LOCKED);
+        }
+
+        // 3. Validate OTP
+        otpService.validateOtp(request.getEmail(), request.getOtp(), "FORGOT_PASSWORD");
+
+        // 4. Cập nhật mật khẩu mới
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        // 5. Gửi thông báo
+        notificationService.createNotification(
+                user,
+                "Đổi mật khẩu thành công",
+                "Mật khẩu tài khoản của bạn đã được đặt lại thành công.",
+                "SECURITY",
+                null
+        );
     }
 
     @Transactional

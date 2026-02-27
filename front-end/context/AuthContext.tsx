@@ -16,11 +16,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<UserProfile | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
 
-    // Hàm lấy thông tin user đầy đủ (từ /auth/me)
     const fetchUserProfile = async () => {
         try {
             const userData = await authService.getMe();
-            // Đảm bảo roles luôn là mảng để tránh lỗi null khi check quyền
             if (!userData.roles) userData.roles = [];
             setUser(userData);
         } catch (error) {
@@ -31,6 +29,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     useEffect(() => {
         const initAuth = async () => {
+            const isLogout = localStorage.getItem('IS_LOGOUT');
+
+            if (isLogout) {
+                console.log('Phát hiện sự kiện Logout chủ động. Dừng check phiên.');
+                localStorage.removeItem('IS_LOGOUT');
+                setUser(null);
+                setIsLoading(false);
+                return;
+            }
+
+            // =======================================================
+            // [FIX LỖI BỊ ĐÁ VĂNG KHỎI TRANG ĐĂNG KÝ]
+            // Chặn không gọi API check session nếu đang ở trang Đăng ký/Quên Mật khẩu.
+            // Tránh trường hợp API trả về 401 làm Axios Interceptor
+            // tự động đá ngược về /login.
+            // =======================================================
+            const path = window.location.pathname.toLowerCase();
+            if (path.includes('/register') || path.includes('/dang-ky') || path.includes('/forgot')) {
+                setUser(null);
+                setIsLoading(false);
+                return;
+            }
+
             try {
                 await fetchUserProfile();
             } finally {
@@ -42,14 +63,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const login = async (credentials: LoginRequest) => {
         try {
-            // Bước 1: Gọi Login để lấy Token (Cookie)
-            // Response login trả về user thiếu roles -> KHÔNG DÙNG ĐỂ SET STATE
+            localStorage.removeItem('IS_LOGOUT');
             await authService.login(credentials);
-
-            // Bước 2: Gọi ngay /auth/me để lấy User đầy đủ (có Roles)
-            // Lúc này cookie đã được set bởi bước 1 nên request này sẽ hợp lệ
             await fetchUserProfile();
-
         } catch (error) {
             console.error("Login failed:", error);
             throw error;
@@ -62,7 +78,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } catch (error) {
             console.error("Logout error", error);
         } finally {
-            setUser(null);
+            localStorage.setItem('IS_LOGOUT', 'true');
             window.location.href = '/login';
         }
     };

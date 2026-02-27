@@ -27,7 +27,7 @@ export interface UiTransaction {
 
 const HistoryPage: React.FC = () => {
     const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
-    const [isDateModalOpen, setIsDateModalOpen] = useState(false); // State bật tắt modal
+    const [isDateModalOpen, setIsDateModalOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
     const {
@@ -47,16 +47,57 @@ const HistoryPage: React.FC = () => {
 
     const handleDateApply = (from: Date, to: Date) => {
         setDateFilter(from, to);
-        setIsDateModalOpen(false); // Đóng sau khi chọn
+        setIsDateModalOpen(false);
     };
 
-    const uiTransactions: UiTransaction[] = data.map(t => {
+    // --- LOGIC PHÂN TRANG THÔNG MINH ---
+    const renderPagination = () => {
+        const currentPage = (filters.page || 0) + 1;
+        const range: (number | string)[] = [];
+
+        if (totalPages <= 7) {
+            for (let i = 1; i <= totalPages; i++) range.push(i);
+        } else {
+            range.push(1);
+            if (currentPage > 3) range.push('...');
+
+            const start = Math.max(2, currentPage - 1);
+            const end = Math.min(totalPages - 1, currentPage + 1);
+
+            for (let i = start; i <= end; i++) {
+                if (i > 1 && i < totalPages) range.push(i);
+            }
+
+            if (currentPage < totalPages - 2) range.push('...');
+            if (totalPages > 1) range.push(totalPages);
+        }
+
+        return range.map((page, index) => (
+            <button
+                key={index}
+                onClick={() => typeof page === 'number' && setPage(page - 1)}
+                disabled={page === '...'}
+                className={`min-w-[36px] h-9 px-3 rounded-xl text-sm font-bold transition-all
+                    ${page === currentPage
+                    ? 'bg-slate-900 text-white shadow-md dark:bg-indigo-600'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700'}
+                    ${page === '...' ? 'cursor-default hover:bg-transparent' : ''}
+                `}
+            >
+                {page}
+            </button>
+        ));
+    };
+
+    // [CẬP NHẬT] MAP DATA CHO UI
+    const uiTransactions: UiTransaction[] = data.map((t: any) => {
         let displayTitle = "Giao dịch hệ thống";
         let displayImage = undefined;
         let subTitle = t.description;
 
+        // 1. Xử lý Title & Image
         if (t.transactionType === 'BUY_VOUCHER') {
-            displayTitle = t.description;
+            displayTitle = t.description; // Giữ nguyên tên gói mua
             subTitle = 'Mua Gói dịch vụ/Voucher';
         }
         else if (t.partnerInfo) {
@@ -75,20 +116,26 @@ const HistoryPage: React.FC = () => {
 
         const isRedemption = t.transactionType === 'REDEMPTION';
         const isPositive = t.direction === 'IN';
-        let displayAmountStr = "";
+        let finalDisplayAmount = "";
 
+        // 2. [FIX] Xử lý hiển thị cho Redemption theo yêu cầu mới
         if (isRedemption) {
-            if (!t.partnerInfo) subTitle = 'Đổi Voucher/Quà tặng';
-            const quantityMatch = t.description?.match(/(\d+)/);
-            const quantity = quantityMatch ? quantityMatch[0] : '1';
-            displayAmountStr = `${quantity} Vé`;
-        } else {
-            const xuValue = Math.abs(t.amount) / 1000;
-            displayAmountStr = new Intl.NumberFormat('vi-VN').format(xuValue) + " xu";
-        }
+            subTitle = t.description;
 
-        const prefix = isPositive ? '+' : '-';
-        const finalDisplayAmount = `${prefix}${displayAmountStr}`;
+            // Lấy description đè vào chỗ hiển thị tiền
+            const rawDesc = t.description || "";
+            // Cắt chuỗi nếu quá dài (ví dụ > 25 ký tự) để giữ layout đẹp
+            const maxLength = 25;
+            finalDisplayAmount = rawDesc.length > maxLength
+                ? rawDesc.substring(0, maxLength) + "..."
+                : rawDesc;
+        } else {
+            // Các giao dịch tiền tệ bình thường
+            const xuValue = Math.abs(t.amount);
+            const displayAmountStr = new Intl.NumberFormat('vi-VN').format(xuValue) + "đ";
+            const prefix = isPositive ? '+' : '-';
+            finalDisplayAmount = `${prefix}${displayAmountStr}`;
+        }
 
         return {
             id: t.transactionId,
@@ -115,7 +162,6 @@ const HistoryPage: React.FC = () => {
         <div className="max-w-5xl mx-auto px-4 py-8 pb-24 font-sans space-y-6">
             <HistoryHeader />
 
-            {/* Modal Chi Tiết (Fixed giữa màn hình nên để ở ngoài OK) */}
             <TransactionDetailModal
                 isOpen={!!selectedTxId}
                 onClose={() => setSelectedTxId(null)}
@@ -126,11 +172,9 @@ const HistoryPage: React.FC = () => {
             {/* --- TOOLBAR --- */}
             <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
                 <div className="flex-1 w-full flex items-center gap-3">
-
-                    {/* [SỬA LỖI UI]: Đặt DateRangeModal VÀO TRONG thẻ div relative này */}
                     <div className="relative">
                         <button
-                            onClick={() => setIsDateModalOpen(!isDateModalOpen)} // Toggle bật tắt
+                            onClick={() => setIsDateModalOpen(!isDateModalOpen)}
                             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all font-bold text-sm whitespace-nowrap
                             ${filters.fromDate
                                 ? 'bg-slate-900 border-slate-900 text-white dark:bg-indigo-600 dark:border-indigo-600'
@@ -141,7 +185,6 @@ const HistoryPage: React.FC = () => {
                             <span>{filters.fromDate ? `${filters.fromDate} - ${filters.toDate || '...'}` : 'Thời gian'}</span>
                         </button>
 
-                        {/* DateRangeModal được đặt ở đây để absolute position hoạt động đúng theo nút bấm */}
                         <DateRangeModal
                             isOpen={isDateModalOpen}
                             onClose={() => setIsDateModalOpen(false)}
@@ -179,28 +222,32 @@ const HistoryPage: React.FC = () => {
                             onClearFilters={handleClearFilters}
                         />
 
-                        {/* --- PAGINATION --- */}
+                        {/* --- PAGINATION (NÂNG CẤP) --- */}
                         {totalPages > 0 && (
                             <div className="flex justify-center py-6 border-t border-slate-100 dark:border-slate-700 mt-auto">
-                                <div className="bg-white dark:bg-slate-700 p-2 rounded-2xl border border-slate-200 dark:border-slate-600 shadow-sm flex items-center gap-2">
+                                <div className="bg-white dark:bg-slate-700 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-600 shadow-sm flex items-center gap-1">
                                     <button
                                         onClick={() => setPage(Math.max(0, (filters.page || 0) - 1))}
                                         disabled={filters.page === 0}
-                                        className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-500 dark:text-slate-300"
+                                        className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-500 dark:text-slate-300"
                                     >
                                         <ChevronLeft size={20} />
                                     </button>
 
-                                    <div className="flex items-center gap-1 px-4">
-                                        <span className="text-sm font-bold text-slate-600 dark:text-slate-300">
-                                            Trang {(filters.page || 0) + 1} / {totalPages}
-                                        </span>
+                                    {/* Render danh sách số trang */}
+                                    <div className="flex items-center gap-1 px-2 hidden sm:flex">
+                                        {renderPagination()}
                                     </div>
+
+                                    {/* Mobile: Chỉ hiện text đơn giản */}
+                                    <span className="sm:hidden text-sm font-bold text-slate-600 dark:text-slate-300 px-4">
+                                        Trang {(filters.page || 0) + 1} / {totalPages}
+                                    </span>
 
                                     <button
                                         onClick={() => setPage(Math.min(totalPages - 1, (filters.page || 0) + 1))}
                                         disabled={(filters.page || 0) >= totalPages - 1}
-                                        className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-500 dark:text-slate-300"
+                                        className="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-600 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-slate-500 dark:text-slate-300"
                                     >
                                         <ChevronRight size={20} />
                                     </button>

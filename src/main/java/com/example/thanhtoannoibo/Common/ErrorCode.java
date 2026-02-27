@@ -14,7 +14,7 @@ public enum ErrorCode {
     // --- 2. USER (Người dùng) ---
     USER_NOT_FOUND("U0001", "Người dùng không tồn tại", HttpStatus.NOT_FOUND),
     USER_LOCKED("U0002", "Tài khoản người dùng đang bị khóa", HttpStatus.FORBIDDEN),
-
+    ROLE_NOT_FOUND("R0001", "Quyền không tồn tại", HttpStatus.NOT_FOUND),
     // --- 3. CREDIT WALLET (Ví Xu - UserCredit) ---
     CREDIT_NOT_FOUND("W0001", "Không tìm thấy ví Xu của người dùng", HttpStatus.NOT_FOUND),
     INSUFFICIENT_BALANCE("W0002", "Số dư Xu không đủ để thực hiện giao dịch", HttpStatus.BAD_REQUEST),
@@ -29,9 +29,13 @@ public enum ErrorCode {
     // --- 5. CATALOG (Gói cước & Dịch vụ) ---
     PACKAGE_NOT_FOUND("P0001", "Gói combo không tồn tại", HttpStatus.NOT_FOUND),
     PACKAGE_INACTIVE("P0002", "Gói combo này đang tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
+    PACKAGE_CODE_EXISTS("P0003", "Mã gói dịch vụ đã tồn tại", HttpStatus.BAD_REQUEST),
+    PACKAGE_UPDATE_RESTRICTED("P0004", "Gói dịch vụ đang bị khóa hoặc ngưng hoạt động. Vui lòng kích hoạt lại trước khi cập nhật thông tin.", HttpStatus.BAD_REQUEST),
+    SERVICE_NOT_BELONG_TO_COUNTER("P0005", "Dịch vụ được chọn không thuộc quản lý của quầy hàng này.", HttpStatus.FORBIDDEN),
     SERVICE_NOT_FOUND("S0001", "Dịch vụ không tồn tại", HttpStatus.NOT_FOUND),
     SERVICE_INACTIVE("S0002", "Dịch vụ này đang tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
-
+    SERVICE_EXISTED("S0003", "Dịch vụ đã tồn tại", HttpStatus.NOT_FOUND),
+    SERVICE_NOT_IN_VOUCHER("S004", "Dịch vụ không ồn tại trong voucher", HttpStatus.BAD_REQUEST),
     // --- 6. VOUCHER & ITEMS (Kho vé) ---
     VOUCHER_NOT_FOUND("V0001", "Không tìm thấy vé/voucher", HttpStatus.NOT_FOUND),
     VOUCHER_USED_OR_EXPIRED("V0002", "Voucher đã được sử dụng hoặc đã hết hạn", HttpStatus.BAD_REQUEST),
@@ -60,13 +64,34 @@ public enum ErrorCode {
     COUNTER_NOT_FOUND("C0001", "Không tìm thấy quầy hàng", HttpStatus.NOT_FOUND),
     COUNTER_INACTIVE("C0002", "Quầy hàng đang đóng cửa hoặc tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
     MERCHANT_NO_COUNTER("C0003", "Tài khoản này chưa được gán quản lý quầy hàng nào", HttpStatus.FORBIDDEN),
-
+    MERCHANT_NOT_OWNER("S0003", "Dịch vụ này không thuộc quản lý của quầy hàng bạn", HttpStatus.FORBIDDEN),
+    SERVICE_UPDATE_RESTRICTED("S0004", "Dịch vụ đang bị khóa hoặc ngưng hoạt động. Vui lòng kích hoạt lại trước khi cập nhật thông tin.", HttpStatus.BAD_REQUEST),
+    COUNTER_ALREADY_EXISTS("C0004", "Tài khoản này đã sở hữu một quầy hàng. Không thể tạo thêm.", HttpStatus.CONFLICT),
+    COUNTER_CODE_EXISTS("C0005", "Mã quầy hàng đã tồn tại.", HttpStatus.BAD_REQUEST),
+    COUNTER_NAME_REQUIRED("C0006", "Tên quầy hàng không được để trống.", HttpStatus.BAD_REQUEST),
     // --- 10. OTP & AUTHENTICATION ---
     OTP_INVALID("A0001", "Mã OTP không chính xác.", HttpStatus.BAD_REQUEST),
     OTP_EXPIRED("A0002", "Mã OTP đã hết hạn hoặc không tồn tại. Vui lòng lấy mã mới.", HttpStatus.BAD_REQUEST),
     OTP_LIMIT_REACHED("A0003", "Bạn đã yêu cầu OTP quá nhiều lần. Vui lòng thử lại sau.", HttpStatus.TOO_MANY_REQUESTS),
-    EMAIL_SEND_FAILED("A0004", "Không thể gửi email OTP. Vui lòng thử lại sau.", HttpStatus.INTERNAL_SERVER_ERROR);
+    EMAIL_SEND_FAILED("A0004", "Không thể gửi email OTP. Vui lòng thử lại sau.", HttpStatus.INTERNAL_SERVER_ERROR),
 
+    // --- 11. MERCHANT NOTIFICATIONS (Thông báo nghiệp vụ) [MỚI] ---
+    // %d, %s là placeholder để String.format điền giá trị vào
+    NOTIFY_REGISTER_SUCCESS("N0001", "Bạn đã đăng ký thêm %d món vào menu.", HttpStatus.OK),
+    NOTIFY_REQUEST_SUCCESS("N0002", "Món '%s' đã được gửi yêu cầu duyệt.", HttpStatus.OK),
+    NOTIFY_UPDATE_SUCCESS("N0003", "Dịch vụ đã được cập nhật thành công.", HttpStatus.OK),
+
+    CATEGORY_CODE_EXISTS("CA0001", "Mã danh mục đã tồn tại", HttpStatus.BAD_REQUEST),
+    CATEGORY_NOT_FOUND("CA0002", "Danh mục không tồn tại", HttpStatus.NOT_FOUND),
+    CATEGORY_INACTIVE("CA0003", "Danh mục này đang tạm ngưng hoạt động", HttpStatus.BAD_REQUEST),
+    MASTER_SERVICE_CODE_EXISTS("AD002", "Mã dịch vụ hệ thống đã tồn tại", HttpStatus.BAD_REQUEST),
+    SERVICE_ALREADY_APPROVED("AD003", "Dịch vụ này đã được duyệt trước đó", HttpStatus.BAD_REQUEST),
+    PACKAGE_ALREADY_APPROVED("AD004", "Gói combo này đã được duyệt trước đó", HttpStatus.BAD_REQUEST),
+    ITEM_IS_PENDING("MC003", "Mục này đang chờ duyệt, không thể chỉnh sửa hoặc xóa.", HttpStatus.BAD_REQUEST),
+    INVALID_STATUS_TRANSITION("MC004", "Chuyển đổi trạng thái không hợp lệ.", HttpStatus.BAD_REQUEST),
+    CANNOT_REVERT_TO_PENDING("MC005", "Không thể chuyển thủ công về trạng thái chờ duyệt.", HttpStatus.BAD_REQUEST),
+    INVALID_WITHDRAWAL_TIME("MC006", "Chưa đến kỳ đối soát. Hệ thống chỉ tiếp nhận yêu cầu vào 2 ngày cuối cùng của tháng.", HttpStatus.BAD_REQUEST),
+    INVALID_PRICE("AD005", "Giá tiền không hợp lệ", HttpStatus.BAD_REQUEST);
     private final String code;
     private final String message;
     private final HttpStatus httpStatus;

@@ -1,5 +1,6 @@
 package com.example.thanhtoannoibo.DTO.Response.Catalog;
 
+import com.example.thanhtoannoibo.Common.CatalogStatus;
 import lombok.Builder;
 import lombok.Data;
 import java.math.BigDecimal;
@@ -14,7 +15,12 @@ public class ServiceResponse {
     private BigDecimal unitPrice;
     private String categoryName;
     private String imageUrl;
-    private boolean isActive;
+    private CatalogStatus status;
+    private String masterServiceCode;
+
     @Builder.Default
     private String type = "SERVICE";
+
+    private UUID detailId;
+    private Integer remainingQuantity;
 }
