@@ -12,13 +12,14 @@ import java.util.UUID;
 @Builder
 public class AdminServiceResponse {
     // Thông tin chung của Dịch vụ (Lấy từ đại diện 1 bản ghi AppService)
+    private UUID serviceId;
     private String serviceCode;
     private String serviceName;
     private String imageUrl;
     private String description;
     private String categoryName;
     private CatalogStatus status;
-
+    private String masterServiceCode;
     // Thống kê giá (Vì mỗi merchant có thể bán giá khác nhau)
     private BigDecimal minPrice;
     private BigDecimal maxPrice;

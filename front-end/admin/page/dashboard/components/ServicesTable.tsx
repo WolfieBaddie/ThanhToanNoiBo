@@ -28,12 +28,13 @@ const ServicesTable: FC = () => {
         data, loading, totalItems, totalPages, filters, categories,
         setTabType, setPage, setSearch, setCategoryFilter, refresh
     } = useAdminCatalog();
-
+    console.log(data);
     // 2. MUTATION HOOK
     const {
         createMasterService, updateMasterService, deleteMasterService,
         // [CẬP NHẬT 2] Lấy thêm các hàm xử lý Package
-        createPackage, updatePackage, deletePackage
+        createPackage, updatePackage, deletePackage,
+        approveMerchantService, rejectMerchantService
     } = useAdminCatalogMutations();
 
     // 3. STATE UI
@@ -206,6 +207,21 @@ const ServicesTable: FC = () => {
             showNotification(`Thất bại: ${msg}`, "error");
         } finally {
             setIsSubmitting(false);
+        }
+    };
+
+    const handleModerateMerchantService = async (merchantServiceId: string, action: 'APPROVE' | 'REJECT') => {
+        try {
+            if (action === 'APPROVE') {
+                await approveMerchantService(merchantServiceId);
+                showNotification("Đã duyệt dịch vụ của quầy!", "success");
+            } else {
+                await rejectMerchantService(merchantServiceId);
+                showNotification("Đã từ chối dịch vụ của quầy!", "success");
+            }
+        } catch (error: any) {
+            console.error("Lỗi khi duyệt:", error);
+            showNotification(`Lỗi: ${error?.response?.data?.message || "Không thể thực hiện"}`, "error");
         }
     };
 

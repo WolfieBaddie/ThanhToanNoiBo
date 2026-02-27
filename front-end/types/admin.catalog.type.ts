@@ -62,6 +62,7 @@ export interface UpdateCategoryRequest {
 
 // [MỚI] Type Response cho View Catalog
 export interface AdminServiceResponse {
+    serviceId: string;
     serviceCode: string;
     serviceName: string;
     imageUrl: string;
@@ -71,6 +72,7 @@ export interface AdminServiceResponse {
     minPrice: number;
     maxPrice: number;
     merchants: MerchantInfo[];
+    masterServiceCode;
 }
 
 export interface MerchantInfo {
